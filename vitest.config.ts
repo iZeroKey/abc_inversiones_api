@@ -5,5 +5,11 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["src/tests/**/*.test.ts"],
+    globalSetup: ["src/tests/setup.ts"],
+    fileParallelism: false,
+    sequence: {
+      concurrent: false,
+      shuffle: false,
+    },
   },
 });
