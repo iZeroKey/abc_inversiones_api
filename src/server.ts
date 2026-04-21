@@ -1,20 +1,19 @@
 import "dotenv/config";
 import { app } from "./app.js";
-import { env } from "./core/config/env.js";
+import { env } from "./config/env.js";
 
-const server = app.listen(env.PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`${env.APP_NAME} listening on port ${env.PORT}`);
+const { PORT, APP_NAME } = env;
+
+const server = app.listen(PORT, () => {
+  console.log(`[Server] ${APP_NAME} iniciado en puerto ${PORT}`);
 });
 
 const shutdown = (): void => {
   server.close((error) => {
     if (error) {
-      // eslint-disable-next-line no-console
-      console.error("Error while closing server", error);
+      console.error("[Server] Error al cerrar el servidor:", error);
       process.exit(1);
     }
-
     process.exit(0);
   });
 };
