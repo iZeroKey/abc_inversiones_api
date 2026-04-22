@@ -14,6 +14,7 @@ import {
   createAccessRequestSchema,
   updateRequestStatusSchema,
 } from "./access-requests.schema.js";
+import { logAudit } from "../../utils/audit.util.js";
 
 export const createRequest = async (
   req: Request,
@@ -30,6 +31,14 @@ export const createRequest = async (
       .insert(accessRequests)
       .values(validation.data)
       .returning();
+
+    await logAudit({
+      action: "SUBMIT_ACCESS_REQUEST",
+      module: "ACCESS_REQUESTS",
+      entityId: newRequest.id,
+      newData: newRequest,
+      req,
+    });
 
     sendSuccess(res, 201, "Solicitud enviada correctamente", newRequest);
   } catch (error) {
@@ -91,7 +100,6 @@ export const updateStatus = async (
 
     const { status, observation, initialPassword } = validation.data;
 
-    // 1. Obtener la solicitud actual
     const [accessRequest] = await db
       .select()
       .from(accessRequests)
@@ -103,17 +111,14 @@ export const updateStatus = async (
       return;
     }
 
-    // 2. Si ya está aprobada, no permitir cambios (o lógica similar)
     if (accessRequest.status === "approved") {
       sendError(res, 400, "Esta solicitud ya ha sido aprobada");
       return;
     }
 
-    // 3. Lógica especial para APROBACIÓN
     if (status === "approved") {
-      const password = initialPassword || "ABC123password"; // Contraseña temporal
+      const password = initialPassword || "ABC123password";
 
-      // a. Crear usuario en Supabase Auth
       const { data: authData, error: authError } =
         await supabaseAdmin.auth.admin.createUser({
           email: accessRequest.email,
@@ -133,7 +138,6 @@ export const updateStatus = async (
         return;
       }
 
-      // b. Crear usuario en DB local
       await db.insert(users).values({
         id: authData.user!.id,
         email: accessRequest.email,
@@ -143,12 +147,15 @@ export const updateStatus = async (
         role: accessRequest.roleRequested,
       });
 
-      console.log(
-        `[AccessRequest] Usuario creado para: ${accessRequest.email}`,
-      );
+      await logAudit({
+        userId: req.user!.id,
+        action: "APPROVE_ACCESS_REQUEST_USER_CREATED",
+        module: "ACCESS_REQUESTS",
+        entityId: authData.user!.id,
+        req,
+      });
     }
 
-    // 4. Actualizar estado de la solicitud
     const [updatedRequest] = await db
       .update(accessRequests)
       .set({
@@ -158,6 +165,15 @@ export const updateStatus = async (
       })
       .where(eq(accessRequests.id, id))
       .returning();
+
+    await logAudit({
+      userId: req.user!.id,
+      action: `PROCESS_ACCESS_REQUEST_${status.toUpperCase()}`,
+      module: "ACCESS_REQUESTS",
+      entityId: id,
+      newData: { status },
+      req,
+    });
 
     sendSuccess(res, 200, `Solicitud marcada como ${status}`, updatedRequest);
   } catch (error) {

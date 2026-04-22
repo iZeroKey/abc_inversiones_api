@@ -10,6 +10,7 @@ import {
   sendSuccess,
 } from "../../utils/response.util.js";
 import { loginSchema, registerSchema, changePasswordSchema } from "./auth.schema.js";
+import { logAudit } from "../../utils/audit.util.js";
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -35,6 +36,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       .from(users)
       .where(eq(users.id, data.user.id))
       .limit(1);
+
+    await logAudit({
+      userId: data.user.id,
+      action: "LOGIN",
+      module: "AUTH",
+      req,
+    });
 
     sendSuccess(res, 200, "Login exitoso", {
       user: user || null,
@@ -96,6 +104,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       })
       .returning();
 
+    await logAudit({
+      userId: authData.user!.id,
+      action: "REGISTER_USER",
+      module: "AUTH",
+      entityId: user.id,
+      req,
+    });
+
     sendSuccess(res, 201, "Usuario registrado exitosamente", { user });
   } catch (error) {
     sendError(res, 500, "Error interno del servidor", error);
@@ -118,7 +134,6 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    // 1. Verificar la contraseña actual intentando un login silencioso
     const { error: verifyError } = await supabase.auth.signInWithPassword({
       email: userEmail,
       password: currentPassword,
@@ -129,7 +144,6 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    // 2. Actualizar a la nueva contraseña
     const { error: updateError } = await supabase.auth.updateUser({
       password: newPassword,
     });
@@ -138,6 +152,13 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
       sendError(res, 400, "Error al actualizar la contraseña", updateError.message);
       return;
     }
+
+    await logAudit({
+      userId: req.user!.id,
+      action: "CHANGE_PASSWORD",
+      module: "AUTH",
+      req,
+    });
 
     sendSuccess(res, 200, "Contraseña actualizada correctamente");
   } catch (error) {
