@@ -28,22 +28,22 @@ export const users = pgTable(
       .notNull(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
-  (table) => ({
-    // Políticas de RLS
-    adminAllAccess: pgPolicy("admin_all_access", {
+  (table) => [
+    // RLS
+    pgPolicy("admin_all_access", {
       for: "all",
       to: "authenticated",
       using: sql`role = 'admin' OR is_owner = true`,
     }),
-    userSelfAccess: pgPolicy("user_self_access", {
+    pgPolicy("user_self_access", {
       for: "select",
       to: "authenticated",
       using: sql`id = auth.uid()`,
     }),
-    userSelfUpdate: pgPolicy("user_self_update", {
+    pgPolicy("user_self_update", {
       for: "update",
       to: "authenticated",
       using: sql`id = auth.uid()`,
     }),
-  }),
+  ],
 );
