@@ -3,12 +3,13 @@ import { Request, Response } from "express";
 import { db } from "../../config/db.js";
 import { supabase, supabaseAdmin } from "../../config/supabase.js";
 import { users } from "../../db/schema/users.js";
+import { AuthRequest } from "../../middleware/auth.middleware.js";
 import {
   formatZodError,
   sendError,
   sendSuccess,
 } from "../../utils/response.util.js";
-import { loginSchema, registerSchema } from "./auth.schema.js";
+import { loginSchema, registerSchema, changePasswordSchema } from "./auth.schema.js";
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -87,7 +88,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       .values({
         id: authData.user!.id,
         email,
-        phone, // Sincronización de teléfono con DB local
+        phone,
         firstName,
         lastName,
         role,
@@ -96,6 +97,49 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       .returning();
 
     sendSuccess(res, 201, "Usuario registrado exitosamente", { user });
+  } catch (error) {
+    sendError(res, 500, "Error interno del servidor", error);
+  }
+};
+
+export const changePassword = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const validation = changePasswordSchema.safeParse(req.body);
+    if (!validation.success) {
+      sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
+      return;
+    }
+
+    const { currentPassword, newPassword } = validation.data;
+    const userEmail = req.user?.email;
+
+    if (!userEmail) {
+      sendError(res, 401, "Usuario no identificado");
+      return;
+    }
+
+    // 1. Verificar la contraseña actual intentando un login silencioso
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: userEmail,
+      password: currentPassword,
+    });
+
+    if (verifyError) {
+      sendError(res, 401, "La contraseña actual es incorrecta");
+      return;
+    }
+
+    // 2. Actualizar a la nueva contraseña
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (updateError) {
+      sendError(res, 400, "Error al actualizar la contraseña", updateError.message);
+      return;
+    }
+
+    sendSuccess(res, 200, "Contraseña actualizada correctamente");
   } catch (error) {
     sendError(res, 500, "Error interno del servidor", error);
   }
