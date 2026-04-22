@@ -13,6 +13,14 @@ const router = Router();
 router.get("/me", authenticate, controller.getMe);
 
 /**
+ * @route   PATCH /api/v1/users/me/avatar
+ * @desc    Actualizar la foto de perfil del usuario (URL subida previamente a Storage)
+ * @access  Private
+ * @body    { avatarUrl }
+ */
+router.patch("/me/avatar", authenticate, controller.updateAvatar);
+
+/**
  * @route   GET /api/v1/users
  * @desc    Listar todos los usuarios registrados (Solo Admin)
  * @access  Private (Admin, Owner)
