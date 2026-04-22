@@ -1,25 +1,39 @@
 import { Router } from "express";
+import * as controller from "./auth.controller.js";
 import { authenticate } from "../../middleware/auth.middleware.js";
 import { authorize } from "../../middleware/role.middleware.js";
-import * as controller from "./auth.controller.js";
 
 const router = Router();
 
-// POST /api/v1/auth/login
+/**
+ * @route   POST /api/v1/auth/login
+ * @desc    Iniciar sesión en la plataforma y obtener token de sesión
+ * @access  Public
+ * @body    { email, password }
+ */
 router.post("/login", controller.login);
 
-// POST /api/v1/auth/logout
+/**
+ * @route   POST /api/v1/auth/logout
+ * @desc    Cerrar la sesión activa del usuario
+ * @access  Private
+ */
 router.post("/logout", authenticate, controller.logout);
 
-// POST /api/v1/auth/register
-router.post(
-  "/register",
-  authenticate,
-  authorize(["admin"]),
-  controller.register,
-);
+/**
+ * @route   POST /api/v1/auth/register
+ * @desc    Registrar manualmente un nuevo usuario (Solo Admin).
+ * @access  Private (Admin, Owner)
+ * @body    { email, password, firstName, lastName, phone, role, isOwner }
+ */
+router.post("/register", authenticate, authorize(["admin"]), controller.register);
 
-// POST /api/v1/auth/change-password
+/**
+ * @route   POST /api/v1/auth/change-password
+ * @desc    Cambiar la contraseña del usuario autenticado tras verificar la actual
+ * @access  Private
+ * @body    { currentPassword, newPassword }
+ */
 router.post("/change-password", authenticate, controller.changePassword);
 
 export default router;

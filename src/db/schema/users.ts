@@ -15,6 +15,7 @@ export const users = pgTable(
     lastName: text("last_name").notNull(),
     email: text("email").notNull().unique(),
     phone: text("phone"),
+    avatarUrl: text("avatar_url"),
     role: text("role", { enum: ["admin", "client", "investor", "owner"] })
       .notNull()
       .default("client"),
@@ -29,7 +30,6 @@ export const users = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
-    // RLS
     pgPolicy("admin_all_access", {
       for: "all",
       to: "authenticated",
