@@ -12,6 +12,7 @@ async function seed() {
       password: "password123",
       firstName: "Admin",
       lastName: "ABC",
+      phone: "+51999888777",
       role: "admin" as const,
       isOwner: true,
     },
@@ -20,6 +21,7 @@ async function seed() {
       password: "password123",
       firstName: "Cliente",
       lastName: "Prueba",
+      phone: "+51999111222",
       role: "client" as const,
       isOwner: false,
     },
@@ -28,6 +30,7 @@ async function seed() {
       password: "password123",
       firstName: "Inversor",
       lastName: "Prueba",
+      phone: "+51999333444",
       role: "investor" as const,
       isOwner: false,
     },
@@ -56,6 +59,8 @@ async function seed() {
             email: userData.email,
             password: userData.password,
             email_confirm: true,
+            phone: userData.phone,
+            phone_confirm: true,
           });
 
         if (authError) {
@@ -81,6 +86,7 @@ async function seed() {
             id: supabaseId,
             firstName: localData.firstName,
             lastName: localData.lastName,
+            phone: localData.phone,
             role: localData.role,
             isOwner: localData.isOwner,
           },

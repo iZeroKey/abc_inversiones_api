@@ -8,11 +8,12 @@ export const loginSchema = z.object({
 export const registerSchema = z.object({
   email: z.email("Email inválido"),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
-  firstName: z.string().min(1, "Nombre es requerido"),
-  lastName: z.string().min(1, "Apellido es requerido"),
-  role: z.enum(["client", "investor", "owner", "admin"]).default("client"),
+  firstName: z.string().min(2, "El nombre es muy corto"),
+  lastName: z.string().min(2, "El apellido es muy corto"),
+  phone: z.string().optional(),
+  role: z.enum(["client", "investor", "admin", "owner"]).default("client"),
   isOwner: z.boolean().default(false),
 });
 
-export type LoginInput = z.infer<typeof loginSchema>;
-export type RegisterInput = z.infer<typeof registerSchema>;
+export type LoginDto = z.infer<typeof loginSchema>;
+export type RegisterDto = z.infer<typeof registerSchema>;

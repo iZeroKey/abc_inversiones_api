@@ -7,6 +7,7 @@ vi.mock("../../config/supabase.js", () => ({
     auth: {
       signInWithPassword: vi.fn(),
       signOut: vi.fn(),
+      getUser: vi.fn(),
     },
   },
   supabaseAdmin: {
@@ -111,10 +112,27 @@ describe("Auth Endpoints", () => {
 
   describe("POST /api/v1/auth/logout", () => {
     it("debería cerrar sesión correctamente", async () => {
+      // Mock de autenticación exitosa para el middleware
+      // @ts-ignore
+      supabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: "user-id" } },
+        error: null,
+      });
+      // @ts-ignore
+      db.select.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([{ id: "user-id", active: true }]),
+          }),
+        }),
+      });
+
       // @ts-ignore
       supabase.auth.signOut.mockResolvedValue({ error: null });
 
-      const res = await request.post("/api/v1/auth/logout");
+      const res = await request
+        .post("/api/v1/auth/logout")
+        .set("Authorization", "Bearer valid-token");
 
       expect(res.status).toBe(200);
       expect(res.body.message).toBe("Sesión cerrada correctamente");
@@ -123,6 +141,23 @@ describe("Auth Endpoints", () => {
 
   describe("POST /api/v1/auth/register", () => {
     it("debería permitir al admin registrar un nuevo usuario", async () => {
+      const adminUser = { id: "admin-id", role: "admin", active: true };
+
+      // Simular autenticación de Admin para el middleware
+      // @ts-ignore
+      supabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: adminUser.id } },
+        error: null,
+      });
+      // @ts-ignore
+      db.select.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([adminUser]),
+          }),
+        }),
+      });
+
       const newUserPayload = {
         email: "nuevo@abc.com",
         password: "password123",
@@ -152,6 +187,7 @@ describe("Auth Endpoints", () => {
 
       const res = await request
         .post("/api/v1/auth/register")
+        .set("Authorization", "Bearer admin-token")
         .send(newUserPayload);
 
       expect(res.status).toBe(201);
@@ -160,19 +196,38 @@ describe("Auth Endpoints", () => {
     });
 
     it("debería retornar error si Supabase falla", async () => {
+      const adminUser = { id: "admin-id", role: "admin", active: true };
+
+      // @ts-ignore
+      supabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: adminUser.id } },
+        error: null,
+      });
+      // @ts-ignore
+      db.select.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([adminUser]),
+          }),
+        }),
+      });
+
       // @ts-ignore
       supabaseAdmin.auth.admin.createUser.mockResolvedValue({
         data: { user: null },
         error: { message: "Email already exists" },
       });
 
-      const res = await request.post("/api/v1/auth/register").send({
-        email: "existe@abc.com",
-        password: "password123",
-        firstName: "Existe",
-        lastName: "Usuario",
-        role: "client",
-      });
+      const res = await request
+        .post("/api/v1/auth/register")
+        .set("Authorization", "Bearer admin-token")
+        .send({
+          email: "existe@abc.com",
+          password: "password123",
+          firstName: "Existe",
+          lastName: "Usuario",
+          role: "client",
+        });
 
       expect(res.status).toBe(400);
       expect(res.body.message).toBe("Error en Supabase Auth");

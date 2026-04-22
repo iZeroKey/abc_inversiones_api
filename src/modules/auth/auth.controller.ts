@@ -65,7 +65,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const { email, password, firstName, lastName, role, isOwner } =
+    const { email, password, firstName, lastName, phone, role, isOwner } =
       validation.data;
 
     const { data: authData, error: authError } =
@@ -73,6 +73,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         email,
         password,
         email_confirm: true,
+        phone,
+        phone_confirm: !!phone,
       });
 
     if (authError) {
@@ -85,6 +87,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       .values({
         id: authData.user!.id,
         email,
+        phone, // Sincronización de teléfono con DB local
         firstName,
         lastName,
         role,

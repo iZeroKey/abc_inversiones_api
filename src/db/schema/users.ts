@@ -5,21 +5,21 @@ import {
   pgTable,
   text,
   timestamp,
-  uuid,
 } from "drizzle-orm/pg-core";
 
 export const users = pgTable(
   "users",
   {
-    id: uuid("id").primaryKey(),
-    email: text("email").notNull().unique(),
+    id: text("id").primaryKey(), // UUID de Supabase Auth
     firstName: text("first_name").notNull(),
     lastName: text("last_name").notNull(),
-    role: text("role", { enum: ["client", "investor", "owner", "admin"] })
-      .default("client")
-      .notNull(),
-    isOwner: boolean("is_owner").default(false).notNull(),
-    active: boolean("active").default(true).notNull(),
+    email: text("email").notNull().unique(),
+    phone: text("phone"),
+    role: text("role", { enum: ["admin", "client", "investor", "owner"] })
+      .notNull()
+      .default("client"),
+    isOwner: boolean("is_owner").notNull().default(false),
+    active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -28,18 +28,22 @@ export const users = pgTable(
       .notNull(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
-  (t) => [
-    pgPolicy("users_self_select", {
-      for: "select",
-      using: sql`auth.uid() = ${t.id}`,
-    }),
-    pgPolicy("users_admin_all", {
+  (table) => ({
+    // Políticas de RLS
+    adminAllAccess: pgPolicy("admin_all_access", {
       for: "all",
-      using: sql`EXISTS (
-        SELECT 1 FROM users 
-        WHERE id = auth.uid() 
-        AND (role = 'admin' OR is_owner = true)
-      )`,
+      to: "authenticated",
+      using: sql`role = 'admin' OR is_owner = true`,
     }),
-  ],
+    userSelfAccess: pgPolicy("user_self_access", {
+      for: "select",
+      to: "authenticated",
+      using: sql`id = auth.uid()`,
+    }),
+    userSelfUpdate: pgPolicy("user_self_update", {
+      for: "update",
+      to: "authenticated",
+      using: sql`id = auth.uid()`,
+    }),
+  }),
 );
