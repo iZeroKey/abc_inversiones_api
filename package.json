@@ -18,6 +18,7 @@
     "db:timezone": "tsx src/scripts/db-timezone.ts",
     "setup:storage": "tsx src/scripts/setup-storage.ts",
     "check:overdue": "tsx src/scripts/check-overdue.ts",
+    "send:reminders": "tsx src/scripts/send-reminders.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],

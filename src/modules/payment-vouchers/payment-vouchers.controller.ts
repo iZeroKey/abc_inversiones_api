@@ -107,18 +107,32 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
 
 /**
  * Lista vouchers según el rol del usuario autenticado.
+ * Filtros opcionales: ?status=..., ?loanId=..., ?from=..., ?to=...
  */
 export const getVouchers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const user = req.user!;
-    let query = db.select().from(paymentVouchers);
+    const { status, loanId, from, to } = req.query;
 
+    const conditions = [];
+
+    // Filtrado por rol (obligatorio)
     if (user.role === "client") {
-      // @ts-ignore
-      query = query.where(eq(paymentVouchers.clientId, user.id));
+      conditions.push(eq(paymentVouchers.clientId, user.id));
     } else if (user.role === "investor") {
-      // @ts-ignore
-      query = query.where(sql`EXISTS (SELECT 1 FROM loans WHERE loans.id = ${paymentVouchers.loanId} AND loans.investor_id = ${user.id})`);
+      conditions.push(sql`EXISTS (SELECT 1 FROM loans WHERE loans.id = ${paymentVouchers.loanId} AND loans.investor_id = ${user.id})`);
+    }
+
+    // Filtros opcionales
+    if (status) conditions.push(eq(paymentVouchers.status, status as typeof paymentVouchers.status.enumValues[number]));
+    if (loanId) conditions.push(eq(paymentVouchers.loanId, loanId as string));
+    if (from) conditions.push(sql`${paymentVouchers.createdAt} >= ${new Date(from as string)}`);
+    if (to) conditions.push(sql`${paymentVouchers.createdAt} <= ${new Date(to as string)}`);
+
+    let query = db.select().from(paymentVouchers);
+    if (conditions.length > 0) {
+      // @ts-ignore — dynamic conditions
+      query = query.where(and(...conditions));
     }
 
     const results = await query.orderBy(desc(paymentVouchers.createdAt));

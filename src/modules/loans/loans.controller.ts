@@ -98,14 +98,28 @@ export const getAllLoans = async (
 ): Promise<void> => {
   try {
     const user = req.user!;
-    let query = db.select().from(loans);
+    const { status, clientId, investorId, from, to } = req.query;
 
+    const conditions = [];
+
+    // Filtrado por rol (obligatorio)
     if (user.role === "client") {
-      // @ts-ignore
-      query = query.where(eq(loans.clientId, user.id));
+      conditions.push(eq(loans.clientId, user.id));
     } else if (user.role === "investor") {
-      // @ts-ignore
-      query = query.where(eq(loans.investorId, user.id));
+      conditions.push(eq(loans.investorId, user.id));
+    }
+
+    // Filtros opcionales (admin/investor pueden filtrar más)
+    if (status) conditions.push(eq(loans.status, status as typeof loans.status.enumValues[number]));
+    if (clientId && user.role !== "client") conditions.push(eq(loans.clientId, clientId as string));
+    if (investorId && user.role !== "investor") conditions.push(eq(loans.investorId, investorId as string));
+    if (from) conditions.push(sql`${loans.createdAt} >= ${new Date(from as string)}`);
+    if (to) conditions.push(sql`${loans.createdAt} <= ${new Date(to as string)}`);
+
+    let query = db.select().from(loans);
+    if (conditions.length > 0) {
+      // @ts-ignore — dynamic conditions
+      query = query.where(and(...conditions));
     }
 
     const results = await query.orderBy(desc(loans.createdAt));

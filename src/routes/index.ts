@@ -7,6 +7,7 @@ import { paymentsRoutes } from "../modules/payments/payments.routes.js";
 import { paymentVouchersRoutes } from "../modules/payment-vouchers/payment-vouchers.routes.js";
 import { notificationsRoutes } from "../modules/notifications/notifications.routes.js";
 import { auditRoutes } from "../modules/audit/audit.routes.js";
+import { reportsRoutes } from "../modules/reports/reports.routes.js";
 
 const router = Router();
 
@@ -28,6 +29,7 @@ router.use("/payments", paymentsRoutes);
 router.use("/payment-vouchers", paymentVouchersRoutes);
 router.use("/notifications", notificationsRoutes);
 router.use("/audit-logs", auditRoutes);
+router.use("/reports", reportsRoutes);
 
 export default router;
 export { router as v1Routes };
