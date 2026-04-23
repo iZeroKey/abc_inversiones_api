@@ -7,6 +7,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   APP_NAME: z.string().min(1).default("abc-inversiones-api"),
   APP_TIMEZONE: z.string().default("UTC"),
+  OCR_ENABLED: z.coerce.boolean().default(true),
+  OCR_PROVIDER: z.enum(["google-vision"]).default("google-vision"),
   SUPABASE_URL: z.url(),
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
