@@ -12,6 +12,7 @@ import { createVoucherSchema, processVoucherSchema } from "./payment-vouchers.sc
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { processPaymentLogic } from "../payments/payments.service.js";
 import { logAudit } from "../../utils/audit.util.js";
+import { sendNotification } from "../../utils/notification.util.js";
 
 export const submitVoucher = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -149,6 +150,18 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
       entityId: id,
       newData: { status: nextStatus },
       req,
+    });
+
+    // NOTIFICACIÓN AL CLIENTE: Resultado del Voucher
+    const isApproved = nextStatus === "owner_approved";
+    await sendNotification({
+      userId: voucher.clientId,
+      title: isApproved ? "¡Pago Confirmado!" : "Voucher Rechazado",
+      body: isApproved 
+        ? `Tu pago por ${voucher.amount} ha sido validado exitosamente.`
+        : `Tu voucher por ${voucher.amount} fue rechazado. Motivo: ${observation || "Sin especificar"}`,
+      type: isApproved ? "VOUCHER_APPROVED" : "VOUCHER_REJECTED",
+      data: { voucherId: id, loanId: voucher.loanId }
     });
 
     sendSuccess(res, 200, `Voucher actualizado a ${nextStatus}`, updated);

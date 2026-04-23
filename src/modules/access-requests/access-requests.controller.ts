@@ -15,6 +15,7 @@ import {
   updateRequestStatusSchema,
 } from "./access-requests.schema.js";
 import { logAudit } from "../../utils/audit.util.js";
+import { sendNotification } from "../../utils/notification.util.js";
 
 export const createRequest = async (
   req: Request,
@@ -154,6 +155,17 @@ export const updateStatus = async (
         entityId: authData.user!.id,
         req,
       });
+
+      // NOTIFICACIÓN: Bienvenida al usuario
+      await sendNotification({
+        userId: authData.user!.id,
+        title: "¡Bienvenido a ABC Inversiones!",
+        body: `Tu solicitud de acceso ha sido aprobada. Ya puedes ingresar con tu correo: ${accessRequest.email}`,
+        type: "ACCESS_APPROVED",
+      });
+    } else if (status === "rejected") {
+       // NOTIFICACIÓN: Opcional, pero usualmente se envía correo si no hay usuario en DB aún
+       // Como no hay usuario en DB, no podemos enviar notificación interna, solo log de auditoría
     }
 
     const [updatedRequest] = await db

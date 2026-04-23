@@ -12,6 +12,7 @@ import {
 } from "../../utils/response.util.js";
 import { createLoanSchema } from "./loans.schema.js";
 import { logAudit } from "../../utils/audit.util.js";
+import { sendNotification } from "../../utils/notification.util.js";
 
 const calculateTotalDebt = (
   principal: number,
@@ -75,6 +76,14 @@ export const createLoan = async (
       entityId: newLoan.id,
       newData: newLoan,
       req,
+    });
+
+    await sendNotification({
+      userId: newLoan.clientId,
+      title: "Solicitud de préstamo enviada",
+      body: `Tu solicitud de préstamo por ${principal} ha sido enviada para revisión.`,
+      type: "LOAN_SUBMITTED",
+      data: { loanId: newLoan.id }
     });
 
     sendSuccess(res, 201, "Préstamo creado y enviado a revisión", newLoan);
@@ -267,6 +276,14 @@ export const approveLoan = async (
         req,
       });
 
+      await sendNotification({
+        userId: loan.clientId,
+        title: "Avance en tu préstamo",
+        body: "Tu préstamo ha sido aprobado por el inversionista y está en revisión final por el Admin.",
+        type: "LOAN_INVESTOR_APPROVED",
+        data: { loanId: id }
+      });
+
       sendSuccess(
         res,
         200,
@@ -323,6 +340,14 @@ export const approveLoan = async (
         entityId: id,
         newData: { status: "active" },
         req,
+      });
+
+      await sendNotification({
+        userId: loan.clientId,
+        title: "¡Préstamo Aprobado!",
+        body: `Tu préstamo ha sido activado. Ya puedes revisar tu cronograma de pagos.`,
+        type: "LOAN_ACTIVE",
+        data: { loanId: id }
       });
 
       sendSuccess(res, 200, "Préstamo activado y cuotas generadas", {

@@ -5,3 +5,4 @@ export * from "./installments.js";
 export * from "./payments.js";
 export * from "./payment-vouchers.js";
 export * from "./audit-logs.js";
+export * from "./notifications.js";
