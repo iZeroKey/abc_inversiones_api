@@ -16,7 +16,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/scripts/seed.ts",
     "db:timezone": "tsx src/scripts/db-timezone.ts",
+    "reset:app": "tsx src/scripts/reset-app.ts",
     "setup:storage": "tsx src/scripts/setup-storage.ts",
+    "setup:storage:dry-run": "tsx src/scripts/setup-storage.ts --dry-run",
     "check:overdue": "tsx src/scripts/check-overdue.ts",
     "send:reminders": "tsx src/scripts/send-reminders.ts",
     "typecheck": "tsc --noEmit"
