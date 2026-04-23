@@ -10,6 +10,11 @@ vi.mock("../../config/supabase.js", () => ({
       updateUser: vi.fn(),
     },
   },
+  supabaseAdmin: {
+    storage: {
+      from: vi.fn(),
+    },
+  },
 }));
 
 vi.mock("../../config/db.js", () => ({
@@ -56,7 +61,7 @@ vi.mock("../../config/db.js", () => ({
   },
 }));
 
-import { supabase } from "../../config/supabase.js";
+import { supabase, supabaseAdmin } from "../../config/supabase.js";
 import { db } from "../../config/db.js";
 
 const request = supertest(app);
@@ -113,6 +118,69 @@ describe("Payment Vouchers Module", () => {
       .send({ loanId: VALID_LOAN_ID, amount: "500", operationId: "OP123" });
 
     expect(res.status).toBe(201);
+  });
+
+  it("debería permitir al cliente subir un voucher adjuntando una imagen como evidencia", async () => {
+    const client = { id: VALID_CLIENT_ID, role: "client", active: true };
+    const mockLoan = { id: VALID_LOAN_ID, clientId: VALID_CLIENT_ID, investorId: VALID_INVESTOR_ID, status: "active" };
+    const mockVoucher = { id: VALID_VOUCHER_ID, loanId: VALID_LOAN_ID, amount: "500", status: "pending_investor_review", operationId: "OP124", evidenceUrl: "https://fake.url" };
+
+    // @ts-ignore
+    supabase.auth.getUser.mockResolvedValue({ data: { user: client }, error: null });
+    
+    // @ts-ignore - MOCKS: 1. Auth Middleware, 2. Duplicate Check, 3. Ownership + Active Check
+    db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([client]),
+        }),
+      }),
+    }).mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([]),
+        }),
+      }),
+    }).mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([mockLoan]),
+        }),
+      }),
+    });
+
+    // @ts-ignore
+    db.insert.mockReturnValue({
+      values: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([mockVoucher]),
+      }),
+    });
+
+    const mockUpload = vi.fn().mockResolvedValue({ data: { path: "fake/path.jpg" }, error: null });
+    const mockGetPublicUrl = vi.fn().mockReturnValue({ data: { publicUrl: "https://fake.supabase.co/storage/v1/object/public/vouchers/fake/path.jpg" } });
+    
+    // @ts-ignore
+    supabaseAdmin.storage.from.mockReturnValue({
+      upload: mockUpload,
+      getPublicUrl: mockGetPublicUrl,
+    });
+
+    const res = await request
+      .post("/api/v1/payment-vouchers")
+      .set("Authorization", "Bearer tk")
+      .field("loanId", VALID_LOAN_ID)
+      .field("amount", "500")
+      .field("operationId", "OP124")
+      .attach("evidence", Buffer.from("fake-image-content"), "voucher.png");
+
+    expect(res.status).toBe(201);
+    
+    // Verificar que se haya llamado a la subida de Supabase Storage con false en upsert
+    expect(mockUpload).toHaveBeenCalledWith(
+      expect.stringContaining(`${VALID_LOAN_ID}/`),
+      expect.any(Buffer),
+      expect.objectContaining({ upsert: false, contentType: "image/png" })
+    );
   });
 
   it("debería rechazar un voucher si el préstamo no está activo", async () => {

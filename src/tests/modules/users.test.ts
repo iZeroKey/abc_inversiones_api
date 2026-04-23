@@ -3,7 +3,7 @@ import supertest from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { app } from "../../app.js";
 import { db } from "../../config/db.js";
-import { supabase } from "../../config/supabase.js";
+import { supabase, supabaseAdmin } from "../../config/supabase.js";
 import { users } from "../../db/schema/users.js";
 
 vi.mock("../../config/supabase.js", () => ({
@@ -21,6 +21,9 @@ vi.mock("../../config/supabase.js", () => ({
         deleteUser: vi.fn(),
         createUser: vi.fn(),
       },
+    },
+    storage: {
+      from: vi.fn(),
     },
   },
 }));
@@ -132,6 +135,43 @@ describe("Users Module Integration", () => {
         .send({ firstName: "Hack" });
 
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe("PATCH /api/v1/users/me/avatar", () => {
+    it("debería permitir actualizar la foto de perfil subiendo una imagen (upsert)", async () => {
+      const client = await getTestUser("client@abc.com");
+
+      // @ts-ignore
+      supabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: client.id, email: client.email } },
+        error: null,
+      });
+
+      // Mapear el mock the storage
+      const mockUpload = vi.fn().mockResolvedValue({ data: { path: "fake/path.jpg" }, error: null });
+      const mockGetPublicUrl = vi.fn().mockReturnValue({ data: { publicUrl: "https://fake.supabase.co/storage/v1/object/public/avatars/fake/path.jpg" } });
+      
+      // @ts-ignore
+      supabaseAdmin.storage.from.mockReturnValue({
+        upload: mockUpload,
+        getPublicUrl: mockGetPublicUrl,
+      });
+
+      const res = await request
+        .patch("/api/v1/users/me/avatar")
+        .set("Authorization", "Bearer token-client")
+        .attach("avatar", Buffer.from("fake-image-content"), "profile.png");
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.avatarUrl).toBe("https://fake.supabase.co/storage/v1/object/public/avatars/fake/path.jpg");
+
+      // Validar que se llamó al upsert de Supabase Storage
+      expect(mockUpload).toHaveBeenCalledWith(
+        expect.stringContaining(`${client.id}/avatar.png`),
+        expect.any(Buffer),
+        expect.objectContaining({ upsert: true, contentType: "image/png" })
+      );
     });
   });
 });
