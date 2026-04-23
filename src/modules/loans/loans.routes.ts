@@ -48,4 +48,12 @@ router.get("/:id/installments", authenticate, controller.getLoanInstallments);
  */
 router.patch("/:id/approve", authenticate, controller.approveLoan);
 
+/**
+ * @route   PATCH /api/v1/loans/:id/reject
+ * @desc    Rechazar un préstamo. Inversionista rechaza desde pending_investor_review, Admin/Dueño desde pending_admin_review.
+ * @access  Private (Admin, Owner, Investor asignado)
+ * @body    { observation? }
+ */
+router.patch("/:id/reject", authenticate, controller.rejectLoan);
+
 export { router as loansRoutes };

@@ -350,6 +350,17 @@ export const approveLoan = async (
         data: { loanId: id }
       });
 
+      // Notificar al inversionista si existe
+      if (loan.investorId) {
+        await sendNotification({
+          userId: loan.investorId,
+          title: "Préstamo activado",
+          body: `El préstamo que aprobaste ha sido activado por la administración.`,
+          type: "LOAN_ACTIVE_INVESTOR",
+          data: { loanId: id }
+        });
+      }
+
       sendSuccess(res, 200, "Préstamo activado y cuotas generadas", {
         loan: updated,
         installments: installmentsList,
@@ -360,5 +371,81 @@ export const approveLoan = async (
     sendError(res, 400, "No tienes permisos para aprobar en este estado");
   } catch (error) {
     sendError(res, 500, "Error al aprobar el préstamo", error);
+  }
+};
+
+/**
+ * Rechazar un préstamo.
+ * Solo Admin/Dueño o el Inversionista asignado pueden rechazar.
+ */
+export const rejectLoan = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    const user = req.user!;
+    const { observation } = req.body;
+
+    const [loan] = await db
+      .select()
+      .from(loans)
+      .where(eq(loans.id, id))
+      .limit(1);
+
+    if (!loan) {
+      sendError(res, 404, "Préstamo no encontrado");
+      return;
+    }
+
+    // Solo se pueden rechazar préstamos en estado de revisión
+    const rejectableStatuses = ["pending_investor_review", "pending_admin_review"];
+    if (!rejectableStatuses.includes(loan.status)) {
+      sendError(res, 400, "Este préstamo no puede ser rechazado en su estado actual");
+      return;
+    }
+
+    // Validar permisos según rol
+    if (user.role === "investor") {
+      if (loan.status !== "pending_investor_review" || loan.investorId !== user.id) {
+        sendError(res, 403, "No tienes permisos para rechazar este préstamo");
+        return;
+      }
+    } else if (user.role !== "admin" && !user.isOwner) {
+      sendError(res, 403, "No tienes permisos para rechazar préstamos");
+      return;
+    }
+
+    const [updated] = await db
+      .update(loans)
+      .set({
+        status: "rejected",
+        observation: observation || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(loans.id, id))
+      .returning();
+
+    await logAudit({
+      userId: user.id,
+      action: "REJECT_LOAN",
+      module: "LOANS",
+      entityId: id,
+      newData: { status: "rejected", observation },
+      req,
+    });
+
+    // Notificar al cliente
+    await sendNotification({
+      userId: loan.clientId,
+      title: "Préstamo Rechazado",
+      body: `Tu solicitud de préstamo ha sido rechazada. ${observation ? `Motivo: ${observation}` : ""}`,
+      type: "LOAN_REJECTED",
+      data: { loanId: id },
+    });
+
+    sendSuccess(res, 200, "Préstamo rechazado", updated);
+  } catch (error) {
+    sendError(res, 500, "Error al rechazar el préstamo", error);
   }
 };
