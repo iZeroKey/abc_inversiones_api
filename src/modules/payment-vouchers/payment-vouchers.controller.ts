@@ -14,6 +14,10 @@ import { processPaymentLogic } from "../payments/payments.service.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { sendNotification } from "../../utils/notification.util.js";
 
+/**
+ * Permite al cliente subir un comprobante de pago (voucher).
+ * Valida: duplicados de operationId, pertenencia del préstamo, y que el préstamo esté activo.
+ */
 export const submitVoucher = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const validation = createVoucherSchema.safeParse(req.body);
@@ -25,6 +29,7 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
     const clientId = req.user!.id;
     const { loanId, operationId } = validation.data;
 
+    // 1. Verificar duplicado de operationId
     const [existing] = await db.select()
       .from(paymentVouchers)
       .where(eq(paymentVouchers.operationId, operationId))
@@ -35,17 +40,29 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
+    // 2. Verificar que el préstamo pertenece al cliente
     const [loan] = await db.select().from(loans).where(and(eq(loans.id, loanId), eq(loans.clientId, clientId))).limit(1);
     if (!loan) {
       sendError(res, 403, "No tienes acceso a este préstamo");
       return;
     }
 
+    // 3. Verificar que el préstamo esté activo
+    if (loan.status !== "active") {
+      sendError(res, 400, "Solo se pueden subir vouchers a préstamos activos");
+      return;
+    }
+
+    // 4. Determinar estado inicial según si el préstamo tiene inversionista
+    const initialStatus = loan.investorId
+      ? "pending_investor_review"
+      : "pending_investor_review"; // Siempre empieza en revisión; el Admin puede procesarlo directamente si no hay inversionista
+
     const [newVoucher] = await db.insert(paymentVouchers).values({
       ...validation.data,
       operationDate: validation.data.operationDate ? new Date(validation.data.operationDate) : new Date(),
       clientId,
-      status: "pending_investor_review",
+      status: initialStatus,
     }).returning();
 
     await logAudit({
@@ -57,12 +74,26 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
       req,
     });
 
-    sendSuccess(res, 201, "Voucher enviado para revisión del inversionista", newVoucher);
+    // 5. Notificar al inversionista si existe
+    if (loan.investorId) {
+      await sendNotification({
+        userId: loan.investorId,
+        title: "Nuevo voucher para revisar",
+        body: `Un cliente ha subido un comprobante de pago por ${validation.data.amount}. Revísalo en tu panel.`,
+        type: "VOUCHER_PENDING_REVIEW",
+        data: { voucherId: newVoucher.id, loanId },
+      });
+    }
+
+    sendSuccess(res, 201, "Voucher enviado para revisión", newVoucher);
   } catch (error) {
     sendError(res, 500, "Error al enviar el voucher", error);
   }
 };
 
+/**
+ * Lista vouchers según el rol del usuario autenticado.
+ */
 export const getVouchers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const user = req.user!;
@@ -83,6 +114,11 @@ export const getVouchers = async (req: AuthRequest, res: Response): Promise<void
   }
 };
 
+/**
+ * Procesa un voucher (aprobar/rechazar).
+ * Regla de negocio: Si el préstamo tiene inversionista, el inversionista DEBE aprobar antes que el Admin.
+ * El Admin solo puede procesar directamente si el préstamo es fondeado por la empresa (sin inversionista).
+ */
 export const processVoucher = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const id = req.params.id as string;
@@ -102,25 +138,44 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    let nextStatus: any;
+    // Obtener el préstamo para verificar si tiene inversionista
+    const [loan] = await db.select().from(loans).where(eq(loans.id, voucher.loanId)).limit(1);
+
+    let nextStatus: "draft" | "pending_investor_review" | "investor_approved" | "investor_rejected" | "owner_approved" | "owner_rejected";
 
     if (user.role === "investor") {
+      // Inversionista: solo puede procesar vouchers en pending_investor_review
       if (voucher.status !== "pending_investor_review") {
         sendError(res, 400, "El voucher no está pendiente de tu revisión");
         return;
       }
       nextStatus = action === "approve" ? "investor_approved" : "investor_rejected";
+
     } else if (user.role === "admin" || user.isOwner) {
-      if (voucher.status !== "investor_approved" && voucher.status !== "pending_investor_review") {
-        sendError(res, 400, "Estado no apto para validación final administrativa");
-        return;
+      // Admin/Dueño: la lógica depende de si el préstamo tiene inversionista
+      const hasInvestor = loan && loan.investorId;
+
+      if (hasInvestor) {
+        // CON inversionista: el Admin solo puede actuar después de que el inversionista aprobó
+        if (voucher.status !== "investor_approved") {
+          sendError(res, 400, "El inversionista debe aprobar este voucher antes de la validación administrativa");
+          return;
+        }
+      } else {
+        // SIN inversionista (empresa): el Admin puede procesar directamente
+        if (voucher.status !== "pending_investor_review" && voucher.status !== "investor_approved") {
+          sendError(res, 400, "Estado no apto para validación administrativa");
+          return;
+        }
       }
       nextStatus = action === "approve" ? "owner_approved" : "owner_rejected";
+
     } else {
       sendError(res, 403, "No tienes permisos para procesar vouchers");
       return;
     }
 
+    // Si es aprobación final, aplicar el pago al préstamo
     if (nextStatus === "owner_approved") {
       await processPaymentLogic({
         loanId: voucher.loanId,
@@ -152,17 +207,35 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
       req,
     });
 
-    // NOTIFICACIÓN AL CLIENTE: Resultado del Voucher
+    // Notificaciones según resultado
+    // Al cliente: siempre
     const isApproved = nextStatus === "owner_approved";
-    await sendNotification({
-      userId: voucher.clientId,
-      title: isApproved ? "¡Pago Confirmado!" : "Voucher Rechazado",
-      body: isApproved 
-        ? `Tu pago por ${voucher.amount} ha sido validado exitosamente.`
-        : `Tu voucher por ${voucher.amount} fue rechazado. Motivo: ${observation || "Sin especificar"}`,
-      type: isApproved ? "VOUCHER_APPROVED" : "VOUCHER_REJECTED",
-      data: { voucherId: id, loanId: voucher.loanId }
-    });
+    const isRejected = nextStatus === "investor_rejected" || nextStatus === "owner_rejected";
+
+    if (isApproved || isRejected) {
+      await sendNotification({
+        userId: voucher.clientId,
+        title: isApproved ? "¡Pago Confirmado!" : "Voucher Rechazado",
+        body: isApproved
+          ? `Tu pago por ${voucher.amount} ha sido validado exitosamente.`
+          : `Tu voucher por ${voucher.amount} fue rechazado. Motivo: ${observation || "Sin especificar"}`,
+        type: isApproved ? "VOUCHER_APPROVED" : "VOUCHER_REJECTED",
+        data: { voucherId: id, loanId: voucher.loanId },
+      });
+    }
+
+    // Al inversionista: cuando el Admin toma una decisión final
+    if ((nextStatus === "owner_approved" || nextStatus === "owner_rejected") && loan?.investorId) {
+      await sendNotification({
+        userId: loan.investorId,
+        title: isApproved ? "Pago confirmado por administración" : "Pago rechazado por administración",
+        body: isApproved
+          ? `El pago por ${voucher.amount} que aprobaste ha sido confirmado.`
+          : `El pago por ${voucher.amount} fue rechazado por la administración.`,
+        type: isApproved ? "VOUCHER_ADMIN_APPROVED" : "VOUCHER_ADMIN_REJECTED",
+        data: { voucherId: id, loanId: voucher.loanId },
+      });
+    }
 
     sendSuccess(res, 200, `Voucher actualizado a ${nextStatus}`, updated);
   } catch (error: any) {
