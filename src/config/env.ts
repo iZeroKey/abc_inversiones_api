@@ -7,11 +7,11 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   APP_NAME: z.string().min(1).default("abc-inversiones-api"),
   APP_TIMEZONE: z.string().default("UTC"),
-  SUPABASE_URL: z.url().optional(),
-  SUPABASE_ANON_KEY: z.string().optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  SUPABASE_URL: z.url(),
+  SUPABASE_ANON_KEY: z.string().min(1),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY_TEST: z.string().optional(),
-  DATABASE_URL: z.string().min(1).optional(),
+  DATABASE_URL: z.string().min(1),
   DATABASE_TEST_URL: z.string().min(1).optional(),
 });
 
