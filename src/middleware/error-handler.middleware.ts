@@ -10,7 +10,12 @@ export const errorHandler = (
   const status = error.status || error.statusCode || 500;
   const message = error.message || "Error interno del servidor";
 
-  console.error(`[Error] ${status} - ${message}`);
+  console.error("[Error Handler]", {
+    status,
+    message,
+    stack: error?.stack,
+    data: error?.data || null,
+  });
 
   sendError(res, status, message, error.data || null);
 };

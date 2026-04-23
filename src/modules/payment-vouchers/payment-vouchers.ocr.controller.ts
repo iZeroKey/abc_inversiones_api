@@ -3,6 +3,12 @@ import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { sendError, sendSuccess } from "../../utils/response.util.js";
 import { analyzeVoucherImage } from "./payment-vouchers.ocr.service.js";
 
+/**
+ * Analiza una imagen de voucher y devuelve datos sugeridos por OCR.
+ * Este endpoint NO guarda la imagen ni crea el voucher final.
+ * Su propósito es asistir al frontend para prellenar el formulario
+ * antes de que el usuario confirme o corrija manualmente los datos.
+ */
 export const analyzeVoucherEvidence = async (
   req: AuthRequest,
   res: Response,

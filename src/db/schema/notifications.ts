@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, uuid, boolean } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { pgPolicy, pgTable, text, timestamp, uuid, boolean } from "drizzle-orm/pg-core";
 import { users } from "./users.js";
 
 export const notifications = pgTable("notifications", {
@@ -10,4 +11,20 @@ export const notifications = pgTable("notifications", {
   isRead: boolean("is_read").default(false).notNull(),
   data: text("data"), // JSON opcional para redirecciones en el app
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, () => [
+  pgPolicy("admin_notifications_all", {
+    for: "all",
+    to: "authenticated",
+    using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND (users.role = 'admin' OR users.is_owner = true))`,
+  }),
+  pgPolicy("user_notifications_self_select", {
+    for: "select",
+    to: "authenticated",
+    using: sql`user_id = auth.uid()`,
+  }),
+  pgPolicy("user_notifications_self_update", {
+    for: "update",
+    to: "authenticated",
+    using: sql`user_id = auth.uid()`,
+  }),
+]);

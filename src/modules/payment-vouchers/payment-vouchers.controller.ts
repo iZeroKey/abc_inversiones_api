@@ -13,11 +13,28 @@ import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { processPaymentLogic } from "../payments/payments.service.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { sendNotification } from "../../utils/notification.util.js";
-import { uploadFile } from "../../utils/storage.util.js";
+import { resolveFileUrl, uploadFile } from "../../utils/storage.util.js";
+
+const isUniqueViolation = (error: unknown): boolean => {
+  return !!error && typeof error === "object" && "code" in error && error.code === "23505";
+};
+
+const attachSignedEvidenceUrl = async <T extends { evidenceUrl?: string | null }>(voucher: T): Promise<T> => {
+  if (!voucher.evidenceUrl) {
+    return voucher;
+  }
+
+  return {
+    ...voucher,
+    evidenceUrl: await resolveFileUrl(voucher.evidenceUrl),
+  };
+};
 
 /**
  * Permite al cliente subir un comprobante de pago (voucher).
  * Acepta imagen como multipart/form-data en el campo "evidence".
+ * Este endpoint persiste la imagen y registra el voucher final con los datos
+ * ya revisados o corregidos manualmente por el cliente.
  * Valida: duplicados de operationId, pertenencia del préstamo, y que el préstamo esté activo.
  */
 export const submitVoucher = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -99,8 +116,14 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
       });
     }
 
-    sendSuccess(res, 201, "Voucher enviado para revisión", newVoucher);
-  } catch (error) {
+    const responseVoucher = await attachSignedEvidenceUrl(newVoucher);
+    sendSuccess(res, 201, "Voucher enviado para revisión", responseVoucher);
+  } catch (error: any) {
+    if (isUniqueViolation(error)) {
+      sendError(res, 409, "Este ID de operación ya ha sido registrado previamente");
+      return;
+    }
+
     sendError(res, 500, "Error al enviar el voucher", error);
   }
 };
@@ -136,7 +159,8 @@ export const getVouchers = async (req: AuthRequest, res: Response): Promise<void
     }
 
     const results = await query.orderBy(desc(paymentVouchers.createdAt));
-    sendSuccess(res, 200, "Vouchers obtenidos", results);
+    const signedResults = await Promise.all(results.map((voucher) => attachSignedEvidenceUrl(voucher)));
+    sendSuccess(res, 200, "Vouchers obtenidos", signedResults);
   } catch (error) {
     sendError(res, 500, "Error al obtener vouchers", error);
   }
@@ -265,7 +289,8 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
       });
     }
 
-    sendSuccess(res, 200, `Voucher actualizado a ${nextStatus}`, updated);
+    const responseVoucher = await attachSignedEvidenceUrl(updated);
+    sendSuccess(res, 200, `Voucher actualizado a ${nextStatus}`, responseVoucher);
   } catch (error: any) {
     sendError(res, 500, error.message || "Error al procesar el voucher", error);
   }

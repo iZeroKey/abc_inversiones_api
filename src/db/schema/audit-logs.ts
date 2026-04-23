@@ -1,4 +1,5 @@
-import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { jsonb, pgPolicy, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { users } from "./users.js";
 
 export const auditLogs = pgTable("audit_logs", {
@@ -12,4 +13,15 @@ export const auditLogs = pgTable("audit_logs", {
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, () => [
+  pgPolicy("admin_audit_logs_all", {
+    for: "all",
+    to: "authenticated",
+    using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND (users.role = 'admin' OR users.is_owner = true))`,
+  }),
+  pgPolicy("user_audit_logs_self_select", {
+    for: "select",
+    to: "authenticated",
+    using: sql`user_id = auth.uid()`,
+  }),
+]);

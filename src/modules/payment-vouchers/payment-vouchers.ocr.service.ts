@@ -43,7 +43,7 @@ const getVisionClient = (): vision.ImageAnnotatorClient => {
 const normalizeSpaces = (value: string): string => value.replace(/\s+/g, " ").trim();
 
 const toIsoDate = (value: string): string | null => {
-  const match = value.match(/(?<day>\d{2})[\/.-](?<month>\d{2})[\/.-](?<year>\d{2,4})/);
+  const match = value.match(/(?<day>\d{1,2})[\/.-](?<month>\d{1,2})[\/.-](?<year>\d{2,4})/);
   if (!match?.groups) return null;
 
   const day = Number(match.groups.day);
@@ -56,16 +56,38 @@ const toIsoDate = (value: string): string | null => {
   return `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
 };
 
+const normalizeAmount = (rawValue: string): string | null => {
+  const value = rawValue.trim();
+
+  if (!value) return null;
+
+  const lastComma = value.lastIndexOf(",");
+  const lastDot = value.lastIndexOf(".");
+  const decimalSeparatorIndex = Math.max(lastComma, lastDot);
+
+  if (decimalSeparatorIndex === -1) {
+    const digitsOnly = value.replace(/[^\d]/g, "");
+    return digitsOnly ? digitsOnly : null;
+  }
+
+  const integerPart = value.slice(0, decimalSeparatorIndex).replace(/[^\d]/g, "");
+  const decimalPart = value.slice(decimalSeparatorIndex + 1).replace(/[^\d]/g, "");
+
+  if (!integerPart || !decimalPart) return null;
+
+  return `${integerPart}.${decimalPart.slice(0, 2)}`;
+};
+
 const extractAmount = (text: string): string | null => {
   const labeledPatterns = [
-    /(?:importe|monto|total|deposito|dep[oó]sito)\s*[:\-]?\s*(?:s\/\.?|s\/|usd|\$)?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2}))/i,
-    /(?:s\/\.?|s\/|\$|usd)\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2}))/i,
+    /(?:importe|monto|monto\s+recibido|total|deposito|dep[oó]sito|importe\s+depositado)\s*[:\-]?\s*(?:s\/\.?|s\/|soles|usd|us\$|\$)?\s*(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2}))/i,
+    /(?:s\/\.?|s\/|soles|usd|us\$|\$)\s*(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2}))/i,
   ];
 
   for (const pattern of labeledPatterns) {
     const match = text.match(pattern);
     if (match?.[1]) {
-      return match[1].replace(/,/g, ".");
+      return normalizeAmount(match[1]);
     }
   }
 
@@ -74,14 +96,21 @@ const extractAmount = (text: string): string | null => {
 
 const extractOperationId = (text: string): string | null => {
   const labeledPatterns = [
-    /(?:operaci[oó]n|operation id|n[úu]mero de operaci[oó]n|codigo de operaci[oó]n|nro\.?\s*operaci[oó]n)\s*[:#-]?\s*([A-Z0-9-]{6,})/i,
-    /(?:voucher|constancia|transacci[oó]n)\s*[:#-]?\s*([A-Z0-9-]{6,})/i,
+    /(?:n(?:[°ºo]\.?)?\s*ope(?:raci[oó]n)?|nro\.?\s*ope(?:raci[oó]n)?|n[úu]mero\s*de\s*ope(?:raci[oó]n)?|operaci[oó]n|operation\s*id|codigo\s*de\s*operaci[oó]n)\s*[:#.-]?\s*([A-Z0-9][A-Z0-9\s-]{5,}?)(?=\s+(?:importe|monto|fecha|hora|nombre|cta|cuenta|deposito|dep[oó]sito)\b|$)/i,
+    /(?:voucher|constancia|transacci[oó]n)\s*[:#.-]?\s*([A-Z0-9][A-Z0-9\s-]{5,}?)(?=\s+(?:importe|monto|fecha|hora|nombre|cta|cuenta|deposito|dep[oó]sito)\b|$)/i,
   ];
 
   for (const pattern of labeledPatterns) {
     const match = text.match(pattern);
     if (match?.[1]) {
-      return match[1].trim();
+      const cleaned = match[1]
+        .replace(/\s+/g, "")
+        .replace(/-+/g, "-")
+        .trim();
+
+      if (cleaned.length >= 6) {
+        return cleaned;
+      }
     }
   }
 
@@ -90,8 +119,8 @@ const extractOperationId = (text: string): string | null => {
 
 const extractOperationDate = (text: string): string | null => {
   const labeledPatterns = [
-    /(?:fecha|fecha de operaci[oó]n|f\.?\s*operaci[oó]n)\s*[:\-]?\s*(\d{2}[\/.-]\d{2}[\/.-]\d{2,4})/i,
-    /(\d{2}[\/.-]\d{2}[\/.-]\d{2,4})/,
+    /(?:fecha|fec\.?|fecha\s+de\s+operaci[oó]n|f\.?\s*operaci[oó]n)\s*[:\-]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/i,
+    /(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/,
   ];
 
   for (const pattern of labeledPatterns) {
@@ -107,8 +136,17 @@ const extractOperationDate = (text: string): string | null => {
 const extractBank = (text: string): string | null => {
   const upper = text.toUpperCase();
 
-  for (const bank of SUPPORTED_BANKS) {
-    if (upper.includes(bank)) {
+  const bankPatterns: Array<{ bank: (typeof SUPPORTED_BANKS)[number]; pattern: RegExp }> = [
+    { bank: "BCP", pattern: /\b(?:BCP|BANCO\s+DE\s+CREDITO|BANCO\s+DE\s+CR[EE]DITO)\b/i },
+    { bank: "INTERBANK", pattern: /\b(?:INTERBANK|INTER\s+BANK)\b/i },
+    { bank: "BBVA", pattern: /\b(?:BBVA|BBVA\s+CONTINENTAL|BANCO\s+CONTINENTAL)\b/i },
+    { bank: "SCOTIABANK", pattern: /\b(?:SCOTIABANK|SCOTIA\s+BANK)\b/i },
+    { bank: "YAPE", pattern: /\bYAPE\b/i },
+    { bank: "PLIN", pattern: /\bPLIN\b/i },
+  ];
+
+  for (const { bank, pattern } of bankPatterns) {
+    if (pattern.test(upper)) {
       return bank;
     }
   }

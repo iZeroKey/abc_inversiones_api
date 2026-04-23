@@ -10,12 +10,24 @@ import {
 import { updateUserSchema } from "./users.schema.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
-import { uploadAvatar } from "../../utils/storage.util.js";
+import { resolveFileUrl, uploadAvatar } from "../../utils/storage.util.js";
+
+const attachSignedAvatarUrl = async <T extends { avatarUrl?: string | null }>(user: T): Promise<T> => {
+  if (!user.avatarUrl) {
+    return user;
+  }
+
+  return {
+    ...user,
+    avatarUrl: await resolveFileUrl(user.avatarUrl),
+  };
+};
 
 export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const user = req.user!;
-    sendSuccess(res, 200, "Perfil obtenido", user);
+    const responseUser = await attachSignedAvatarUrl(user);
+    sendSuccess(res, 200, "Perfil obtenido", responseUser);
   } catch (error) {
     sendError(res, 500, "Error al obtener perfil", error);
   }
@@ -24,7 +36,8 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
 export const getAllUsers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const results = await db.select().from(users).orderBy(desc(users.createdAt));
-    sendSuccess(res, 200, "Usuarios obtenidos", results);
+    const signedResults = await Promise.all(results.map((user) => attachSignedAvatarUrl(user)));
+    sendSuccess(res, 200, "Usuarios obtenidos", signedResults);
   } catch (error) {
     sendError(res, 500, "Error al obtener usuarios", error);
   }
@@ -40,7 +53,8 @@ export const getUserById = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    sendSuccess(res, 200, "Usuario obtenido", user);
+    const responseUser = await attachSignedAvatarUrl(user);
+    sendSuccess(res, 200, "Usuario obtenido", responseUser);
   } catch (error) {
     sendError(res, 500, "Error al obtener usuario", error);
   }
@@ -83,7 +97,8 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
       req,
     });
 
-    sendSuccess(res, 200, "Usuario actualizado correctamente", updatedUser);
+    const responseUser = await attachSignedAvatarUrl(updatedUser);
+    sendSuccess(res, 200, "Usuario actualizado correctamente", responseUser);
   } catch (error) {
     sendError(res, 500, "Error al actualizar usuario", error);
   }
@@ -129,7 +144,8 @@ export const updateAvatar = async (req: AuthRequest, res: Response): Promise<voi
       req,
     });
 
-    sendSuccess(res, 200, "Foto de perfil actualizada correctamente", updatedUser);
+    const responseUser = await attachSignedAvatarUrl(updatedUser);
+    sendSuccess(res, 200, "Foto de perfil actualizada correctamente", responseUser);
   } catch (error) {
     sendError(res, 500, "Error al actualizar avatar", error);
   }

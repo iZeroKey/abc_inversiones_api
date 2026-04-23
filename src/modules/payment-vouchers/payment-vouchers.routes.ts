@@ -9,14 +9,16 @@ const router = Router();
 
 /**
  * @route   POST /api/v1/payment-vouchers/analyze
- * @desc    Analizar un comprobante en backend con OCR y devolver JSON normalizado.
+ * @desc    Analizar un comprobante en backend con OCR y devolver JSON sugerido.
+ *          No persiste la imagen ni crea el voucher.
  * @access  Private (Client)
  */
 router.post("/analyze", authenticate, authorize(["client"]), uploadImage.single("evidence"), ocrController.analyzeVoucherEvidence);
 
 /**
  * @route   POST /api/v1/payment-vouchers
- * @desc    Subir un nuevo comprobante de pago (Voucher). Acepta imagen como multipart/form-data.
+ * @desc    Subir un nuevo comprobante de pago (Voucher) con la imagen y los datos
+ *          finales confirmados por el cliente. Acepta imagen como multipart/form-data.
  * @access  Private (Client)
  * @body    { loanId, amount, operationId, operationDate?, observation? } + campo "evidence" (imagen)
  */
