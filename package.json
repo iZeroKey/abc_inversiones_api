@@ -16,6 +16,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/scripts/seed.ts",
     "db:timezone": "tsx src/scripts/db-timezone.ts",
+    "setup:storage": "tsx src/scripts/setup-storage.ts",
+    "check:overdue": "tsx src/scripts/check-overdue.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
@@ -31,6 +33,7 @@
     "express": "^5.2.1",
     "helmet": "^8.1.0",
     "luxon": "^3.7.2",
+    "multer": "^2.1.1",
     "pg": "^8.20.0",
     "postgres": "^3.4.9",
     "zod": "^4.3.6"
@@ -39,6 +42,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/luxon": "^3.7.1",
+    "@types/multer": "^2.1.0",
     "@types/node": "^25.6.0",
     "@types/pg": "^8.20.0",
     "@types/supertest": "^7.2.0",
