@@ -29,7 +29,11 @@ vi.mock("../../config/db.js", () => ({
         })),
       })),
     })),
-    insert: vi.fn(),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        returning: vi.fn(() => []),
+      })),
+    })),
   },
   queryClient: {
     end: vi.fn(),
