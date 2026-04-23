@@ -39,10 +39,13 @@ export const sendError = (
   message: string,
   error?: any
 ): void => {
+  const isProduction = env.NODE_ENV === "production";
+  const shouldHideServerError = isProduction && status >= 500;
+
   const response: ApiResponse = {
     success: false,
-    message,
-    data: error || null,
+    message: shouldHideServerError ? "Error interno del servidor" : message,
+    data: shouldHideServerError ? null : (error || null),
     meta: {
       timestamp: getTimestamp(),
     },
