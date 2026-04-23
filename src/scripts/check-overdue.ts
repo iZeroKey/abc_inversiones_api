@@ -31,7 +31,7 @@ import { eq, and, lt, sql } from "drizzle-orm";
 import { sendNotification } from "../utils/notification.util.js";
 
 async function checkOverdueInstallments() {
-  console.log("🔍 Verificando cuotas vencidas...\n");
+  console.log("Verificando cuotas vencidas...\n");
 
   const now = new Date();
 
@@ -48,11 +48,11 @@ async function checkOverdueInstallments() {
     .where(and(eq(installments.status, "pending"), lt(installments.dueDate, now)));
 
   if (overdueInstallments.length === 0) {
-    console.log("  ✅ No hay cuotas vencidas.");
+    console.log("  No hay cuotas vencidas.");
     process.exit(0);
   }
 
-  console.log(`  ⚠️  Se encontraron ${overdueInstallments.length} cuota(s) vencida(s).\n`);
+  console.log(`  Se encontraron ${overdueInstallments.length} cuota(s) vencida(s).\n`);
 
   // 2. Actualizar estado a "overdue"
   for (const inst of overdueInstallments) {
@@ -78,10 +78,10 @@ async function checkOverdueInstallments() {
       data: { loanId, count: overdueForLoan.length },
     });
 
-    console.log(`  📧 Notificación enviada al cliente ${loan.clientId} (${overdueForLoan.length} cuotas vencidas).`);
+    console.log(`  Notificación enviada al cliente ${loan.clientId} (${overdueForLoan.length} cuotas vencidas).`);
   }
 
-  console.log(`\n✅ Proceso completado. ${overdueInstallments.length} cuotas marcadas como vencidas.`);
+  console.log(`\nProceso completado. ${overdueInstallments.length} cuotas marcadas como vencidas.`);
   process.exit(0);
 }
 
