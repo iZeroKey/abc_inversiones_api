@@ -2,6 +2,18 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import supertest from "supertest";
 import { app } from "../../app.js";
 
+const mockDocumentTextDetection = vi.fn();
+
+vi.mock("@google-cloud/vision", () => ({
+  default: {
+    ImageAnnotatorClient: vi.fn(function ImageAnnotatorClient() {
+      return {
+      documentTextDetection: mockDocumentTextDetection,
+      };
+    }),
+  },
+}));
+
 vi.mock("../../config/supabase.js", () => ({
   supabase: {
     auth: {
@@ -118,6 +130,93 @@ describe("Payment Vouchers Module", () => {
       .send({ loanId: VALID_LOAN_ID, amount: "500", operationId: "OP123" });
 
     expect(res.status).toBe(201);
+  });
+
+  it("debería analizar una imagen de voucher y devolver datos OCR normalizados", async () => {
+    const client = { id: VALID_CLIENT_ID, role: "client", active: true };
+
+    // @ts-ignore
+    supabase.auth.getUser.mockResolvedValue({ data: { user: client }, error: null });
+
+    // @ts-ignore
+    db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([client]),
+        }),
+      }),
+    });
+
+    mockDocumentTextDetection.mockResolvedValueOnce([
+      {
+        fullTextAnnotation: {
+          text: "BCP Fecha: 06/04/26 Operación: OP778899 Importe: S/ 500.50",
+          pages: [{ confidence: 0.94, blocks: [{ confidence: 0.91 }] }],
+        },
+      },
+    ]);
+
+    const res = await request
+      .post("/api/v1/payment-vouchers/analyze")
+      .set("Authorization", "Bearer tk")
+      .attach("evidence", Buffer.from("fake-image-content"), "voucher.png");
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.provider).toBe("google-vision");
+    expect(res.body.data.extracted.amount).toBe("500.50");
+    expect(res.body.data.extracted.operationId).toBe("OP778899");
+    expect(res.body.data.extracted.operationDate).toBe("2026-04-06");
+    expect(res.body.data.extracted.bank).toBe("BCP");
+    expect(res.body.data.meta.pages).toBe(1);
+  });
+
+  it("debería rechazar análisis OCR cuando no se adjunta imagen", async () => {
+    const client = { id: VALID_CLIENT_ID, role: "client", active: true };
+
+    // @ts-ignore
+    supabase.auth.getUser.mockResolvedValue({ data: { user: client }, error: null });
+
+    // @ts-ignore
+    db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([client]),
+        }),
+      }),
+    });
+
+    const res = await request
+      .post("/api/v1/payment-vouchers/analyze")
+      .set("Authorization", "Bearer tk");
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain("evidence");
+  });
+
+  it("debería devolver error si el provider OCR falla", async () => {
+    const client = { id: VALID_CLIENT_ID, role: "client", active: true };
+
+    // @ts-ignore
+    supabase.auth.getUser.mockResolvedValue({ data: { user: client }, error: null });
+
+    // @ts-ignore
+    db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([client]),
+        }),
+      }),
+    });
+
+    mockDocumentTextDetection.mockRejectedValueOnce(new Error("Vision unavailable"));
+
+    const res = await request
+      .post("/api/v1/payment-vouchers/analyze")
+      .set("Authorization", "Bearer tk")
+      .attach("evidence", Buffer.from("fake-image-content"), "voucher.png");
+
+    expect(res.status).toBe(500);
+    expect(res.body.message).toContain("Vision unavailable");
   });
 
   it("debería permitir al cliente subir un voucher adjuntando una imagen como evidencia", async () => {

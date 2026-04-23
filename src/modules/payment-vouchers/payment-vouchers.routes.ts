@@ -1,10 +1,18 @@
 import { Router } from "express";
 import * as controller from "./payment-vouchers.controller.js";
+import * as ocrController from "./payment-vouchers.ocr.controller.js";
 import { authenticate } from "../../middleware/auth.middleware.js";
 import { authorize } from "../../middleware/role.middleware.js";
 import { uploadImage } from "../../middleware/upload.middleware.js";
 
 const router = Router();
+
+/**
+ * @route   POST /api/v1/payment-vouchers/analyze
+ * @desc    Analizar un comprobante en backend con OCR y devolver JSON normalizado.
+ * @access  Private (Client)
+ */
+router.post("/analyze", authenticate, authorize(["client"]), uploadImage.single("evidence"), ocrController.analyzeVoucherEvidence);
 
 /**
  * @route   POST /api/v1/payment-vouchers
