@@ -7,9 +7,10 @@ import {
   sendError,
   formatZodError,
 } from "../../utils/response.util.js";
-import { updateUserSchema, updateAvatarSchema } from "./users.schema.js";
+import { updateUserSchema } from "./users.schema.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
+import { uploadAvatar } from "../../utils/storage.util.js";
 
 export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -88,20 +89,32 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
   }
 };
 
+/**
+ * Actualizar foto de perfil.
+ * Acepta imagen como multipart/form-data en el campo "avatar".
+ * La imagen se sube a Supabase Storage en: avatars/{userId}/avatar.{ext}
+ */
 export const updateAvatar = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const user = req.user!;
-    const validation = updateAvatarSchema.safeParse(req.body);
+    const file = req.file; // multer
 
-    if (!validation.success) {
-      sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
+    if (!file) {
+      sendError(res, 400, "Debes adjuntar una imagen en el campo 'avatar'");
       return;
     }
+
+    const avatarUrl = await uploadAvatar(
+      user.id,
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+    );
 
     const [updatedUser] = await db
       .update(users)
       .set({
-        avatarUrl: validation.data.avatarUrl,
+        avatarUrl,
         updatedAt: new Date(),
       })
       .where(eq(users.id, user.id))
@@ -112,7 +125,7 @@ export const updateAvatar = async (req: AuthRequest, res: Response): Promise<voi
       action: "UPDATE_AVATAR",
       module: "USERS",
       entityId: user.id,
-      newData: { avatarUrl: validation.data.avatarUrl },
+      newData: { avatarUrl },
       req,
     });
 

@@ -2,6 +2,7 @@ import { Router } from "express";
 import * as controller from "./users.controller.js";
 import { authenticate } from "../../middleware/auth.middleware.js";
 import { authorize } from "../../middleware/role.middleware.js";
+import { uploadImage } from "../../middleware/upload.middleware.js";
 
 const router = Router();
 
@@ -14,11 +15,10 @@ router.get("/me", authenticate, controller.getMe);
 
 /**
  * @route   PATCH /api/v1/users/me/avatar
- * @desc    Actualizar la foto de perfil del usuario (URL subida previamente a Storage)
+ * @desc    Actualizar la foto de perfil. Acepta imagen como multipart/form-data en campo "avatar".
  * @access  Private
- * @body    { avatarUrl }
  */
-router.patch("/me/avatar", authenticate, controller.updateAvatar);
+router.patch("/me/avatar", authenticate, uploadImage.single("avatar"), controller.updateAvatar);
 
 /**
  * @route   GET /api/v1/users

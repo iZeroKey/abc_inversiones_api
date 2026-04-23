@@ -13,9 +13,11 @@ import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { processPaymentLogic } from "../payments/payments.service.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { sendNotification } from "../../utils/notification.util.js";
+import { uploadFile } from "../../utils/storage.util.js";
 
 /**
  * Permite al cliente subir un comprobante de pago (voucher).
+ * Acepta imagen como multipart/form-data en el campo "evidence".
  * Valida: duplicados de operationId, pertenencia del préstamo, y que el préstamo esté activo.
  */
 export const submitVoucher = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -53,15 +55,27 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    // 4. Determinar estado inicial según si el préstamo tiene inversionista
-    const initialStatus = loan.investorId
-      ? "pending_investor_review"
-      : "pending_investor_review"; // Siempre empieza en revisión; el Admin puede procesarlo directamente si no hay inversionista
+    // 4. Subir imagen al Storage si se adjuntó
+    let evidenceUrl = validation.data.evidenceUrl || null;
+    const file = req.file; // multer
+    if (file) {
+      evidenceUrl = await uploadFile(
+        "vouchers",
+        loanId,               // Subcarpeta: vouchers/{loanId}/
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+      );
+    }
+
+    // 5. Determinar estado inicial
+    const initialStatus = "pending_investor_review" as const;
 
     const [newVoucher] = await db.insert(paymentVouchers).values({
       ...validation.data,
       operationDate: validation.data.operationDate ? new Date(validation.data.operationDate) : new Date(),
       clientId,
+      evidenceUrl,
       status: initialStatus,
     }).returning();
 
@@ -74,7 +88,7 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
       req,
     });
 
-    // 5. Notificar al inversionista si existe
+    // 6. Notificar al inversionista si existe
     if (loan.investorId) {
       await sendNotification({
         userId: loan.investorId,
