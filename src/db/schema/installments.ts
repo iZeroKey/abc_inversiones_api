@@ -4,6 +4,7 @@ import {
   numeric,
   pgPolicy,
   pgTable,
+  text,
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -22,7 +23,7 @@ export const installments = pgTable(
     paidAmount: numeric("paid_amount", { precision: 12, scale: 2 })
       .notNull()
       .default("0"),
-    status: text_enum_status("status", ["pending", "paid", "overdue"])
+    status: text("status", { enum: ["pending", "paid", "overdue"] })
       .notNull()
       .default("pending"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -51,8 +52,3 @@ export const installments = pgTable(
     }),
   ],
 );
-
-import { text } from "drizzle-orm/pg-core";
-function text_enum_status(name: string, values: [string, ...string[]]) {
-  return text(name, { enum: values });
-}

@@ -16,7 +16,7 @@ export const users = pgTable(
     email: text("email").notNull().unique(),
     phone: text("phone"),
     avatarUrl: text("avatar_url"),
-    role: text("role", { enum: ["admin", "client", "investor", "owner"] })
+    role: text("role", { enum: ["admin", "client", "investor"] })
       .notNull()
       .default("client"),
     isOwner: boolean("is_owner").notNull().default(false),

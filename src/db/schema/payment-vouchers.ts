@@ -13,13 +13,14 @@ export const paymentVouchers = pgTable("payment_vouchers", {
   evidenceUrl: text("evidence_url"),
   status: text("status", { 
     enum: [
+      "draft",
       "pending_investor_review", 
       "investor_approved", 
       "investor_rejected", 
       "owner_approved", 
       "owner_rejected"
     ] 
-  }).notNull().default("pending_investor_review"),
+  }).notNull().default("draft"),
   observation: text("observation"),
   processedById: text("processed_by_id").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

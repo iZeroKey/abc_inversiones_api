@@ -11,7 +11,7 @@ export const registerSchema = z.object({
   firstName: z.string().min(2, "El nombre es muy corto"),
   lastName: z.string().min(2, "El apellido es muy corto"),
   phone: z.string().optional(),
-  role: z.enum(["client", "investor", "admin", "owner"]).default("client"),
+  role: z.enum(["client", "investor", "admin"]).default("client"),
   isOwner: z.boolean().default(false),
 });
 
