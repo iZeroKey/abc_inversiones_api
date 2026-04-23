@@ -1,9 +1,6 @@
 import { execSync } from "child_process";
 import "dotenv/config";
-import { sql } from "drizzle-orm";
-import { db, queryClient } from "../config/db.js";
-import { supabaseAdmin } from "../config/supabase.js";
-import { users } from "../db/schema/users.js";
+import { queryClient } from "../config/db.js";
 
 export async function setup() {
   const testUrl = process.env.DATABASE_TEST_URL || process.env.DATABASE_URL;
@@ -15,74 +12,31 @@ export async function setup() {
   console.log("Configurando entorno de prueba...");
 
   try {
-    const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
-    if (listData?.users && listData.users.length > 0) {
-      for (const user of listData.users) {
-        await supabaseAdmin.auth.admin.deleteUser(user.id);
-      }
-    }
+    const commandEnv = {
+      ...process.env,
+      DATABASE_URL: testUrl,
+      VITEST: "true",
+    };
 
-    await db.execute(sql`
-      DO $$ DECLARE
-        r RECORD;
-      BEGIN
-        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
-          EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
-        END LOOP;
-      END $$;
-    `);
-
-    execSync("npx drizzle-kit push --force", {
-      env: { ...process.env, DATABASE_URL: testUrl },
+    execSync("pnpm reset:app --confirm", {
+      env: commandEnv,
+      stdio: "inherit",
     });
 
-    const testUsers = [
-      {
-        email: "admin@abc.com",
-        password: "password123",
-        firstName: "Admin",
-        lastName: "ABC",
-        role: "admin" as const,
-        isOwner: true,
-      },
-      {
-        email: "client@abc.com",
-        password: "password123",
-        firstName: "Cliente",
-        lastName: "Test",
-        role: "client" as const,
-        isOwner: false,
-      },
-      {
-        email: "investor@abc.com",
-        password: "password123",
-        firstName: "Inversor",
-        lastName: "Test",
-        role: "investor" as const,
-        isOwner: false,
-      },
-    ];
+    execSync("pnpm exec drizzle-kit push --force", {
+      env: commandEnv,
+      stdio: "inherit",
+    });
 
-    for (const u of testUsers) {
-      const { data: authData, error: authErr } =
-        await supabaseAdmin.auth.admin.createUser({
-          email: u.email,
-          password: u.password,
-          email_confirm: true,
-        });
+    execSync("pnpm setup:storage", {
+      env: commandEnv,
+      stdio: "inherit",
+    });
 
-      if (authErr) throw authErr;
-
-      await db.insert(users).values({
-        id: authData.user.id,
-        email: u.email,
-        firstName: u.firstName,
-        lastName: u.lastName,
-        role: u.role,
-        isOwner: u.isOwner,
-        active: true,
-      });
-    }
+    execSync("pnpm db:seed", {
+      env: commandEnv,
+      stdio: "inherit",
+    });
 
     console.log("Entorno de prueba listo.");
   } catch (error) {
