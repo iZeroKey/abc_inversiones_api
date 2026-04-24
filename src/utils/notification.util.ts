@@ -6,7 +6,7 @@ export interface NotificationParams {
   title: string;
   body: string;
   type: string;
-  data?: any;
+  data?: unknown;
 }
 
 /**

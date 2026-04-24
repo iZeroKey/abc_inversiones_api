@@ -36,8 +36,9 @@ export const registerPayment = async (req: AuthRequest, res: Response): Promise<
     });
 
     sendSuccess(res, 201, "Pago registrado y aplicado correctamente", result);
-  } catch (error: any) {
-    sendError(res, 500, error.message || "Error al registrar el pago", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error al registrar el pago";
+    sendError(res, 500, message, error);
   }
 };
 

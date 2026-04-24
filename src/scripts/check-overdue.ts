@@ -27,7 +27,7 @@ import "dotenv/config";
 import { db } from "../config/db.js";
 import { installments } from "../db/schema/installments.js";
 import { loans } from "../db/schema/loans.js";
-import { eq, and, lt, sql } from "drizzle-orm";
+import { eq, and, lt } from "drizzle-orm";
 import { sendNotification } from "../utils/notification.util.js";
 
 async function checkOverdueInstallments() {

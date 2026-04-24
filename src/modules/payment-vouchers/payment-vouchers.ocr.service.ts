@@ -22,15 +22,23 @@ export interface VoucherOcrResult {
 
 let visionClient: vision.ImageAnnotatorClient | null = null;
 
-const SUPPORTED_BANKS = [
-  "BCP",
-  "INTERBANK",
-  "BBVA",
-  "SCOTIABANK",
-  "YAPE",
-  "PLIN",
-  "BANBIF",
-] as const;
+type SupportedBank =
+  | "BCP"
+  | "INTERBANK"
+  | "BBVA"
+  | "SCOTIABANK"
+  | "YAPE"
+  | "PLIN"
+  | "BANBIF";
+
+interface OcrBlock {
+  confidence?: number | null;
+}
+
+interface OcrPage {
+  confidence?: number | null;
+  blocks?: OcrBlock[] | null;
+}
 
 const getVisionClient = (): vision.ImageAnnotatorClient => {
   if (!visionClient) {
@@ -43,7 +51,7 @@ const getVisionClient = (): vision.ImageAnnotatorClient => {
 const normalizeSpaces = (value: string): string => value.replace(/\s+/g, " ").trim();
 
 const toIsoDate = (value: string): string | null => {
-  const match = value.match(/(?<day>\d{1,2})[\/.-](?<month>\d{1,2})[\/.-](?<year>\d{2,4})/);
+  const match = value.match(/(?<day>\d{1,2})[/.-](?<month>\d{1,2})[/.-](?<year>\d{2,4})/);
   if (!match?.groups) return null;
 
   const day = Number(match.groups.day);
@@ -80,8 +88,8 @@ const normalizeAmount = (rawValue: string): string | null => {
 
 const extractAmount = (text: string): string | null => {
   const labeledPatterns = [
-    /(?:importe|monto|monto\s+recibido|total|deposito|dep[oó]sito|importe\s+depositado)\s*[:\-]?\s*(?:s\/\.?|s\/|soles|usd|us\$|\$)?\s*(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2}))/i,
-    /(?:s\/\.?|s\/|soles|usd|us\$|\$)\s*(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2}))/i,
+    /(?:importe|monto|monto\s+recibido|total|deposito|dep[oó]sito|importe\s+depositado)\s*[:-]?\s*(?:s\/.?|s\/|soles|usd|us\$|\$)?\s*(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2}))/i,
+    /(?:s\/.?|s\/|soles|usd|us\$|\$)\s*(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2}))/i,
   ];
 
   for (const pattern of labeledPatterns) {
@@ -119,8 +127,8 @@ const extractOperationId = (text: string): string | null => {
 
 const extractOperationDate = (text: string): string | null => {
   const labeledPatterns = [
-    /(?:fecha|fec\.?|fecha\s+de\s+operaci[oó]n|f\.?\s*operaci[oó]n)\s*[:\-]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/i,
-    /(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/,
+    /(?:fecha|fec\.?|fecha\s+de\s+operaci[oó]n|f\.?\s*operaci[oó]n)\s*[:-]?\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/i,
+    /(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/,
   ];
 
   for (const pattern of labeledPatterns) {
@@ -136,7 +144,7 @@ const extractOperationDate = (text: string): string | null => {
 const extractBank = (text: string): string | null => {
   const upper = text.toUpperCase();
 
-  const bankPatterns: Array<{ bank: (typeof SUPPORTED_BANKS)[number]; pattern: RegExp }> = [
+  const bankPatterns: Array<{ bank: SupportedBank; pattern: RegExp }> = [
     { bank: "BCP", pattern: /\b(?:BCP|BANCO\s+DE\s+CREDITO|BANCO\s+DE\s+CR[EE]DITO)\b/i },
     { bank: "INTERBANK", pattern: /\b(?:INTERBANK|INTER\s+BANK)\b/i },
     { bank: "BBVA", pattern: /\b(?:BBVA|BBVA\s+CONTINENTAL|BANCO\s+CONTINENTAL)\b/i },
@@ -154,7 +162,7 @@ const extractBank = (text: string): string | null => {
   return null;
 };
 
-const collectConfidence = (pages: any[] | null | undefined): number | null => {
+const collectConfidence = (pages: OcrPage[] | null | undefined): number | null => {
   if (!pages?.length) return null;
 
   const confidenceValues: number[] = [];

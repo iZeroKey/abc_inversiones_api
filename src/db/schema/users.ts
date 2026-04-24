@@ -29,7 +29,7 @@ export const users = pgTable(
       .notNull(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
-  (table) => [
+  () => [
     pgPolicy("admin_all_access", {
       for: "all",
       to: "authenticated",

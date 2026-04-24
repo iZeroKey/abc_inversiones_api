@@ -33,7 +33,7 @@ export const installments = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  () => [
     // RLS
     pgPolicy("admin_installments_all", {
       for: "all",

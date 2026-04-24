@@ -2,7 +2,7 @@ import { Response } from "express";
 import { db } from "../../config/db.js";
 import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
 import { loans } from "../../db/schema/loans.js";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, type SQL } from "drizzle-orm";
 import {
   sendSuccess,
   sendError,
@@ -118,7 +118,7 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
 
     const responseVoucher = await attachSignedEvidenceUrl(newVoucher);
     sendSuccess(res, 201, "Voucher enviado para revisión", responseVoucher);
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (isUniqueViolation(error)) {
       sendError(res, 409, "Este ID de operación ya ha sido registrado previamente");
       return;
@@ -137,7 +137,7 @@ export const getVouchers = async (req: AuthRequest, res: Response): Promise<void
     const user = req.user!;
     const { status, loanId, from, to } = req.query;
 
-    const conditions = [];
+    const conditions: SQL[] = [];
 
     // Filtrado por rol (obligatorio)
     if (user.role === "client") {
@@ -152,13 +152,11 @@ export const getVouchers = async (req: AuthRequest, res: Response): Promise<void
     if (from) conditions.push(sql`${paymentVouchers.createdAt} >= ${new Date(from as string)}`);
     if (to) conditions.push(sql`${paymentVouchers.createdAt} <= ${new Date(to as string)}`);
 
-    let query = db.select().from(paymentVouchers);
-    if (conditions.length > 0) {
-      // @ts-ignore — dynamic conditions
-      query = query.where(and(...conditions));
-    }
-
-    const results = await query.orderBy(desc(paymentVouchers.createdAt));
+    const results = await db
+      .select()
+      .from(paymentVouchers)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(paymentVouchers.createdAt));
     const signedResults = await Promise.all(results.map((voucher) => attachSignedEvidenceUrl(voucher)));
     sendSuccess(res, 200, "Vouchers obtenidos", signedResults);
   } catch (error) {
@@ -291,7 +289,8 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
 
     const responseVoucher = await attachSignedEvidenceUrl(updated);
     sendSuccess(res, 200, `Voucher actualizado a ${nextStatus}`, responseVoucher);
-  } catch (error: any) {
-    sendError(res, 500, error.message || "Error al procesar el voucher", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error al procesar el voucher";
+    sendError(res, 500, message, error);
   }
 };

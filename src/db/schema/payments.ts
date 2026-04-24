@@ -17,7 +17,7 @@ export const payments = pgTable("payments", {
   status: text("status", { enum: ["confirmed", "reversed"] }).notNull().default("confirmed"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
+}, () => [
   // RLS para Pagos
   pgPolicy("admin_payments_all", {
     for: "all",

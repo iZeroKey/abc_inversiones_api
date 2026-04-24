@@ -73,7 +73,14 @@ async function seed() {
         supabaseId = authUser.user.id;
       }
 
-      const { password, ...localData } = userData;
+      const localData = {
+        email: userData.email,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        phone: userData.phone,
+        role: userData.role,
+        isOwner: userData.isOwner,
+      };
       await db
         .insert(users)
         .values({

@@ -3,7 +3,7 @@ import { ZodError } from "zod";
 import { DateTime } from "luxon";
 import { env } from "../config/env.js";
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   message: string;
   data?: T;
@@ -37,12 +37,12 @@ export const sendError = (
   res: Response,
   status: number,
   message: string,
-  error?: any
+  error?: unknown
 ): void => {
   const isProduction = env.NODE_ENV === "production";
   const shouldHideServerError = isProduction && status >= 500;
 
-  const response: ApiResponse = {
+  const response: ApiResponse<unknown | null> = {
     success: false,
     message: shouldHideServerError ? "Error interno del servidor" : message,
     data: shouldHideServerError ? null : (error || null),

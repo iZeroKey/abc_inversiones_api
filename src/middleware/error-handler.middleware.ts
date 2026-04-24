@@ -2,22 +2,33 @@ import { NextFunction, Request, Response } from "express";
 import { sendError } from "../utils/response.util.js";
 
 export const errorHandler = (
-  error: any,
+  error: unknown,
   _req: Request,
   res: Response,
-  _next: NextFunction,
+  next: NextFunction,
 ): void => {
-  const status = error.status || error.statusCode || 500;
-  const message = error.message || "Error interno del servidor";
+  void next;
+
+  const errorData =
+    typeof error === "object" && error !== null
+      ? (error as Record<string, unknown>)
+      : null;
+  const status =
+    (typeof errorData?.status === "number" && errorData.status) ||
+    (typeof errorData?.statusCode === "number" && errorData.statusCode) ||
+    500;
+  const message =
+    (typeof errorData?.message === "string" && errorData.message) ||
+    "Error interno del servidor";
 
   console.error("[Error Handler]", {
     status,
     message,
-    stack: error?.stack,
-    data: error?.data || null,
+    stack: error instanceof Error ? error.stack : null,
+    data: errorData?.data || null,
   });
 
-  sendError(res, status, message, error.data || null);
+  sendError(res, status, message, errorData?.data || null);
 };
 
 export const notFoundHandler = (_req: Request, res: Response): void => {

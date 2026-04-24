@@ -7,8 +7,8 @@ export interface AuditParams {
   action: string;
   module: string;
   entityId?: string;
-  oldData?: any;
-  newData?: any;
+  oldData?: unknown;
+  newData?: unknown;
   req?: Request;
 }
 

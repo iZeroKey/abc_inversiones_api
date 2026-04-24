@@ -21,7 +21,8 @@ export const analyzeVoucherEvidence = async (
 
     const analysis = await analyzeVoucherImage(req.file.buffer, req.file.mimetype);
     sendSuccess(res, 200, "Imagen analizada correctamente", analysis);
-  } catch (error: any) {
-    sendError(res, 500, error.message || "Error al analizar la imagen", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error al analizar la imagen";
+    sendError(res, 500, message, error);
   }
 };

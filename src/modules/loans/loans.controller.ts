@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, lt, sql, type SQL } from "drizzle-orm";
 import { Response } from "express";
 import { DateTime } from "luxon";
 import { db } from "../../config/db.js";
@@ -21,6 +21,8 @@ const calculateTotalDebt = (
   type: "simple" | "compound",
   period: "monthly" | "annual",
 ): number => {
+  void period;
+
   if (type === "simple") {
     return principal + principal * (rate / 100) * count;
   } else {
@@ -100,7 +102,7 @@ export const getAllLoans = async (
     const user = req.user!;
     const { status, clientId, investorId, from, to } = req.query;
 
-    const conditions = [];
+    const conditions: SQL[] = [];
 
     // Filtrado por rol (obligatorio)
     if (user.role === "client") {
@@ -116,13 +118,11 @@ export const getAllLoans = async (
     if (from) conditions.push(sql`${loans.createdAt} >= ${new Date(from as string)}`);
     if (to) conditions.push(sql`${loans.createdAt} <= ${new Date(to as string)}`);
 
-    let query = db.select().from(loans);
-    if (conditions.length > 0) {
-      // @ts-ignore — dynamic conditions
-      query = query.where(and(...conditions));
-    }
-
-    const results = await query.orderBy(desc(loans.createdAt));
+    const results = await db
+      .select()
+      .from(loans)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(loans.createdAt));
     sendSuccess(res, 200, "Préstamos obtenidos", results);
   } catch (error) {
     sendError(res, 500, "Error al obtener préstamos", error);

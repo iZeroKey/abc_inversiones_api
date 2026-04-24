@@ -33,7 +33,7 @@ export const accessRequests = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  () => [
     // RLS
     pgPolicy("admin_access_requests_all", {
       for: "all",

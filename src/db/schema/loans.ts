@@ -61,7 +61,7 @@ export const loans = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  () => [
     // RLS
     pgPolicy("admin_loans_all", {
       for: "all",
