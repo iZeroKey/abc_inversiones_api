@@ -5,14 +5,14 @@ import { db } from "../../config/db.js";
 import { installments } from "../../db/schema/installments.js";
 import { loans } from "../../db/schema/loans.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
-import {
-  formatZodError,
-  sendError,
-  sendSuccess,
-} from "../../utils/response.util.js";
-import { createLoanSchema } from "./loans.schema.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { sendNotification } from "../../utils/notification.util.js";
+import {
+    formatZodError,
+    sendError,
+    sendSuccess,
+} from "../../utils/response.util.js";
+import { createLoanSchema } from "./loans.schema.js";
 
 const calculateTotalDebt = (
   principal: number,
@@ -28,6 +28,14 @@ const calculateTotalDebt = (
   } else {
     return principal * Math.pow(1 + rate / 100, count);
   }
+};
+
+const canAccessLoan = (user: AuthRequest["user"], loan: typeof loans.$inferSelect): boolean => {
+  if (!user) return false;
+  if (user.role === "admin" || user.isOwner) return true;
+  if (user.role === "client") return loan.clientId === user.id;
+  if (user.role === "investor") return loan.investorId === user.id;
+  return false;
 };
 
 export const createLoan = async (
@@ -135,6 +143,7 @@ export const getLoanById = async (
 ): Promise<void> => {
   try {
     const id = req.params.id as string;
+    const user = req.user!;
     const [loan] = await db
       .select()
       .from(loans)
@@ -143,6 +152,11 @@ export const getLoanById = async (
 
     if (!loan) {
       sendError(res, 404, "Préstamo no encontrado");
+      return;
+    }
+
+    if (!canAccessLoan(user, loan)) {
+      sendError(res, 403, "No tienes acceso a este préstamo");
       return;
     }
 
@@ -158,6 +172,24 @@ export const getLoanInstallments = async (
 ): Promise<void> => {
   try {
     const loanId = req.params.id as string;
+    const user = req.user!;
+
+    const [loan] = await db
+      .select()
+      .from(loans)
+      .where(eq(loans.id, loanId))
+      .limit(1);
+
+    if (!loan) {
+      sendError(res, 404, "Préstamo no encontrado");
+      return;
+    }
+
+    if (!canAccessLoan(user, loan)) {
+      sendError(res, 403, "No tienes acceso al cronograma de este préstamo");
+      return;
+    }
+
     const results = await db
       .select()
       .from(installments)

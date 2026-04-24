@@ -1,19 +1,19 @@
+import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { Response } from "express";
 import { db } from "../../config/db.js";
-import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
 import { loans } from "../../db/schema/loans.js";
-import { eq, desc, and, sql, type SQL } from "drizzle-orm";
-import {
-  sendSuccess,
-  sendError,
-  formatZodError,
-} from "../../utils/response.util.js";
-import { createVoucherSchema, processVoucherSchema } from "./payment-vouchers.schema.js";
+import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
-import { processPaymentLogic } from "../payments/payments.service.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { sendNotification } from "../../utils/notification.util.js";
+import {
+  formatZodError,
+  sendError,
+  sendSuccess,
+} from "../../utils/response.util.js";
 import { resolveFileUrl, uploadFile } from "../../utils/storage.util.js";
+import { processPaymentLogic } from "../payments/payments.service.js";
+import { createVoucherSchema, processVoucherSchema } from "./payment-vouchers.schema.js";
 
 const isUniqueViolation = (error: unknown): boolean => {
   return !!error && typeof error === "object" && "code" in error && error.code === "23505";
@@ -197,6 +197,10 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
       // Inversionista: solo puede procesar vouchers en pending_investor_review
       if (voucher.status !== "pending_investor_review") {
         sendError(res, 400, "El voucher no está pendiente de tu revisión");
+        return;
+      }
+      if (!loan || loan.investorId !== user.id) {
+        sendError(res, 403, "No estás asignado al préstamo de este voucher");
         return;
       }
       nextStatus = action === "approve" ? "investor_approved" : "investor_rejected";

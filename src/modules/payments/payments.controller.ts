@@ -1,16 +1,17 @@
+import { desc, eq } from "drizzle-orm";
 import { Response } from "express";
 import { db } from "../../config/db.js";
+import { loans } from "../../db/schema/loans.js";
 import { payments } from "../../db/schema/payments.js";
-import { eq, desc } from "drizzle-orm";
+import { AuthRequest } from "../../middleware/auth.middleware.js";
+import { logAudit } from "../../utils/audit.util.js";
 import {
-  sendSuccess,
-  sendError,
   formatZodError,
+  sendError,
+  sendSuccess,
 } from "../../utils/response.util.js";
 import { createPaymentSchema } from "./payments.schema.js";
-import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { processPaymentLogic } from "./payments.service.js";
-import { logAudit } from "../../utils/audit.util.js";
 
 export const registerPayment = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -45,6 +46,25 @@ export const registerPayment = async (req: AuthRequest, res: Response): Promise<
 export const getPaymentsByLoan = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const loanId = req.params.loanId as string;
+    const user = req.user!;
+
+    const [loan] = await db.select().from(loans).where(eq(loans.id, loanId)).limit(1);
+    if (!loan) {
+      sendError(res, 404, "Préstamo no encontrado");
+      return;
+    }
+
+    const hasAccess =
+      user.role === "admin" ||
+      user.isOwner ||
+      (user.role === "client" && loan.clientId === user.id) ||
+      (user.role === "investor" && loan.investorId === user.id);
+
+    if (!hasAccess) {
+      sendError(res, 403, "No tienes acceso a los pagos de este préstamo");
+      return;
+    }
+
     const results = await db.select()
       .from(payments)
       .where(eq(payments.loanId, loanId))
