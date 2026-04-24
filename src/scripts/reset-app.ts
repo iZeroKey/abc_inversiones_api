@@ -21,14 +21,12 @@ const hasConfirmFlag = process.argv.includes("--confirm");
 const APP_BUCKETS = ["vouchers", "avatars"] as const;
 
 const STORAGE_POLICIES = [
-  "avatars_public_read",
-  "avatars_owner_insert",
-  "avatars_owner_update",
-  "avatars_owner_delete",
-  "vouchers_admin_read",
+  "avatars_admin_all",
+  "avatars_owner_self_all",
+  "vouchers_admin_all",
   "vouchers_client_read",
   "vouchers_investor_read",
-  "vouchers_client_insert",
+  "vouchers_client_manage_own",
 ] as const;
 
 const APP_TABLES = [
