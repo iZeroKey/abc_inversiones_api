@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLoanFixture, createVoucherFixture, getUserByEmail, loginAs, request, seededEmails, authHeader } from "../helpers/integration.js";
+import { authHeader, createLoanFixture, createVoucherFixture, getUserByEmail, loginAs, request, seededEmails } from "../helpers/integration.js";
 
 describe("Payment Vouchers Module", () => {
   it("debería permitir al cliente subir un voucher a un préstamo activo", async () => {
@@ -143,5 +143,28 @@ describe("Payment Vouchers Module", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.message).toContain("inversionista debe aprobar");
+  });
+
+  it("debería impedir que un inversionista procese un voucher de un préstamo no asignado", async () => {
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: null,
+      status: "active",
+      isCompanyFunded: true,
+    });
+    const voucher = await createVoucherFixture({
+      loanId: loan.id,
+      clientId: client!.id,
+      operationId: `OP-NOT-ASSIGNED-${Date.now()}`,
+      status: "pending_investor_review",
+    });
+
+    const res = await request
+      .patch(`/api/v1/payment-vouchers/${voucher.id}/process`)
+      .set(authHeader(await loginAs(seededEmails.investor)))
+      .send({ action: "approve" });
+
+    expect(res.status).toBe(403);
   });
 });

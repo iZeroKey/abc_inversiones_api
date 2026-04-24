@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authHeader, createLoanFixture, getUserByEmail, loginAs, request, seededEmails } from "../helpers/integration.js";
+import { authHeader, createAuthUser, createLoanFixture, getUserByEmail, loginAs, request, seededEmails, uniqueEmail } from "../helpers/integration.js";
 
 describe("Loans Module", () => {
   it("debería permitir a un admin crear un préstamo", async () => {
@@ -59,5 +59,49 @@ describe("Loans Module", () => {
       .send({ observation: "Intento inválido" });
 
     expect(res.status).toBe(400);
+  });
+
+  it("debería impedir que un cliente vea el detalle de un préstamo ajeno", async () => {
+    const otherClient = await createAuthUser({
+      email: uniqueEmail("loan-other-client"),
+      firstName: "Otro",
+      lastName: "Cliente",
+      role: "client",
+    });
+    const investor = await getUserByEmail(seededEmails.investor);
+    const loan = await createLoanFixture({
+      clientId: otherClient.id,
+      investorId: investor!.id,
+      status: "active",
+      isCompanyFunded: false,
+    });
+
+    const res = await request
+      .get(`/api/v1/loans/${loan.id}`)
+      .set(authHeader(await loginAs(seededEmails.investor)));
+
+    expect(res.status).toBe(200);
+
+    const clientRes = await request
+      .get(`/api/v1/loans/${loan.id}`)
+      .set(authHeader(await loginAs(seededEmails.client)));
+
+    expect(clientRes.status).toBe(403);
+  });
+
+  it("debería impedir acceder al cronograma de un préstamo sin permisos", async () => {
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: null,
+      status: "active",
+      isCompanyFunded: true,
+    });
+
+    const investorRes = await request
+      .get(`/api/v1/loans/${loan.id}/installments`)
+      .set(authHeader(await loginAs(seededEmails.investor)));
+
+    expect(investorRes.status).toBe(403);
   });
 });

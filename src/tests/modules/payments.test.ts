@@ -28,4 +28,20 @@ describe("Payments Module", () => {
     expect(res.status).toBe(201);
     expect(res.body.data.amount).toBe("100.00");
   });
+
+  it("debería impedir ver pagos de un préstamo sin acceso", async () => {
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: null,
+      status: "active",
+      isCompanyFunded: true,
+    });
+
+    const res = await request
+      .get(`/api/v1/payments/loan/${loan.id}`)
+      .set(authHeader(await loginAs(seededEmails.investor)));
+
+    expect(res.status).toBe(403);
+  });
 });
