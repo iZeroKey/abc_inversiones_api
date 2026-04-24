@@ -1,5 +1,6 @@
 import { db } from "../config/db.js";
 import { notifications } from "../db/schema/notifications.js";
+import { realtimeService } from "../realtime/websocket.service.js";
 
 export interface NotificationParams {
   userId: string;
@@ -15,13 +16,20 @@ export interface NotificationParams {
 export const sendNotification = async (params: NotificationParams) => {
   try {
     // 1. Guardar en base de datos para persistencia en el App
-    const [newNotification] = await db.insert(notifications).values({
-      userId: params.userId,
-      title: params.title,
-      body: params.body,
-      type: params.type,
-      data: params.data ? JSON.stringify(params.data) : null,
-    }).returning();
+    const [newNotification] = await db
+      .insert(notifications)
+      .values({
+        userId: params.userId,
+        title: params.title,
+        body: params.body,
+        type: params.type,
+        data: params.data ? JSON.stringify(params.data) : null,
+      })
+      .returning();
+
+    if (newNotification) {
+      realtimeService.emitNotification(newNotification);
+    }
 
     // 2. TODO: Implementar envío Push real (FCM / Firebase / Supabase)
     // console.log(`[PUSH SENT] A: ${params.userId} - Título: ${params.title}`);

@@ -1,9 +1,10 @@
+import { and, desc, eq } from "drizzle-orm";
 import { Response } from "express";
 import { db } from "../../config/db.js";
 import { notifications } from "../../db/schema/notifications.js";
-import { eq, desc, and } from "drizzle-orm";
-import { sendSuccess, sendError } from "../../utils/response.util.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
+import { realtimeService } from "../../realtime/websocket.service.js";
+import { sendError, sendSuccess } from "../../utils/response.util.js";
 
 export const getMyNotifications = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -37,6 +38,8 @@ export const markAsRead = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
+    realtimeService.emitToUser(userId, "notification.updated", updated);
+
     sendSuccess(res, 200, "Notificación marcada como leída", updated);
   } catch (error) {
     sendError(res, 500, "Error al actualizar notificación", error);
@@ -51,6 +54,11 @@ export const markAllAsRead = async (req: AuthRequest, res: Response): Promise<vo
       .update(notifications)
       .set({ isRead: true })
       .where(eq(notifications.userId, userId));
+
+    realtimeService.emitToUser(userId, "notification.updated.bulk", {
+      userId,
+      isRead: true,
+    });
 
     sendSuccess(res, 200, "Todas las notificaciones marcadas como leídas");
   } catch (error) {
