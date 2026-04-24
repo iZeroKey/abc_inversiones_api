@@ -1,9 +1,9 @@
 import { Router } from "express";
-import * as controller from "./payment-vouchers.controller.js";
-import * as ocrController from "./payment-vouchers.ocr.controller.js";
 import { authenticate } from "../../middleware/auth.middleware.js";
 import { authorize } from "../../middleware/role.middleware.js";
 import { uploadImage } from "../../middleware/upload.middleware.js";
+import * as controller from "./payment-vouchers.controller.js";
+import * as ocrController from "./payment-vouchers.ocr.controller.js";
 
 const router = Router();
 
@@ -30,6 +30,13 @@ router.post("/", authenticate, authorize(["client"]), uploadImage.single("eviden
  * @access  Private
  */
 router.get("/", authenticate, controller.getVouchers);
+
+/**
+ * @route   GET /api/v1/payment-vouchers/operation-id/exists
+ * @desc    Verificar rápidamente si un operationId ya existe.
+ * @access  Private (Client)
+ */
+router.get("/operation-id/exists", authenticate, authorize(["client"]), controller.checkOperationIdExists);
 
 /**
  * @route   PATCH /api/v1/payment-vouchers/:id/process

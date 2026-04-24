@@ -21,6 +21,32 @@ describe("Payment Vouchers Module", () => {
     expect(res.body.data.loanId).toBe(loan.id);
   });
 
+  it("debería validar rápidamente si un operationId ya existe", async () => {
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: null,
+      status: "active",
+      isCompanyFunded: true,
+    });
+    const existingOperationId = `OPCHECK${Date.now()}`;
+
+    await createVoucherFixture({
+      loanId: loan.id,
+      clientId: client!.id,
+      operationId: existingOperationId,
+    });
+
+    const res = await request
+      .get("/api/v1/payment-vouchers/operation-id/exists")
+      .set(authHeader(await loginAs(seededEmails.client)))
+      .query({ operationId: `  op-check ${existingOperationId.slice(7)}  ` });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.exists).toBe(true);
+    expect(res.body.data.operationId).toBe(existingOperationId);
+  });
+
   it("debería rechazar análisis OCR cuando no se adjunta imagen", async () => {
     const res = await request
       .post("/api/v1/payment-vouchers/analyze")
@@ -28,6 +54,31 @@ describe("Payment Vouchers Module", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.message).toContain("evidence");
+  });
+
+  it("debería rechazar vouchers con fecha de operación futura", async () => {
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: null,
+      status: "active",
+      isCompanyFunded: true,
+    });
+
+    const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    const res = await request
+      .post("/api/v1/payment-vouchers")
+      .set(authHeader(await loginAs(seededEmails.client)))
+      .send({
+        loanId: loan.id,
+        amount: "500",
+        operationId: `OPFUT${Date.now()}`,
+        operationDate: futureDate,
+      });
+
+    expect(res.status).toBe(400);
+      expect(res.body.message).toContain("futura");
   });
 
   it("debería permitir al cliente subir un voucher adjuntando una imagen como evidencia", async () => {
@@ -61,7 +112,7 @@ describe("Payment Vouchers Module", () => {
       status: "active",
       isCompanyFunded: false,
     });
-    const duplicatedOperationId = `OP-DUP-${Date.now()}`;
+    const duplicatedOperationId = `OPDUP${Date.now()}`;
 
     await createVoucherFixture({
       loanId: loan.id,
@@ -72,7 +123,35 @@ describe("Payment Vouchers Module", () => {
     const res = await request
       .post("/api/v1/payment-vouchers")
       .set(authHeader(await loginAs(seededEmails.client)))
-      .send({ loanId: loan.id, amount: "500", operationId: duplicatedOperationId });
+      .send({ loanId: loan.id, amount: "500", operationId: `  op dup ${duplicatedOperationId.slice(5)}  ` });
+
+    expect(res.status).toBe(409);
+  });
+
+  it("debería normalizar el operationId antes de guardar y detectar duplicados con variaciones", async () => {
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: null,
+      status: "active",
+      isCompanyFunded: true,
+    });
+    const normalizedOperationId = `OPVAR${Date.now()}`;
+
+    await createVoucherFixture({
+      loanId: loan.id,
+      clientId: client!.id,
+      operationId: normalizedOperationId,
+    });
+
+    const res = await request
+      .post("/api/v1/payment-vouchers")
+      .set(authHeader(await loginAs(seededEmails.client)))
+      .send({
+        loanId: loan.id,
+        amount: "500",
+        operationId: `op var ${normalizedOperationId.slice(5)}`,
+      });
 
     expect(res.status).toBe(409);
   });

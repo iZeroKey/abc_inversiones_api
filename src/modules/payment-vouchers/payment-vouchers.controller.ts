@@ -13,7 +13,7 @@ import {
 } from "../../utils/response.util.js";
 import { resolveFileUrl, uploadFile } from "../../utils/storage.util.js";
 import { processPaymentLogic } from "../payments/payments.service.js";
-import { createVoucherSchema, processVoucherSchema } from "./payment-vouchers.schema.js";
+import { createVoucherSchema, operationIdLookupSchema, processVoucherSchema } from "./payment-vouchers.schema.js";
 
 const isUniqueViolation = (error: unknown): boolean => {
   return !!error && typeof error === "object" && "code" in error && error.code === "23505";
@@ -30,6 +30,10 @@ const attachSignedEvidenceUrl = async <T extends { evidenceUrl?: string | null }
   };
 };
 
+const normalizedOperationIdCondition = (operationId: string): SQL => {
+  return sql`regexp_replace(upper(${paymentVouchers.operationId}), '[^A-Z0-9]', '', 'g') = ${operationId}`;
+};
+
 /**
  * Permite al cliente subir un comprobante de pago (voucher).
  * Acepta imagen como multipart/form-data en el campo "evidence".
@@ -41,7 +45,16 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
   try {
     const validation = createVoucherSchema.safeParse(req.body);
     if (!validation.success) {
-      sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
+      const futureOperationDateIssue = validation.error.issues.find(
+        (issue) => issue.path.join(".") === "operationDate" && issue.message.includes("futura"),
+      );
+
+      sendError(
+        res,
+        400,
+        futureOperationDateIssue?.message || "Datos inválidos",
+        formatZodError(validation.error),
+      );
       return;
     }
 
@@ -51,7 +64,7 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
     // 1. Verificar duplicado de operationId
     const [existing] = await db.select()
       .from(paymentVouchers)
-      .where(eq(paymentVouchers.operationId, operationId))
+      .where(normalizedOperationIdCondition(operationId))
       .limit(1);
     
     if (existing) {
@@ -90,7 +103,8 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
 
     const [newVoucher] = await db.insert(paymentVouchers).values({
       ...validation.data,
-      operationDate: validation.data.operationDate ? new Date(validation.data.operationDate) : new Date(),
+      operationId,
+      operationDate: validation.data.operationDate || new Date(),
       clientId,
       evidenceUrl,
       status: initialStatus,
@@ -125,6 +139,32 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     sendError(res, 500, "Error al enviar el voucher", error);
+  }
+};
+
+export const checkOperationIdExists = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const validation = operationIdLookupSchema.safeParse(req.query);
+
+    if (!validation.success) {
+      sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
+      return;
+    }
+
+    const operationId = validation.data.operationId;
+
+    const [existing] = await db
+      .select({ id: paymentVouchers.id })
+      .from(paymentVouchers)
+      .where(normalizedOperationIdCondition(operationId))
+      .limit(1);
+
+    sendSuccess(res, 200, "ID de operación verificado", {
+      operationId,
+      exists: !!existing,
+    });
+  } catch (error) {
+    sendError(res, 500, "Error al verificar el ID de operación", error);
   }
 };
 
