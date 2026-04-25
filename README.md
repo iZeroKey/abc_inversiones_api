@@ -394,5 +394,5 @@ Todas las respuestasfollowan el siguiente formato:
 
 ## Links
 
-- [Documentacion de Endpoints](./endpoints/)
+- [Documentacion de Endpoints](./docs/endpoints/)
 - [Configuracion](./docs/config/)
