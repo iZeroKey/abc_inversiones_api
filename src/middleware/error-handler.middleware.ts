@@ -1,14 +1,13 @@
 import { NextFunction, Request, Response } from "express";
+import { logger } from "../config/logger.js";
 import { sendError } from "../utils/response.util.js";
 
 export const errorHandler = (
   error: unknown,
   _req: Request,
   res: Response,
-  next: NextFunction,
+  _next: NextFunction,
 ): void => {
-  void next;
-
   const errorData =
     typeof error === "object" && error !== null
       ? (error as Record<string, unknown>)
@@ -21,12 +20,17 @@ export const errorHandler = (
     (typeof errorData?.message === "string" && errorData.message) ||
     "Error interno del servidor";
 
-  console.error("[Error Handler]", {
-    status,
-    message,
-    stack: error instanceof Error ? error.stack : null,
-    data: errorData?.data || null,
-  });
+  if (status >= 500) {
+    logger.error(
+      { err: error instanceof Error ? error : null, status, message },
+      "Internal server error",
+    );
+  } else {
+    logger.warn(
+      { status, message, data: errorData?.data },
+      "Client error",
+    );
+  }
 
   sendError(res, status, message, errorData?.data || null);
 };

@@ -13,7 +13,7 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 
-app.get("/", (req, res) => {
+app.get("/health", (_req, res) => {
   res.json({
     name: process.env.APP_NAME || "API",
     version: "1.0.0",
