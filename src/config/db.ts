@@ -4,18 +4,13 @@ import * as schema from "../db/schema/index.js";
 import { env } from "./env.js";
 import { logger } from "./logger.js";
 
-const isTest = process.env.VITEST === "true";
-const databaseUrl = isTest ? process.env.DATABASE_TEST_URL : env.DATABASE_URL;
+const isTest = env.NODE_ENV === "test" || process.env.VITEST === "true";
 
-if (!databaseUrl) {
-  throw new Error(
-    isTest
-      ? "DATABASE_TEST_URL environment variable is not set"
-      : "DATABASE_URL environment variable is not set",
-  );
+if (!env.DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is not set");
 }
 
-export const queryClient = postgres(databaseUrl, {
+export const queryClient = postgres(env.DATABASE_URL, {
   max: isTest ? 1 : 10,
   idle_timeout: 20,
   connect_timeout: 30,

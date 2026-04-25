@@ -3,8 +3,7 @@ import "dotenv/config";
 import { queryClient } from "../config/db.js";
 
 export async function setup() {
-  const testUrl = process.env.DATABASE_TEST_URL || process.env.DATABASE_URL;
-  if (!testUrl) {
+  if (!process.env.DATABASE_URL) {
     console.warn("DATABASE_URL no definida. Saltando setup de DB.");
     return;
   }
@@ -14,7 +13,6 @@ export async function setup() {
   try {
     const commandEnv = {
       ...process.env,
-      DATABASE_URL: testUrl,
       VITEST: "true",
     };
 
