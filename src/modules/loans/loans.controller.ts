@@ -431,7 +431,7 @@ export const rejectLoan = async (
   try {
     const id = req.params.id as string;
     const user = req.user!;
-    const { observation } = req.body;
+    const { observation } = req.body ?? {};
 
     const [loan] = await db
       .select()
