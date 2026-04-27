@@ -4,13 +4,17 @@ import { db } from "../../config/db.js";
 import { supabase, supabaseAdmin } from "../../config/supabase.js";
 import { users } from "../../db/schema/users.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
+import { logAudit } from "../../utils/audit.util.js";
 import {
   formatZodError,
   sendError,
   sendSuccess,
 } from "../../utils/response.util.js";
-import { loginSchema, registerSchema, changePasswordSchema } from "./auth.schema.js";
-import { logAudit } from "../../utils/audit.util.js";
+import {
+  changePasswordSchema,
+  loginSchema,
+  registerSchema,
+} from "./auth.schema.js";
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -37,6 +41,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       .where(eq(users.id, data.user.id))
       .limit(1);
 
+    const session = data.session
+      ? {
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+          expires_in: data.session.expires_in,
+        }
+      : null;
+
     await logAudit({
       userId: data.user.id,
       action: "LOGIN",
@@ -46,7 +58,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     sendSuccess(res, 200, "Login exitoso", {
       user: user || null,
-      session: data.session,
+      session,
     });
   } catch (error) {
     sendError(res, 500, "Error interno del servidor", error);
@@ -118,7 +130,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const changePassword = async (req: AuthRequest, res: Response): Promise<void> => {
+export const changePassword = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const validation = changePasswordSchema.safeParse(req.body);
     if (!validation.success) {
@@ -149,7 +164,12 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
     });
 
     if (updateError) {
-      sendError(res, 400, "Error al actualizar la contraseña", updateError.message);
+      sendError(
+        res,
+        400,
+        "Error al actualizar la contraseña",
+        updateError.message,
+      );
       return;
     }
 

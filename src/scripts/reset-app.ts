@@ -8,7 +8,7 @@
  * - usuarios de Supabase Auth.
  *
  * Uso:
- *   pnpm reset:app --confirm
+ *   pnpm app:reset --confirm
  *
  * Este script es destructivo y está pensado para pruebas de bootstrap.
  */
@@ -40,20 +40,32 @@ const APP_TABLES = [
   "users",
 ] as const;
 
+const isBucketNotFoundError = (message?: string): boolean => {
+  if (!message) {
+    return false;
+  }
+
+  return message.toLowerCase().includes("bucket not found");
+};
+
 const deleteBucketObjects = async (bucketName: string): Promise<void> => {
   const stack: string[] = [""];
   const pathsToDelete: string[] = [];
 
   while (stack.length > 0) {
     const prefix = stack.pop()!;
-    const { data, error } = await supabaseAdmin.storage.from(bucketName).list(prefix, {
-      limit: 100,
-      offset: 0,
-      sortBy: { column: "name", order: "asc" },
-    });
+    const { data, error } = await supabaseAdmin.storage
+      .from(bucketName)
+      .list(prefix, {
+        limit: 100,
+        offset: 0,
+        sortBy: { column: "name", order: "asc" },
+      });
 
     if (error) {
-      throw new Error(`Error listando objetos de ${bucketName}: ${error.message}`);
+      throw new Error(
+        `Error listando objetos de ${bucketName}: ${error.message}`,
+      );
     }
 
     for (const item of data ?? []) {
@@ -68,17 +80,23 @@ const deleteBucketObjects = async (bucketName: string): Promise<void> => {
 
   for (let i = 0; i < pathsToDelete.length; i += 100) {
     const chunk = pathsToDelete.slice(i, i + 100);
-    const { error } = await supabaseAdmin.storage.from(bucketName).remove(chunk);
+    const { error } = await supabaseAdmin.storage
+      .from(bucketName)
+      .remove(chunk);
 
     if (error) {
-      throw new Error(`Error eliminando objetos de ${bucketName}: ${error.message}`);
+      throw new Error(
+        `Error eliminando objetos de ${bucketName}: ${error.message}`,
+      );
     }
   }
 };
 
 async function resetApp(): Promise<void> {
   if (!hasConfirmFlag) {
-    console.error("Este script es destructivo. Ejecútalo con --confirm para continuar.");
+    console.error(
+      "Este script es destructivo. Ejecútalo con --confirm para continuar.",
+    );
     await queryClient.end();
     process.exit(1);
   }
@@ -105,9 +123,13 @@ async function resetApp(): Promise<void> {
     }
 
     for (const user of users) {
-      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id);
+      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(
+        user.id,
+      );
       if (deleteError && deleteError.message !== "User not found") {
-        throw new Error(`Error eliminando usuario ${user.email || user.id}: ${deleteError.message}`);
+        throw new Error(
+          `Error eliminando usuario ${user.email || user.id}: ${deleteError.message}`,
+        );
       }
     }
 
@@ -121,10 +143,18 @@ async function resetApp(): Promise<void> {
 
   console.log("\n2) Eliminando objetos y buckets de Storage...");
   for (const bucketName of APP_BUCKETS) {
-    const { data: bucket, error: bucketError } = await supabaseAdmin.storage.getBucket(bucketName);
+    const { data: bucket, error: bucketError } =
+      await supabaseAdmin.storage.getBucket(bucketName);
 
     if (bucketError) {
-      throw new Error(`Error consultando bucket ${bucketName}: ${bucketError.message}`);
+      if (isBucketNotFoundError(bucketError.message)) {
+        console.log(`   Bucket "${bucketName}" no existe, se omite.`);
+        continue;
+      }
+
+      throw new Error(
+        `Error consultando bucket ${bucketName}: ${bucketError.message}`,
+      );
     }
 
     if (!bucket) {
@@ -134,9 +164,12 @@ async function resetApp(): Promise<void> {
 
     await deleteBucketObjects(bucketName);
 
-    const { error: deleteBucketError } = await supabaseAdmin.storage.deleteBucket(bucketName);
+    const { error: deleteBucketError } =
+      await supabaseAdmin.storage.deleteBucket(bucketName);
     if (deleteBucketError) {
-      throw new Error(`Error eliminando bucket ${bucketName}: ${deleteBucketError.message}`);
+      throw new Error(
+        `Error eliminando bucket ${bucketName}: ${deleteBucketError.message}`,
+      );
     }
 
     console.log(`   Bucket "${bucketName}" eliminado.`);
@@ -144,13 +177,17 @@ async function resetApp(): Promise<void> {
 
   console.log("\n3) Eliminando políticas de Storage...");
   for (const policyName of STORAGE_POLICIES) {
-    await queryClient.unsafe(`DROP POLICY IF EXISTS "${policyName}" ON storage.objects;`);
+    await queryClient.unsafe(
+      `DROP POLICY IF EXISTS "${policyName}" ON storage.objects;`,
+    );
   }
   console.log("   Políticas de Storage eliminadas.");
 
   console.log("\n4) Eliminando tablas de la app...");
   for (const tableName of APP_TABLES) {
-    await queryClient.unsafe(`DROP TABLE IF EXISTS public.${tableName} CASCADE;`);
+    await queryClient.unsafe(
+      `DROP TABLE IF EXISTS public.${tableName} CASCADE;`,
+    );
   }
   console.log("   Tablas eliminadas.");
 

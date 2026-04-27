@@ -16,22 +16,12 @@ export async function setup() {
       VITEST: "true",
     };
 
-    execSync("pnpm reset:app --confirm", {
+    execSync("pnpm app:reset --confirm", {
       env: commandEnv,
       stdio: "inherit",
     });
 
-    execSync("pnpm exec drizzle-kit push --force", {
-      env: commandEnv,
-      stdio: "inherit",
-    });
-
-    execSync("pnpm setup:storage", {
-      env: commandEnv,
-      stdio: "inherit",
-    });
-
-    execSync("pnpm db:seed", {
+    execSync("pnpm app:setup", {
       env: commandEnv,
       stdio: "inherit",
     });
