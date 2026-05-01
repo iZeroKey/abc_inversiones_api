@@ -14,6 +14,8 @@
 
 Analizar un comprobante en backend con OCR y devolver JSON sugerido. No persiste la imagen ni crea el voucher.
 
+Usa modo **buffer** (busboy) porque Google Vision API requiere la imagen completa.
+
 ### Endpoint
 
 ```
@@ -33,9 +35,9 @@ Privado (Client)
 
 ### Cuerpo de Solicitud
 
-| Campo    | Tipo | Descripcion                                   |
-| -------- | ---- | --------------------------------------------- |
-| evidence | file | Imagen del voucher (JPEG, PNG, WebP, max 5MB) |
+| Campo    | Tipo | Descripcion                                     |
+| -------- | ---- | ----------------------------------------------- |
+| evidence | file | Imagen del voucher (JPEG, PNG, WebP, max 1.5MB) |
 
 ### Respuesta Exitosa
 
@@ -61,6 +63,7 @@ Privado (Client)
 | 200    | Analisis completado                 |
 | 400    | Archivo invalido o analisis fallido |
 | 401    | No autorizado                       |
+| 413    | Archivo excede el limite de 1.5MB   |
 | 500    | Error interno                       |
 
 ---
@@ -68,6 +71,8 @@ Privado (Client)
 ## Submit Voucher
 
 Subir un nuevo comprobante de pago (Voucher) con la imagen y los datos finales confirmados por el cliente.
+
+Usa modo **stream** (busboy): los bytes de la imagen fluyen directamente a Supabase Storage sin acumularse en RAM del backend, reduciendo el uso de memoria y el riesgo de timeout del proxy Cloudflare.
 
 ### Endpoint
 
@@ -130,14 +135,15 @@ Privado (Client)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion                 |
-| ------ | --------------------------- |
-| 201    | Voucher registrado          |
-| 400    | Datos invalidos             |
-| 401    | No autorizado               |
-| 403    | No tiene acceso al prestamo |
-| 409    | Operation ID duplicado      |
-| 500    | Error interno               |
+| Codigo | Descripcion                        |
+| ------ | ---------------------------------- |
+| 201    | Voucher registrado                 |
+| 400    | Datos invalidos                    |
+| 401    | No autorizado                      |
+| 403    | No tiene acceso al prestamo        |
+| 409    | Operation ID duplicado             |
+| 413    | Archivo excede el limite de 5MB    |
+| 500    | Error interno                      |
 
 ---
 

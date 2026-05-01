@@ -12,7 +12,7 @@ import {
     sendError,
     sendSuccess,
 } from "../../utils/response.util.js";
-import { createLoanSchema } from "./loans.schema.js";
+import { createLoanSchema, rejectLoanSchema } from "./loans.schema.js";
 
 const calculateTotalDebt = (
   principal: number,
@@ -431,7 +431,14 @@ export const rejectLoan = async (
   try {
     const id = req.params.id as string;
     const user = req.user!;
-    const { observation } = req.body ?? {};
+
+    const validation = rejectLoanSchema.safeParse(req.body);
+    if (!validation.success) {
+      sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
+      return;
+    }
+
+    const { observation } = validation.data;
 
     const [loan] = await db
       .select()

@@ -39,3 +39,6 @@ Thumbs.db
 
 # Drizzle local metadata
 .drizzle/
+
+# References
+references/

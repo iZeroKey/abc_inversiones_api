@@ -47,6 +47,7 @@ ABC Inversiones es una plataforma de gestión de prestamos que permite:
 - **Base de datos**: PostgreSQL (Supabase)
 - **Autenticacion**: Supabase Auth
 - **Almacenamiento**: Supabase Storage
+- **Upload Streaming**: Busboy (multipart parser de bajo nivel)
 - **OCR**: Google Cloud Vision API
 - **Logging**: Pino
 
@@ -56,25 +57,33 @@ ABC Inversiones es una plataforma de gestión de prestamos que permite:
 
 ```
 src/
-├── config/
-├── db/
-│   └── schema/
+├── config/          # DB, env, logger, supabase client
+├── db/schema/       # Esquemas Drizzle ORM
 ├── middleware/
-├── modules/
-├── routes/
-├── scripts/
-├── utils/
-└── realtime/
+│   ├── auth.middleware.ts           # JWT via Supabase Auth
+│   ├── role.middleware.ts           # Autorización por rol
+│   ├── upload.middleware.ts         # Multer (solo para avatars)
+│   ├── stream-upload.middleware.ts  # Busboy streaming (vouchers + OCR)
+│   └── error-handler.middleware.ts  # Manejo global de errores
+├── modules/         # Lógica de negocio por módulo
+├── routes/          # Definición de endpoints
+├── scripts/         # Seed, setup, mantenimiento
+├── utils/           # Storage, audit, notifications, etc.
+├── realtime/        # WebSocket para notificaciones
+└── tests/           # Tests de integración (vitest + supertest)
 ```
 
-- `config/`: Configuraciones de la aplicación, incluyendo la conexión a la base de datos, variables de entorno y logger
-- `db/schema/`: Esquemas de la base de datos definidos con Drizzle ORM
-- `middleware/`: Middlewares personalizados para autenticación, autorización, manejo de errores, etc
-- `modules/`: Lógica de negocio organizada por módulos (usuarios, prestamos, pagos, vouchers, etc.)
-- `routes/`: Definición de rutas y endpoints de la API
-- `scripts/`: Scripts para tareas de mantenimiento, migraciones, seeders, etc
-- `utils/`: Funciones utilitarias y helpers
-- `realtime/`: Implementación de WebSocket para notificaciones en tiempo real
+### Estrategia de Upload: Streaming Pass-Through
+
+El backend usa dos estrategias de upload según el endpoint:
+
+| Endpoint | Middleware | Estrategia | Límite | Razón |
+|---|---|---|---|---|
+| `POST /payment-vouchers` | `streamVoucherUpload` (busboy) | Stream → Storage | 5 MB | Los bytes fluyen al Storage sin acumular en RAM |
+| `POST /payment-vouchers/analyze` | `bufferOcrUpload` (busboy) | Buffer → Vision API | 1.5 MB | Vision API necesita la imagen completa |
+| `PATCH /users/me/avatar` | `uploadImage` (multer) | Buffer → Storage | 5 MB | Archivos pequeños, sin riesgo de timeout |
+
+**¿Por qué streaming?** La API se despliega en Cloud Run (Santiago) detrás de un Cloudflare Worker con límite de 100s por conexión. Con multer, el archivo se acumula en RAM antes de procesarse; con busboy, los campos de texto se parsean **durante** la subida del archivo, permitiendo validación concurrente y reduciendo el tiempo total de respuesta.
 
 ---
 
@@ -374,6 +383,8 @@ Todos los endpoints tienen el prefijo `/api/v1`.
 - Indices unicos para evitar duplicados
 - Logging estructurado con Pino
 - Error handling global
+- Validación de MIME types en uploads (JPEG, PNG, WebP)
+- Límite de tamaño por endpoint (1.5MB OCR, 5MB vouchers/avatars)
 
 ### Respuesta Estandar
 

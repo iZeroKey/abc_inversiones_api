@@ -108,22 +108,32 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
  * Actualizar foto de perfil.
  * Acepta imagen como multipart/form-data en el campo "avatar".
  * La imagen se sube a Supabase Storage en: avatars/{userId}/avatar.{ext}
+ *
+ * Usa reemplazo seguro: sube a ruta temporal, elimina la anterior,
+ * luego sube a ruta canónica. Si algo falla, el avatar anterior se preserva.
  */
 export const updateAvatar = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const user = req.user!;
-    const file = req.file; // multer
 
-    if (!file) {
+    // Fuente de datos: busboy buffer o multer legacy
+    const parsedFile = req.streamParsed?.file;
+    const multerFile = req.file;
+
+    const buffer = parsedFile?.buffer ?? multerFile?.buffer;
+    const originalname = parsedFile?.originalname ?? multerFile?.originalname;
+    const mimetype = parsedFile?.mimetype ?? multerFile?.mimetype;
+
+    if (!buffer || !originalname || !mimetype) {
       sendError(res, 400, "Debes adjuntar una imagen en el campo 'avatar'");
       return;
     }
 
     const avatarUrl = await uploadAvatar(
       user.id,
-      file.buffer,
-      file.originalname,
-      file.mimetype,
+      buffer,
+      originalname,
+      mimetype,
     );
 
     const [updatedUser] = await db

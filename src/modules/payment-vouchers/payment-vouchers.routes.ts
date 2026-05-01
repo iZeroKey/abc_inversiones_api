@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/auth.middleware.js";
 import { authorize } from "../../middleware/role.middleware.js";
-import { uploadImage } from "../../middleware/upload.middleware.js";
+import { bufferOcrUpload, streamVoucherUpload } from "../../middleware/stream-upload.middleware.js";
 import * as controller from "./payment-vouchers.controller.js";
 import * as ocrController from "./payment-vouchers.ocr.controller.js";
 
@@ -11,18 +11,21 @@ const router = Router();
  * @route   POST /api/v1/payment-vouchers/analyze
  * @desc    Analizar un comprobante en backend con OCR y devolver JSON sugerido.
  *          No persiste la imagen ni crea el voucher.
+ *          Usa modo "buffer" (máx 1.5MB) porque Vision API requiere imagen completa.
  * @access  Private (Client)
  */
-router.post("/analyze", authenticate, authorize(["client"]), uploadImage.single("evidence"), ocrController.analyzeVoucherEvidence);
+router.post("/analyze", authenticate, authorize(["client"]), bufferOcrUpload, ocrController.analyzeVoucherEvidence);
 
 /**
  * @route   POST /api/v1/payment-vouchers
  * @desc    Subir un nuevo comprobante de pago (Voucher) con la imagen y los datos
- *          finales confirmados por el cliente. Acepta imagen como multipart/form-data.
+ *          finales confirmados por el cliente.
+ *          Usa Streaming Pass-Through: los bytes fluyen directamente a Supabase Storage
+ *          sin acumularse en RAM del backend (~64KB vs ~5MB por request).
  * @access  Private (Client)
  * @body    { loanId, amount, operationId, operationDate?, observation? } + campo "evidence" (imagen)
  */
-router.post("/", authenticate, authorize(["client"]), uploadImage.single("evidence"), controller.submitVoucher);
+router.post("/", authenticate, authorize(["client"]), streamVoucherUpload, controller.submitVoucher);
 
 /**
  * @route   GET /api/v1/payment-vouchers

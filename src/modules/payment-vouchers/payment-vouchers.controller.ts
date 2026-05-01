@@ -11,7 +11,7 @@ import {
   sendError,
   sendSuccess,
 } from "../../utils/response.util.js";
-import { resolveFileUrl, uploadFile } from "../../utils/storage.util.js";
+import { resolveFileUrl, uploadFile, uploadFileStream } from "../../utils/storage.util.js";
 import { processPaymentLogic } from "../payments/payments.service.js";
 import { createVoucherSchema, operationIdLookupSchema, processVoucherSchema } from "./payment-vouchers.schema.js";
 
@@ -37,13 +37,24 @@ const normalizedOperationIdCondition = (operationId: string): SQL => {
 /**
  * Permite al cliente subir un comprobante de pago (voucher).
  * Acepta imagen como multipart/form-data en el campo "evidence".
- * Este endpoint persiste la imagen y registra el voucher final con los datos
- * ya revisados o corregidos manualmente por el cliente.
- * Valida: duplicados de operationId, pertenencia del préstamo, y que el préstamo esté activo.
+ *
+ * Implementación con Streaming Pass-Through:
+ * - Los campos de texto se extraen del stream-parser (busboy) conforme llegan.
+ * - La imagen se retransmite en tiempo real a Supabase Storage sin acumularse
+ *   en RAM, reduciendo el uso de memoria a ~64KB por request y evitando timeouts
+ *   del proxy Cloudflare al mantener actividad constante de red.
+ * - Fallback: Si se recibe como JSON (sin multipart), usa el flujo legacy con multer.
  */
 export const submitVoucher = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const validation = createVoucherSchema.safeParse(req.body);
+    // ── Fuente de datos: streaming (busboy) o legacy (multer/JSON) ──
+    // Si la petición fue multipart, los campos vienen del stream-parser.
+    // Si fue JSON (ej. tests o requests sin archivo), usar req.body.
+    const streamParsed = req.streamParsed;
+    const hasStreamFields = streamParsed && Object.keys(streamParsed.fields).length > 0;
+    const bodySource = hasStreamFields ? streamParsed.fields : req.body;
+
+    const validation = createVoucherSchema.safeParse(bodySource);
     if (!validation.success) {
       const futureOperationDateIssue = validation.error.issues.find(
         (issue) => issue.path.join(".") === "operationDate" && issue.message.includes("futura"),
@@ -85,16 +96,27 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    // 4. Subir imagen al Storage si se adjuntó
+    // 4. Subir imagen al Storage — modo streaming o legacy
     let evidenceUrl = validation.data.evidenceUrl || null;
-    const file = req.file; // multer
-    if (file) {
+
+    if (streamParsed?.fileStream) {
+      // ── Streaming Pass-Through: pipe directo a Supabase Storage ──
+      // Los bytes fluyen: Cliente → Cloud Run → Supabase sin acumularse en RAM.
+      evidenceUrl = await uploadFileStream(
+        "vouchers",
+        loanId,
+        streamParsed.fileStream.stream,
+        streamParsed.fileStream.generatedName,
+        streamParsed.fileStream.mimetype,
+      );
+    } else if (req.file) {
+      // ── Fallback legacy (multer) para compatibilidad con tests ──
       evidenceUrl = await uploadFile(
         "vouchers",
-        loanId,               // Subcarpeta: vouchers/{loanId}/
-        file.buffer,
-        file.originalname,
-        file.mimetype,
+        loanId,
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype,
       );
     }
 

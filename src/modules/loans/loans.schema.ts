@@ -41,5 +41,10 @@ export const updateLoanStatusSchema = z.object({
   observation: z.string().optional(),
 });
 
+export const rejectLoanSchema = z.object({
+  observation: z.string().optional(),
+});
+
 export type CreateLoanDto = z.infer<typeof createLoanSchema>;
 export type UpdateLoanStatusDto = z.infer<typeof updateLoanStatusSchema>;
+export type RejectLoanDto = z.infer<typeof rejectLoanSchema>;

@@ -8,18 +8,29 @@ import { analyzeVoucherImage } from "./payment-vouchers.ocr.service.js";
  * Este endpoint NO guarda la imagen ni crea el voucher final.
  * Su propósito es asistir al frontend para prellenar el formulario
  * antes de que el usuario confirme o corrija manualmente los datos.
+ *
+ * Usa el modo "buffer" del stream-parser porque Google Vision API
+ * requiere la imagen completa (no soporta streaming).
+ * Límite reducido a 1.5MB (suficiente para OCR de vouchers bancarios).
  */
 export const analyzeVoucherEvidence = async (
   req: AuthRequest,
   res: Response,
 ): Promise<void> => {
   try {
-    if (!req.file) {
+    // Fuente de datos: busboy buffer o multer legacy
+    const parsedFile = req.streamParsed?.file;
+    const multerFile = req.file;
+
+    const buffer = parsedFile?.buffer ?? multerFile?.buffer;
+    const mimeType = parsedFile?.mimetype ?? multerFile?.mimetype;
+
+    if (!buffer || !mimeType) {
       sendError(res, 400, "Debes adjuntar una imagen en el campo evidence");
       return;
     }
 
-    const analysis = await analyzeVoucherImage(req.file.buffer, req.file.mimetype);
+    const analysis = await analyzeVoucherImage(buffer, mimeType);
     sendSuccess(res, 200, "Imagen analizada correctamente", analysis);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Error al analizar la imagen";

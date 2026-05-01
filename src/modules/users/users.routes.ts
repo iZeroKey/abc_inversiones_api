@@ -2,7 +2,7 @@ import { Router } from "express";
 import * as controller from "./users.controller.js";
 import { authenticate } from "../../middleware/auth.middleware.js";
 import { authorize } from "../../middleware/role.middleware.js";
-import { uploadImage } from "../../middleware/upload.middleware.js";
+import { bufferAvatarUpload } from "../../middleware/stream-upload.middleware.js";
 
 const router = Router();
 
@@ -16,9 +16,10 @@ router.get("/me", authenticate, controller.getMe);
 /**
  * @route   PATCH /api/v1/users/me/avatar
  * @desc    Actualizar la foto de perfil. Acepta imagen como multipart/form-data en campo "avatar".
+ *          Usa modo buffer (busboy, 2MB) con reemplazo seguro (atómico) del avatar anterior.
  * @access  Private
  */
-router.patch("/me/avatar", authenticate, uploadImage.single("avatar"), controller.updateAvatar);
+router.patch("/me/avatar", authenticate, bufferAvatarUpload, controller.updateAvatar);
 
 /**
  * @route   GET /api/v1/users
