@@ -11,7 +11,7 @@ import {
   sendError,
   sendSuccess,
 } from "../../utils/response.util.js";
-import { resolveFileUrl, uploadFile, uploadFileStream } from "../../utils/storage.util.js";
+import { resolveFileUrl, uploadFileStream } from "../../utils/storage.util.js";
 import { processPaymentLogic } from "../payments/payments.service.js";
 import { createVoucherSchema, operationIdLookupSchema, processVoucherSchema } from "./payment-vouchers.schema.js";
 
@@ -108,15 +108,6 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
         streamParsed.fileStream.stream,
         streamParsed.fileStream.generatedName,
         streamParsed.fileStream.mimetype,
-      );
-    } else if (req.file) {
-      // ── Fallback legacy (multer) para compatibilidad con tests ──
-      evidenceUrl = await uploadFile(
-        "vouchers",
-        loanId,
-        req.file.buffer,
-        req.file.originalname,
-        req.file.mimetype,
       );
     }
 

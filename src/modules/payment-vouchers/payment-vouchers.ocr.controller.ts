@@ -18,12 +18,11 @@ export const analyzeVoucherEvidence = async (
   res: Response,
 ): Promise<void> => {
   try {
-    // Fuente de datos: busboy buffer o multer legacy
+    // Fuente de datos: busboy buffer
     const parsedFile = req.streamParsed?.file;
-    const multerFile = req.file;
 
-    const buffer = parsedFile?.buffer ?? multerFile?.buffer;
-    const mimeType = parsedFile?.mimetype ?? multerFile?.mimetype;
+    const buffer = parsedFile?.buffer;
+    const mimeType = parsedFile?.mimetype;
 
     if (!buffer || !mimeType) {
       sendError(res, 400, "Debes adjuntar una imagen en el campo evidence");

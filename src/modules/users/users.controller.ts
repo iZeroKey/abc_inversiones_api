@@ -116,13 +116,12 @@ export const updateAvatar = async (req: AuthRequest, res: Response): Promise<voi
   try {
     const user = req.user!;
 
-    // Fuente de datos: busboy buffer o multer legacy
+    // Fuente de datos: busboy buffer
     const parsedFile = req.streamParsed?.file;
-    const multerFile = req.file;
 
-    const buffer = parsedFile?.buffer ?? multerFile?.buffer;
-    const originalname = parsedFile?.originalname ?? multerFile?.originalname;
-    const mimetype = parsedFile?.mimetype ?? multerFile?.mimetype;
+    const buffer = parsedFile?.buffer;
+    const originalname = parsedFile?.originalname;
+    const mimetype = parsedFile?.mimetype;
 
     if (!buffer || !originalname || !mimetype) {
       sendError(res, 400, "Debes adjuntar una imagen en el campo 'avatar'");
