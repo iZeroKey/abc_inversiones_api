@@ -58,6 +58,7 @@ export interface StreamParsedData {
 // ────────────────────────────────────────────────────────────────────────────
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       /** Datos parseados del multipart vía streaming (busboy). */
