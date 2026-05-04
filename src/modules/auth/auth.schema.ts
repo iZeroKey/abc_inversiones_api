@@ -5,6 +5,10 @@ export const loginSchema = z.object({
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
 });
 
+export const refreshSchema = z.object({
+  refresh_token: z.string().min(1, "El refresh_token es obligatorio"),
+});
+
 export const registerSchema = z.object({
   email: z.email("Email inválido"),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
@@ -23,5 +27,6 @@ export const changePasswordSchema = z.object({
 });
 
 export type LoginDto = z.infer<typeof loginSchema>;
+export type RefreshDto = z.infer<typeof refreshSchema>;
 export type RegisterDto = z.infer<typeof registerSchema>;
 export type ChangePasswordDto = z.infer<typeof changePasswordSchema>;

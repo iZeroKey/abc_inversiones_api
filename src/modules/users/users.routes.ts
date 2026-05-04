@@ -22,6 +22,14 @@ router.get("/me", authenticate, controller.getMe);
 router.patch("/me/avatar", authenticate, bufferAvatarUpload, controller.updateAvatar);
 
 /**
+ * @route   DELETE /api/v1/users/me/avatar
+ * @desc    Eliminar la foto de perfil del usuario autenticado.
+ *          Borra el objeto de Supabase Storage y deja avatarUrl en null.
+ * @access  Private
+ */
+router.delete("/me/avatar", authenticate, controller.deleteAvatar);
+
+/**
  * @route   GET /api/v1/users
  * @desc    Listar todos los usuarios registrados (Solo Admin)
  * @access  Private (Admin, Owner)

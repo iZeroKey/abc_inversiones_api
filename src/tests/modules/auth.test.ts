@@ -55,6 +55,31 @@ describe("Auth Endpoints", () => {
     });
   });
 
+  describe("POST /api/v1/auth/refresh", () => {
+    it("debería retornar 400 si el refresh_token es inválido", async () => {
+      const res = await request.post("/api/v1/auth/refresh").send({});
+
+      expect(res.status).toBe(400);
+    });
+
+    it("debería refrescar la sesión con un refresh_token válido", async () => {
+      const login = await request
+        .post("/api/v1/auth/login")
+        .send({ email: seededEmails.client, password: TEST_PASSWORD });
+
+      const res = await request.post("/api/v1/auth/refresh").send({
+        refresh_token: login.body.data.session.refresh_token,
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.session.access_token).toBeTruthy();
+      expect(res.body.data.session.refresh_token).toBeTruthy();
+      expect(typeof res.body.data.session.expires_in).toBe("number");
+      expect(res.body.data.session.user).toBeUndefined();
+      expect(res.body.data.session.token_type).toBeUndefined();
+    });
+  });
+
   describe("POST /api/v1/auth/register", () => {
     it("debería permitir al admin registrar un nuevo usuario", async () => {
       const adminToken = await loginAs(seededEmails.admin);

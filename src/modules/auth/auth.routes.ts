@@ -14,6 +14,14 @@ const router = Router();
 router.post("/login", controller.login);
 
 /**
+ * @route   POST /api/v1/auth/refresh
+ * @desc    Refrescar la sesión usando el refresh_token emitido por login
+ * @access  Public
+ * @body    { refresh_token }
+ */
+router.post("/refresh", controller.refresh);
+
+/**
  * @route   POST /api/v1/auth/logout
  * @desc    Cerrar la sesión activa del usuario
  * @access  Private

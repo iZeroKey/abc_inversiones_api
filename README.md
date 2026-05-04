@@ -62,8 +62,7 @@ src/
 ├── middleware/
 │   ├── auth.middleware.ts           # JWT via Supabase Auth
 │   ├── role.middleware.ts           # Autorización por rol
-│   ├── upload.middleware.ts         # Multer (solo para avatars)
-│   ├── stream-upload.middleware.ts  # Busboy streaming (vouchers + OCR)
+│   ├── stream-upload.middleware.ts  # Busboy streaming/buffer (vouchers, OCR, avatars)
 │   └── error-handler.middleware.ts  # Manejo global de errores
 ├── modules/         # Lógica de negocio por módulo
 ├── routes/          # Definición de endpoints
@@ -81,7 +80,7 @@ El backend usa dos estrategias de upload según el endpoint:
 |---|---|---|---|---|
 | `POST /payment-vouchers` | `streamVoucherUpload` (busboy) | Stream → Storage | 5 MB | Los bytes fluyen al Storage sin acumular en RAM |
 | `POST /payment-vouchers/analyze` | `bufferOcrUpload` (busboy) | Buffer → Vision API | 1.5 MB | Vision API necesita la imagen completa |
-| `PATCH /users/me/avatar` | `uploadImage` (multer) | Buffer → Storage | 5 MB | Archivos pequeños, sin riesgo de timeout |
+| `PATCH /users/me/avatar` | `bufferAvatarUpload` (busboy) | Buffer → Storage | 2 MB | Reemplazo seguro del avatar anterior |
 
 **¿Por qué streaming?** La API se despliega en Cloud Run (Santiago) detrás de un Cloudflare Worker con límite de 100s por conexión. Con multer, el archivo se acumula en RAM antes de procesarse; con busboy, los campos de texto se parsean **durante** la subida del archivo, permitiendo validación concurrente y reduciendo el tiempo total de respuesta.
 
@@ -263,6 +262,7 @@ Todos los endpoints tienen el prefijo `/api/v1`.
 | Metodo | Endpoint              | Descripcion        | Acceso  |
 | ------ | --------------------- | ------------------ | ------- |
 | POST   | /auth/login           | Iniciar sesion     | Publico |
+| POST   | /auth/refresh         | Refrescar sesion   | Publico |
 | POST   | /auth/logout          | Cerrar sesion      | Privado |
 | POST   | /auth/register        | Registrar usuario  | Admin   |
 | POST   | /auth/change-password | Cambiar contrasena | Privado |
@@ -273,6 +273,7 @@ Todos los endpoints tienen el prefijo `/api/v1`.
 | ------ | ---------------- | ------------------ | ------- |
 | GET    | /users/me        | Perfil actual      | Privado |
 | PATCH  | /users/me/avatar | Actualizar avatar  | Privado |
+| DELETE | /users/me/avatar | Eliminar avatar    | Privado |
 | GET    | /users           | Listar usuarios    | Admin   |
 | GET    | /users/:id       | Usuario por ID     | Admin   |
 | PATCH  | /users/:id       | Actualizar usuario | Privado |

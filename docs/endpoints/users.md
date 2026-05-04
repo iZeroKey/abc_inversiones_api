@@ -4,10 +4,11 @@
 
 1. [Get Me](#get-me)
 2. [Update Avatar](#update-avatar)
-3. [Get All Users](#get-all-users)
-4. [Get User By ID](#get-user-by-id)
-5. [Update User](#update-user)
-6. [Delete User](#delete-user)
+3. [Delete Avatar](#delete-avatar)
+4. [Get All Users](#get-all-users)
+5. [Get User By ID](#get-user-by-id)
+6. [Update User](#update-user)
+7. [Delete User](#delete-user)
 
 ---
 
@@ -116,6 +117,62 @@ Privado
 | 400    | Archivo invalido   |
 | 401    | No autenticado     |
 | 500    | Error interno      |
+
+---
+
+## Delete Avatar
+
+Eliminar la foto de perfil del usuario actualmente autenticado. Si la foto actual fue guardada en Supabase Storage, el archivo se elimina del bucket `avatars` y el campo `avatarUrl` queda en `null`.
+
+### Endpoint
+
+```
+DELETE /api/v1/users/me/avatar
+```
+
+### Acceso
+
+Privado
+
+### Encabezados
+
+| Encabezado    | Valor          | Obligatorio |
+| ------------- | -------------- | ----------- |
+| Authorization | Bearer {token} | Si          |
+
+### Respuesta Exitosa
+
+```json
+{
+  "success": true,
+  "message": "Foto de perfil eliminada correctamente",
+  "data": {
+    "id": "uuid",
+    "email": "email@example.com",
+    "firstName": "Juan",
+    "lastName": "Perez",
+    "phone": "+51 999 999 999",
+    "avatarUrl": null,
+    "role": "client",
+    "isOwner": false,
+    "active": true,
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  "meta": {
+    "timestamp": "2026-01-01T00:00:00.000Z"
+  }
+}
+```
+
+### Códigos de Estado HTTP
+
+| Codigo | Descripcion      |
+| ------ | ---------------- |
+| 200    | Avatar eliminado |
+| 401    | No autenticado   |
+| 404    | Usuario no encontrado |
+| 500    | Error interno    |
 
 ---
 

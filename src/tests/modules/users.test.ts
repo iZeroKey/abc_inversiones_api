@@ -72,4 +72,28 @@ describe("Users Module Integration", () => {
       expect(res.body.data.avatarUrl).toContain("token=");
     });
   });
+
+  describe("DELETE /api/v1/users/me/avatar", () => {
+    it("debería permitir eliminar la foto de perfil del usuario autenticado", async () => {
+      const token = await loginAs(seededEmails.client);
+
+      const uploadRes = await request
+        .patch("/api/v1/users/me/avatar")
+        .set(authHeader(token))
+        .attach("avatar", Buffer.from("fake-image-content"), "profile.png");
+
+      expect(uploadRes.status).toBe(200);
+      expect(uploadRes.body.data.avatarUrl).toContain("token=");
+
+      const deleteRes = await request
+        .delete("/api/v1/users/me/avatar")
+        .set(authHeader(token));
+
+      expect(deleteRes.status).toBe(200);
+      expect(deleteRes.body.data.avatarUrl).toBeNull();
+
+      const user = await getUserByEmail(seededEmails.client);
+      expect(user!.avatarUrl).toBeNull();
+    });
+  });
 });

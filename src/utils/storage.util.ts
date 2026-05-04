@@ -170,6 +170,32 @@ export const deleteFile = async (bucket: string, filePath: string): Promise<void
 };
 
 /**
+ * Elimina una referencia interna de Storage (storage://bucket/path).
+ * Devuelve false cuando el valor no es una referencia interna, para mantener
+ * compatibilidad con URLs antiguas o externas que no se pueden borrar desde Storage.
+ */
+export const deleteStorageReference = async (value: string | null | undefined): Promise<boolean> => {
+  if (!value) {
+    return false;
+  }
+
+  const parsed = parseStorageReference(value);
+  if (!parsed) {
+    return false;
+  }
+
+  const { error } = await supabaseAdmin.storage
+    .from(parsed.bucket)
+    .remove([parsed.path]);
+
+  if (error) {
+    throw new Error(`Error eliminando archivo de Storage: ${error.message}`);
+  }
+
+  return true;
+};
+
+/**
  * Resuelve una referencia interna de Storage a una URL utilizable por el cliente.
  * Si recibe una URL normal, la devuelve tal cual para mantener compatibilidad
  * con registros antiguos o valores externos.

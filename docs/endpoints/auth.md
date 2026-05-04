@@ -3,9 +3,10 @@
 ## Tabla de Contenidos
 
 1. [Login](#login)
-2. [Logout](#logout)
-3. [Register](#register)
-4. [Change Password](#change-password)
+2. [Refresh](#refresh)
+3. [Logout](#logout)
+4. [Register](#register)
+5. [Change Password](#change-password)
 
 ---
 
@@ -94,6 +95,83 @@ Publico
 | 400    | Datos invalidos        |
 | 401    | Credenciales invalidas |
 | 500    | Error interno          |
+
+---
+
+## Refresh
+
+Refrescar la sesion usando el `refresh_token` devuelto por login. Supabase rota el `refresh_token`, por lo que el cliente debe guardar el nuevo valor retornado.
+
+### Endpoint
+
+```
+POST /api/v1/auth/refresh
+```
+
+### Acceso
+
+Publico
+
+### Encabezados
+
+| Encabezado   | Valor            | Obligatorio |
+| ------------ | ---------------- | ----------- |
+| Content-Type | application/json | Si          |
+
+### Cuerpo de Solicitud
+
+```json
+{
+  "refresh_token": "string"
+}
+```
+
+### Diccionario de Datos
+
+| Campo         | Tipo   | Obligatorio | Descripcion                    | Restricciones        |
+| ------------- | ------ | ----------- | ------------------------------ | -------------------- |
+| refresh_token | string | Si          | Token de refresco de la sesion | No puede estar vacio |
+
+### Respuesta Exitosa
+
+```json
+{
+  "success": true,
+  "message": "Sesion refrescada correctamente",
+  "data": {
+    "session": {
+      "access_token": "xxxx...",
+      "refresh_token": "xxxx...",
+      "expires_in": 3600
+    }
+  },
+  "meta": {
+    "timestamp": "2026-01-01T00:00:00.000Z"
+  }
+}
+```
+
+### Respuesta de Error
+
+```json
+{
+  "success": false,
+  "message": "Refresh token invalido o expirado",
+  "data": "Invalid Refresh Token: Refresh Token Not Found",
+  "meta": {
+    "timestamp": "2026-01-01T00:00:00.000Z"
+  }
+}
+```
+
+### Códigos de Estado HTTP
+
+| Codigo | Descripcion                       |
+| ------ | --------------------------------- |
+| 200    | Sesion refrescada correctamente   |
+| 400    | Datos invalidos                   |
+| 401    | Refresh token invalido o expirado |
+| 500    | Error interno                     |
 
 ---
 

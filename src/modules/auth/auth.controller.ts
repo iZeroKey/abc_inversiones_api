@@ -13,6 +13,7 @@ import {
 import {
   changePasswordSchema,
   loginSchema,
+  refreshSchema,
   registerSchema,
 } from "./auth.schema.js";
 
@@ -60,6 +61,41 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       user: user || null,
       session,
     });
+  } catch (error) {
+    sendError(res, 500, "Error interno del servidor", error);
+  }
+};
+
+export const refresh = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const validation = refreshSchema.safeParse(req.body);
+    if (!validation.success) {
+      sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
+      return;
+    }
+
+    const { refresh_token } = validation.data;
+    const { data, error } = await supabase.auth.refreshSession({
+      refresh_token,
+    });
+
+    if (error || !data.session) {
+      sendError(
+        res,
+        401,
+        "Refresh token inválido o expirado",
+        error?.message,
+      );
+      return;
+    }
+
+    const session = {
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+      expires_in: data.session.expires_in,
+    };
+
+    sendSuccess(res, 200, "Sesión refrescada correctamente", { session });
   } catch (error) {
     sendError(res, 500, "Error interno del servidor", error);
   }

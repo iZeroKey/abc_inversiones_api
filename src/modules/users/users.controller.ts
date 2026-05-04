@@ -10,7 +10,7 @@ import {
 import { updateUserSchema } from "./users.schema.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
-import { resolveFileUrl, uploadAvatar } from "../../utils/storage.util.js";
+import { deleteStorageReference, resolveFileUrl, uploadAvatar } from "../../utils/storage.util.js";
 
 const attachSignedAvatarUrl = async <T extends { avatarUrl?: string | null }>(user: T): Promise<T> => {
   if (!user.avatarUrl) {
@@ -157,6 +157,53 @@ export const updateAvatar = async (req: AuthRequest, res: Response): Promise<voi
     sendSuccess(res, 200, "Foto de perfil actualizada correctamente", responseUser);
   } catch (error) {
     sendError(res, 500, "Error al actualizar avatar", error);
+  }
+};
+
+/**
+ * Eliminar foto de perfil del usuario autenticado.
+ * Borra el objeto de Supabase Storage cuando la referencia actual es interna
+ * y limpia avatarUrl en la tabla users.
+ */
+export const deleteAvatar = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = req.user!;
+
+    const [currentUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1);
+
+    if (!currentUser) {
+      sendError(res, 404, "Usuario no encontrado");
+      return;
+    }
+
+    await deleteStorageReference(currentUser.avatarUrl);
+
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        avatarUrl: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, user.id))
+      .returning();
+
+    await logAudit({
+      userId: user.id,
+      action: "DELETE_AVATAR",
+      module: "USERS",
+      entityId: user.id,
+      oldData: { avatarUrl: currentUser.avatarUrl },
+      newData: { avatarUrl: null },
+      req,
+    });
+
+    sendSuccess(res, 200, "Foto de perfil eliminada correctamente", updatedUser);
+  } catch (error) {
+    sendError(res, 500, "Error al eliminar avatar", error);
   }
 };
 
