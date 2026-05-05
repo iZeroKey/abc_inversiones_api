@@ -1,6 +1,5 @@
 import { and, desc, eq, lt, sql, type SQL } from "drizzle-orm";
 import { Response } from "express";
-import { DateTime } from "luxon";
 import { db } from "../../config/db.js";
 import { installments } from "../../db/schema/installments.js";
 import { loans } from "../../db/schema/loans.js";
@@ -12,6 +11,11 @@ import {
     sendError,
     sendSuccess,
 } from "../../utils/response.util.js";
+import {
+  calculateDueDate,
+  normalizeScheduleStartDate,
+  type LoanFrequency,
+} from "./loans.schedule.js";
 import { createLoanSchema, rejectLoanSchema } from "./loans.schema.js";
 
 const calculateTotalDebt = (
@@ -21,6 +25,8 @@ const calculateTotalDebt = (
   type: "simple" | "compound",
   period: "monthly" | "annual",
 ): number => {
+  // TODO: interestPeriod is currently not applied in debt calculation.
+  // Review financial formula before exposing annual/monthly rates as final business behavior.
   void period;
 
   if (type === "simple") {
@@ -75,7 +81,7 @@ export const createLoan = async (
         totalDebt: totalDebt.toFixed(2),
         status: initialStatus,
         isCompanyFunded: !hasInvestor,
-        startDate: data.startDate ? new Date(data.startDate) : new Date(),
+        startDate: new Date(data.startDate),
       })
       .returning();
 
@@ -346,27 +352,23 @@ export const approveLoan = async (
       const installmentsList = [];
       const amountPerInstallment =
         Number(loan.totalDebt) / loan.installmentsCount;
-      let currentDate = DateTime.fromJSDate(loan.startDate || new Date());
+      // paymentDay is deprecated for schedule generation.
+      // The payment day is now derived from startDate.day.
+      const startDate = normalizeScheduleStartDate(loan.startDate || new Date());
 
       for (let i = 1; i <= loan.installmentsCount; i++) {
-        if (loan.frequency === "monthly") {
-          currentDate = currentDate.plus({ months: 1 });
-          if (loan.paymentDay) {
-            currentDate = currentDate.set({ day: loan.paymentDay });
-          }
-        } else if (loan.frequency === "biweekly") {
-          currentDate = currentDate.plus({ weeks: 2 });
-        } else if (loan.frequency === "weekly") {
-          currentDate = currentDate.plus({ weeks: 1 });
-        } else {
-          currentDate = currentDate.plus({ days: 1 });
-        }
+        const dueDate = calculateDueDate(
+          startDate,
+          i,
+          loan.frequency as LoanFrequency,
+        );
 
         installmentsList.push({
           loanId: loan.id,
           installmentNumber: i,
-          dueDate: currentDate.toJSDate(),
+          dueDate: dueDate.toJSDate(),
           amount: amountPerInstallment.toFixed(2),
+          paidAmount: "0.00",
           status: "pending" as const,
         });
       }

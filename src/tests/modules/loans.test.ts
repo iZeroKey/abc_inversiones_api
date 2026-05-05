@@ -1,4 +1,9 @@
+import { eq } from "drizzle-orm";
+import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
+import { db } from "../../config/db.js";
+import { installments } from "../../db/schema/installments.js";
+import { BUSINESS_TIMEZONE } from "../../modules/loans/loans.schedule.js";
 import { authHeader, createAuthUser, createLoanFixture, getUserByEmail, loginAs, request, seededEmails, uniqueEmail } from "../helpers/integration.js";
 
 describe("Loans Module", () => {
@@ -17,11 +22,52 @@ describe("Loans Module", () => {
         frequency: "monthly",
         interestType: "simple",
         interestPeriod: "monthly",
+        startDate: "2026-01-31T00:00:00.000-05:00",
       });
 
     expect(res.status).toBe(201);
     expect(res.body.data.clientId).toBe(client!.id);
     expect(res.body.data.status).toBe("pending_admin_review");
+  });
+
+  it("debería generar cronograma mensual desde startDate al aprobar finalmente", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: null,
+      status: "pending_admin_review",
+      isCompanyFunded: true,
+      installmentsCount: 4,
+      frequency: "monthly",
+      paymentDay: 15,
+      startDate: new Date("2026-01-31T00:00:00.000-05:00"),
+    });
+
+    const res = await request
+      .patch(`/api/v1/loans/${loan.id}/approve`)
+      .set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+
+    const generatedInstallments = await db
+      .select()
+      .from(installments)
+      .where(eq(installments.loanId, loan.id))
+      .orderBy(installments.installmentNumber);
+
+    expect(
+      generatedInstallments.map((installment) =>
+        DateTime.fromJSDate(installment.dueDate, {
+          zone: BUSINESS_TIMEZONE,
+        }).toISODate(),
+      ),
+    ).toEqual([
+      "2026-02-28",
+      "2026-03-31",
+      "2026-04-30",
+      "2026-05-31",
+    ]);
   });
 
   it("debería permitir rechazar un préstamo en revisión", async () => {

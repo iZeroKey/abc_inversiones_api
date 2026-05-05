@@ -17,15 +17,19 @@ export const createLoanSchema = z.object({
     ),
   interestType: z.enum(["simple", "compound"]).default("simple"),
   interestPeriod: z.enum(["monthly", "annual"]).default("monthly"),
-  installmentsCount: z
+  installmentsCount: z.coerce
     .number()
     .int()
-    .positive("El número de cuotas debe ser positivo"),
+    .min(1, "El número de cuotas debe ser positivo")
+    .max(120, "El número de cuotas no puede superar 120"),
   frequency: z
     .enum(["daily", "weekly", "biweekly", "monthly"])
     .default("monthly"),
   paymentDay: z.number().int().min(1).max(31).optional(),
-  startDate: z.iso.datetime().optional(),
+  startDate: z.iso.datetime({
+    message: "La fecha de inicio es obligatoria",
+    offset: true,
+  }),
   observation: z.string().optional(),
 });
 
