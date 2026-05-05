@@ -9,7 +9,16 @@
 
 ## Register Payment
 
-Registrar un nuevo pago de un cliente.
+Registrar un nuevo pago de un cliente. El pago se aplica dentro de una transacción a cuotas `pending` y `overdue`, ordenadas por `dueDate`.
+
+Reglas de aplicación:
+
+- El préstamo debe existir y estar `active`.
+- La deuda pendiente real se calcula como suma de `amount - paidAmount` de cuotas `pending` y `overdue`.
+- Los pagos excedentes se rechazan con 400; no se registra monto excedente ni saldo a favor.
+- Una cuota `overdue` completada pasa a `paid`.
+- Una cuota pagada parcialmente queda `overdue` si su vencimiento ya paso respecto a `paymentDate`; si no, queda `pending`.
+- Cuando todas las cuotas quedan `paid`, el préstamo pasa a `paid`.
 
 ### Endpoint
 
@@ -25,8 +34,8 @@ Privado (Admin, Owner)
 
 | Encabezado    | Valor            | Obligatorio |
 | ------------- | ---------------- | ----------- |
-| Authorization | Bearer {token}   | Si          |
-| Content-Type  | application/json | Si          |
+| Authorization | Bearer {token}   | Sí          |
+| Content-Type  | application/json | Sí          |
 
 ### Cuerpo de Solicitud
 
@@ -44,15 +53,15 @@ Privado (Admin, Owner)
 
 ### Diccionario de Datos
 
-| Campo         | Tipo   | Obligatorio | Descripcion     | Restricciones                                  |
+| Campo         | Tipo   | Obligatorio | Descripción     | Restricciones                                  |
 | ------------- | ------ | ----------- | --------------- | ---------------------------------------------- |
-| loanId        | uuid   | Si          | ID del prestamo | UUID valido                                    |
-| installmentId | uuid   | No          | ID de la cuota  | UUID valido                                    |
-| amount        | string | Si          | Monto del pago  | Numero positivo                                |
+| loanId        | uuid   | Sí          | ID del préstamo | UUID válido                                    |
+| installmentId | uuid   | No          | ID de la cuota  | UUID válido                                    |
+| amount        | string | Sí          | Monto del pago  | Número positivo                                |
 | paymentDate   | string | No          | Fecha del pago  | ISO8601                                        |
-| method        | enum   | No          | Metodo de pago  | cash, transfer, deposit, other (default: cash) |
+| method        | enum   | No          | Método de pago  | cash, transfer, deposit, other (default: cash) |
 | reference     | string | No          | Referencia      | -                                              |
-| observation   | string | No          | Observacion     | -                                              |
+| observation   | string | No          | Observación     | -                                              |
 
 ### Respuesta Exitosa
 
@@ -76,19 +85,19 @@ Privado (Admin, Owner)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion            |
+| Código | Descripción            |
 | ------ | ---------------------- |
 | 201    | Pago registrado        |
-| 400    | Datos invalidos        |
+| 400    | Datos inválidos, préstamo no activo o pago excedente |
 | 401    | No autorizado          |
-| 404    | Prestamo no encontrado |
+| 404    | Préstamo no encontrado |
 | 500    | Error interno          |
 
 ---
 
 ## Get Payments By Loan
 
-Obtener el historial de pagos registrados para un prestamo especifico.
+Obtener el historial de pagos registrados para un préstamo específico.
 
 ### Endpoint
 
@@ -96,11 +105,11 @@ Obtener el historial de pagos registrados para un prestamo especifico.
 GET /api/v1/payments/loan/:loanId
 ```
 
-### Parametros de Ruta
+### Parámetros de Ruta
 
-| Parametro | Tipo | Descripcion     |
+| Parámetro | Tipo | Descripción     |
 | --------- | ---- | --------------- |
-| loanId    | uuid | ID del prestamo |
+| loanId    | uuid | ID del préstamo |
 
 ### Acceso
 
@@ -110,7 +119,7 @@ Privado
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
@@ -138,9 +147,9 @@ Privado
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion            |
+| Código | Descripción            |
 | ------ | ---------------------- |
 | 200    | Pagos obtenidos        |
 | 401    | No autorizado          |
-| 404    | Prestamo no encontrado |
+| 404    | Préstamo no encontrado |
 | 500    | Error interno          |

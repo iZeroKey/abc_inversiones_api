@@ -1,9 +1,9 @@
-# Configuracion del Proyecto
+# Configuración del Proyecto
 
 ## Tabla de Contenidos
 
 1. [Variables de Entorno](#variables-de-entorno)
-2. [Configuracion de Base de Datos](#configuracion-de-base-de-datos)
+2. [Configuración de Base de Datos](#configuración-de-base-de-datos)
 3. [Supabase](#supabase)
 4. [Bootstrap](#bootstrap)
 
@@ -11,22 +11,22 @@
 
 ## Variables de Entorno
 
-El proyecto utiliza un schema de validacion con Zod. Las variables requeridas deben estar presentes en el archivo `.env`.
+El proyecto utiliza un schema de validación con Zod. Las variables requeridas deben estar presentes en el archivo `.env`.
 
 ### Requeridas
 
-| Variable                    | Tipo   | Descripcion                   |
+| Variable                    | Tipo   | Descripción                   |
 | --------------------------- | ------ | ----------------------------- |
 | `SUPABASE_URL`              | string | URL del proyecto Supabase     |
-| `SUPABASE_ANON_KEY`         | string | Clave anonima pública         |
+| `SUPABASE_ANON_KEY`         | string | Clave anónima pública         |
 | `SUPABASE_SERVICE_ROLE_KEY` | string | Clave de service role (admin) |
-| `DATABASE_URL`              | string | URL de conexion a PostgreSQL  |
+| `DATABASE_URL`              | string | URL de conexión a PostgreSQL  |
 
 ### Opcionales
 
-| Variable                         | Tipo    | Default             | Descripcion               |
+| Variable                         | Tipo    | Default             | Descripción               |
 | -------------------------------- | ------- | ------------------- | ------------------------- |
-| `NODE_ENV`                       | string  | development         | Entorno de ejecucion      |
+| `NODE_ENV`                       | string  | development         | Entorno de ejecución      |
 | `PORT`                           | number  | 3000                | Puerto del servidor       |
 | `APP_NAME`                       | string  | abc-inversiones-api | Nombre de la app          |
 | `APP_TIMEZONE`                   | string  | UTC                 | Zona horaria              |
@@ -51,21 +51,21 @@ DATABASE_URL=postgresql://postgres:password@db.xxxxx.supabase.co:5432/postgres
 
 ---
 
-## Configuracion de Base de Datos
+## Configuración de Base de Datos
 
-La configuracion de la conexion a PostgreSQL se encuentra en `src/config/db.ts`.
+La configuración de la conexión a PostgreSQL se encuentra en `src/config/db.ts`.
 
-### Parametros de Pool
+### Parámetros de Pool
 
-| Parametro         | Default | Descripcion                                   |
+| Parámetro         | Default | Descripción                                   |
 | ----------------- | ------- | --------------------------------------------- |
-| `max`             | 10      | Maximo de conexiones en el pool               |
+| `max`             | 10      | Máximo de conexiones en el pool               |
 | `idle_timeout`    | 20      | Segundos antes de cerrar conexiones inactivas |
-| `connect_timeout` | 30      | Segundos antes de timeout de conexion         |
+| `connect_timeout` | 30      | Segundos antes de timeout de conexión         |
 | `prepare`         | false   | Desactivar prepared statements                |
-| `max_lifetime`    | 60000   | Tiempo maximo de vida de una conexion (ms)    |
+| `max_lifetime`    | 60000   | Tiempo máximo de vida de una conexión (ms)    |
 
-### Codigo
+### Código
 
 ```typescript
 const queryClient = postgres(databaseUrl, {
@@ -83,22 +83,22 @@ const queryClient = postgres(databaseUrl, {
 
 ### Auth
 
-La autenticacion se realiza mediante Supabase Auth. Los tokens JWT son validados en cada peticion privada mediante el middleware `authenticate`.
+La autenticación se realiza mediante Supabase Auth. Los tokens JWT son validados en cada petición privada mediante el middleware `authenticate`.
 
 ### Storage
 
 El proyecto utiliza buckets privado para almacenar archivos sensibles:
 
-| Bucket     | Descripcion                    |
+| Bucket     | Descripción                    |
 | ---------- | ------------------------------ |
-| `avatars`  | Imagenes de perfil de usuarios |
+| `avatars`  | Imágenes de perfil de usuarios |
 | `vouchers` | Comprobantes de pago           |
 
 ### Row Level Security (RLS)
 
-Todas las tablas tienen politicas RLS configuradas en el schema de Drizzle:
+Todas las tablas tienen políticas RLS configuradas en el schema de Drizzle:
 
-| Tabla            | Politicas                                 |
+| Tabla            | Políticas                                 |
 | ---------------- | ----------------------------------------- |
 | users            | admin_full, user_self                     |
 | loans            | admin_all, client_select, investor_select |
@@ -113,7 +113,7 @@ Todas las tablas tienen politicas RLS configuradas en el schema de Drizzle:
 
 ## Bootstrap
 
-### Pasos de Configuracion
+### Pasos de Configuración
 
 1. **Instalar dependencias**
 
@@ -154,14 +154,14 @@ pnpm dev
 
 ### Scripts Disponibles
 
-| Comando               | Descripcion                    |
+| Comando               | Descripción                    |
 | --------------------- | ------------------------------ |
 | `pnpm dev`            | Iniciar servidor en desarrollo |
 | `pnpm build`          | Compilar TypeScript            |
-| `pnpm start`          | Iniciar produccion             |
+| `pnpm start`          | Iniciar producción             |
 | `pnpm typecheck`      | Verificar tipos                |
 | `pnpm test`           | Ejecutar pruebas               |
-| `pnpm lint`           | Verificar codigo               |
+| `pnpm lint`           | Verificar código               |
 | `pnpm db:push`        | Aplicar esquema a DB           |
 | `pnpm db:seed`        | Sembrar datos iniciales        |
 | `pnpm setup:storage`  | Configurar buckets             |

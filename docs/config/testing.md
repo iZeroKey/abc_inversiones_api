@@ -3,7 +3,7 @@
 ## Tabla de Contenidos
 
 1. [Enfoque](#enfoque)
-2. [Ejecucion](#ejecucion)
+2. [Ejecución](#ejecución)
 3. [Setup](#setup)
 4. [Usuarios de Prueba](#usuarios-de-prueba)
 5. [Helpers](#helpers)
@@ -12,18 +12,18 @@
 
 ## Enfoque
 
-La suite de tests utiliza integración real contra el entorno de prueba. No mockea la base de datos ni Supabase.
+La suite de tests utiliza integración real contra el entorno de prueba. No simula la base de datos ni Supabase.
 
-### Caracteristicas
+### Características
 
-- Resetea el entorno de prueba completo
-- recrea el esquema y buckets
+- Restablece el entorno de prueba completo
+- Recrea el esquema y buckets
 - Ejecuta endpoints reales
 - Obtiene tokens JWT reales por login
 
 ---
 
-## Ejecucion
+## Ejecución
 
 ### Comando Principal
 
@@ -41,7 +41,7 @@ pnpm test:watch
 
 ## Setup
 
-El setup global ejecuta automaticamente:
+El setup global ejecuta automáticamente:
 
 1. **Reset del entorno**
 
@@ -84,7 +84,7 @@ pnpm db:seed
 
 ### Credenciales
 
-| Rol      | Email            | Contrasena  |
+| Rol      | Email            | Contraseña  |
 | -------- | ---------------- | ----------- |
 | Admin    | admin@abc.com    | password123 |
 | Client   | client@abc.com   | password123 |
@@ -92,9 +92,9 @@ pnpm db:seed
 
 ### Roles Disponibles
 
-- **admin**: Acceso total a todos los modulos
-- **client**: Puede ver sus prestamos y subir vouchers
-- **investor**: Puede ver prestamos asignados y revisar vouchers
+- **admin**: Acceso total a todos los módulos
+- **client**: Puede ver sus préstamos y subir vouchers
+- **investor**: Puede ver préstamos asignados y revisar vouchers
 
 ---
 
@@ -104,17 +104,17 @@ Los helpers de testing se encuentran en `src/tests/helpers/`.
 
 ### Funciones Disponibles
 
-| Funcion              | Descripcion                                   |
+| Función              | Descripción                                   |
 | -------------------- | --------------------------------------------- |
-| `login`              | Obtiene token JWT real por email y contrasena |
+| `login`              | Obtiene token JWT real por email y contraseña |
 | `createAuthUser`     | Crea usuario en Supabase Auth                 |
 | `createDbUser`       | Crea registro en tabla users                  |
-| `createLoan`         | Crea prestamo de prueba                       |
-| `createInstallments` | Genera cuotas para un prestamo                |
+| `createLoan`         | Crea préstamo de prueba                       |
+| `createInstallments` | Genera cuotas para un préstamo                |
 | `createVoucher`      | Crea voucher de prueba                        |
-| `createNotification` | Crea notificacion de prueba                   |
-| `createAuditLog`     | Crea log de auditoria                         |
-| `getBearerHeader`    | Genera header deAuthorization                 |
+| `createNotification` | Crea notificación de prueba                   |
+| `createAuditLog`     | Crea log de auditoría                         |
+| `getBearerHeader`    | Genera header de Authorization                |
 
 ### Uso Ejemplo
 
@@ -161,14 +161,14 @@ src/tests/
     └── integration.ts
 ```
 
-- `setup.ts`: Configuracion global de tests (reset, esquema, storage, seed)
-- `modules/*.test.ts`: Tests de integracion para cada modulo
-- `helpers/integration.ts`: Funciones helper para facilitar la creacion de datos y autentic
+- `setup.ts`: Configuración global de tests (reset, esquema, storage, seed)
+- `modules/*.test.ts`: Tests de integración para cada módulo
+- `helpers/integration.ts`: Funciones helper para facilitar la creación de datos y autenticación
 
 ---
 
 ## Notas
 
-- Los tests requieren que las variables `SUPABASE_SERVICE_ROLE_KEY_TEST` y `DATABASE_TEST_URL` esten configuradas en `.env`
-- El entorno de prueba debe ser independiente del de produccion
-- Los datos se resetean antes de cada ejecucion
+- Los tests requieren que las variables `SUPABASE_SERVICE_ROLE_KEY_TEST` y `DATABASE_TEST_URL` estén configuradas en `.env`
+- El entorno de prueba debe ser independiente del de producción
+- Los datos se restablecen antes de cada ejecución

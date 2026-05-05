@@ -30,12 +30,12 @@ Privado (Client)
 
 | Encabezado    | Valor               | Obligatorio |
 | ------------- | ------------------- | ----------- |
-| Authorization | Bearer {token}      | Si          |
-| Content-Type  | multipart/form-data | Si          |
+| Authorization | Bearer {token}      | Sí          |
+| Content-Type  | multipart/form-data | Sí          |
 
 ### Cuerpo de Solicitud
 
-| Campo    | Tipo | Descripcion                                     |
+| Campo    | Tipo | Descripción                                     |
 | -------- | ---- | ----------------------------------------------- |
 | evidence | file | Imagen del voucher (JPEG, PNG, WebP, max 1.5MB) |
 
@@ -44,7 +44,7 @@ Privado (Client)
 ```json
 {
   "success": true,
-  "message": "Analisis completado",
+  "message": "Análisis completado",
   "data": {
     "operationId": "ABC123456",
     "amount": "5000.00",
@@ -58,12 +58,12 @@ Privado (Client)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion                         |
+| Código | Descripción                         |
 | ------ | ----------------------------------- |
-| 200    | Analisis completado                 |
-| 400    | Archivo invalido o analisis fallido |
+| 200    | Análisis completado                 |
+| 400    | Archivo inválido o análisis fallido |
 | 401    | No autorizado                       |
-| 413    | Archivo excede el limite de 1.5MB   |
+| 413    | Archivo excede el límite de 1.5MB   |
 | 500    | Error interno                       |
 
 ---
@@ -88,29 +88,29 @@ Privado (Client)
 
 | Encabezado    | Valor               | Obligatorio |
 | ------------- | ------------------- | ----------- |
-| Authorization | Bearer {token}      | Si          |
-| Content-Type  | multipart/form-data | Si          |
+| Authorization | Bearer {token}      | Sí          |
+| Content-Type  | multipart/form-data | Sí          |
 
 ### Cuerpo de Solicitud
 
-| Campo         | Tipo   | Descripcion                                   |
+| Campo         | Tipo   | Descripción                                   |
 | ------------- | ------ | --------------------------------------------- |
 | evidence      | file   | Imagen del voucher (JPEG, PNG, WebP, max 5MB) |
-| loanId        | string | ID del prestamo                               |
+| loanId        | string | ID del préstamo                               |
 | amount        | string | Monto del voucher                             |
-| operationId   | string | ID de operacion bancaria                      |
-| operationDate | string | Fecha de operacion (ISO8601)                  |
-| observation   | string | Observacion                                   |
+| operationId   | string | ID de operación bancaria                      |
+| operationDate | string | Fecha de operación (ISO8601)                  |
+| observation   | string | Observación                                   |
 
 ### Diccionario de Datos
 
-| Campo         | Tipo   | Obligatorio | Descripcion        | Restricciones            |
+| Campo         | Tipo   | Obligatorio | Descripción        | Restricciones            |
 | ------------- | ------ | ----------- | ------------------ | ------------------------ |
-| loanId        | uuid   | Si          | ID del prestamo    | UUID valido              |
-| amount        | string | Si          | Monto              | Numero positivo          |
-| operationId   | string | Si          | ID de operacion    | Obligatorio              |
-| operationDate | date   | No          | Fecha de operacion | No puede ser futura      |
-| observation   | string | No          | Observacion        | -                        |
+| loanId        | uuid   | Sí          | ID del préstamo    | UUID válido              |
+| amount        | string | Sí          | Monto              | Número positivo          |
+| operationId   | string | Sí          | ID de operación    | Obligatorio              |
+| operationDate | date   | No          | Fecha de operación | No puede ser futura      |
+| observation   | string | No          | Observación        | -                        |
 | evidence      | file   | No          | Imagen del voucher | JPEG, PNG, WebP, max 5MB |
 
 ### Respuesta Exitosa
@@ -135,14 +135,14 @@ Privado (Client)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion                        |
+| Código | Descripción                        |
 | ------ | ---------------------------------- |
 | 201    | Voucher registrado                 |
-| 400    | Datos invalidos                    |
+| 400    | Datos inválidos                    |
 | 401    | No autorizado                      |
-| 403    | No tiene acceso al prestamo        |
+| 403    | No tiene acceso al préstamo        |
 | 409    | Operation ID duplicado             |
-| 413    | Archivo excede el limite de 5MB    |
+| 413    | Archivo excede el límite de 5MB    |
 | 500    | Error interno                      |
 
 ---
@@ -159,22 +159,22 @@ GET /api/v1/payment-vouchers
 
 ### Acceso
 
-Privado (Admin ve todos, Cliente los suyos, Inversionista los de sus prestamos)
+Privado (Admin ve todos, Cliente los suyos, Inversionista los de sus préstamos)
 
 ### Encabezados
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
-### Parametros de Consulta
+### Parámetros de Consulta
 
-| Campo  | Tipo   | Descripcion          |
+| Campo  | Tipo   | Descripción          |
 | ------ | ------ | -------------------- |
 | status | string | Filtrar por estado   |
-| loanId | uuid   | Filtrar por prestamo |
-| page   | number | Numero de pagina     |
-| limit  | number | Limite por pagina    |
+| loanId | uuid   | Filtrar por préstamo |
+| page   | number | Número de página     |
+| limit  | number | Límite por página    |
 
 ### Respuesta Exitosa
 
@@ -201,7 +201,7 @@ Privado (Admin ve todos, Cliente los suyos, Inversionista los de sus prestamos)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion        |
+| Código | Descripción        |
 | ------ | ------------------ |
 | 200    | Vouchers obtenidos |
 | 401    | No autorizado      |
@@ -211,7 +211,7 @@ Privado (Admin ve todos, Cliente los suyos, Inversionista los de sus prestamos)
 
 ## Check Operation ID
 
-Verificar rapidamente si un operationId ya existe.
+Verificar rápidamente si un operationId ya existe.
 
 ### Endpoint
 
@@ -219,11 +219,11 @@ Verificar rapidamente si un operationId ya existe.
 GET /api/v1/payment-vouchers/operation-id/exists
 ```
 
-### Parametros de Consulta
+### Parámetros de Consulta
 
-| Parametro   | Tipo   | Descripcion     |
+| Parámetro   | Tipo   | Descripción     |
 | ----------- | ------ | --------------- |
-| operationId | string | ID de operacion |
+| operationId | string | ID de operación |
 
 ### Acceso
 
@@ -233,14 +233,14 @@ Privado (Client)
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
 ```json
 {
   "success": true,
-  "message": "Verificacion completada",
+  "message": "Verificación completada",
   "data": {
     "exists": true
   },
@@ -252,9 +252,9 @@ Privado (Client)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion             |
+| Código | Descripción             |
 | ------ | ----------------------- |
-| 200    | Verificacion completada |
+| 200    | Verificación completada |
 | 401    | No autorizado           |
 | 500    | Error interno           |
 
@@ -262,7 +262,7 @@ Privado (Client)
 
 ## Process Voucher
 
-Aprobar o rechazar un voucher. Si se aprobada, se aplica el pago al prestamo.
+Aprobar o rechazar un voucher. Si se aprueba, se aplica el pago al préstamo.
 
 ### Endpoint
 
@@ -270,9 +270,9 @@ Aprobar o rechazar un voucher. Si se aprobada, se aplica el pago al prestamo.
 PATCH /api/v1/payment-vouchers/:id/process
 ```
 
-### Parametros de Ruta
+### Parámetros de Ruta
 
-| Parametro | Tipo | Descripcion    |
+| Parámetro | Tipo | Descripción    |
 | --------- | ---- | -------------- |
 | id        | uuid | ID del voucher |
 
@@ -284,8 +284,8 @@ Privado (Admin, Investor)
 
 | Encabezado    | Valor            | Obligatorio |
 | ------------- | ---------------- | ----------- |
-| Authorization | Bearer {token}   | Si          |
-| Content-Type  | application/json | Si          |
+| Authorization | Bearer {token}   | Sí          |
+| Content-Type  | application/json | Sí          |
 
 ### Cuerpo de Solicitud
 
@@ -298,10 +298,10 @@ Privado (Admin, Investor)
 
 ### Diccionario de Datos
 
-| Campo       | Tipo   | Obligatorio | Descripcion       |
+| Campo       | Tipo   | Obligatorio | Descripción       |
 | ----------- | ------ | ----------- | ----------------- |
-| action      | enum   | Si          | Accion a realizar |
-| observation | string | No          | Observacion       |
+| action      | enum   | Sí          | Acción a realizar |
+| observation | string | No          | Observación       |
 
 ### Respuesta Exitosa
 
@@ -321,10 +321,10 @@ Privado (Admin, Investor)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion           |
+| Código | Descripción           |
 | ------ | --------------------- |
 | 200    | Voucher procesado     |
-| 400    | Datos invalidos       |
+| 400    | Datos inválidos       |
 | 401    | No autorizado         |
 | 403    | No tiene permisos     |
 | 404    | Voucher no encontrado |
@@ -332,10 +332,10 @@ Privado (Admin, Investor)
 
 ### Estados de Voucher
 
-| Estado                  | Descripcion                             |
+| Estado                  | Descripción                             |
 | ----------------------- | --------------------------------------- |
 | draft                   | Borrador                                |
-| pending_investor_review | Pendiente de revision del inversionista |
+| pending_investor_review | Pendiente de revisión del inversionista |
 | investor_approved       | Aprobado por inversionista              |
 | investor_rejected       | Rechazado por inversionista             |
 | owner_approved          | Aprobado por owner/admin                |

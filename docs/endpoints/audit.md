@@ -1,4 +1,4 @@
-# Auditoria
+# Auditoría
 
 ## Tabla de Contenidos
 
@@ -8,7 +8,7 @@
 
 ## Get Audit Logs
 
-Listar logs de auditoria.
+Listar logs de auditoría.
 
 ### Endpoint
 
@@ -24,18 +24,18 @@ Privado (Admin, Owner)
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
-### Parametros de Consulta
+### Parámetros de Consulta
 
-| Campo    | Tipo   | Descripcion         |
+| Campo    | Tipo   | Descripción         |
 | -------- | ------ | ------------------- |
 | userId   | uuid   | Filtrar por usuario |
-| action   | string | Filtrar por accion  |
-| module   | string | Filtrar por modulo  |
+| action   | string | Filtrar por acción  |
+| module   | string | Filtrar por módulo  |
 | entityId | uuid   | Filtrar por entidad |
-| page     | number | Numero de pagina    |
-| limit    | number | Limite por pagina   |
+| page     | number | Número de página    |
+| limit    | number | Límite por página   |
 
 ### Respuesta Exitosa
 
@@ -66,7 +66,7 @@ Privado (Admin, Owner)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion    |
+| Código | Descripción    |
 | ------ | -------------- |
 | 200    | Logs obtenidos |
 | 401    | No autorizado  |
@@ -74,16 +74,16 @@ Privado (Admin, Owner)
 
 ### Acciones Comunes
 
-| Accion          | Descripcion         |
+| Acción          | Descripción         |
 | --------------- | ------------------- |
-| CREATE_LOAN     | Crear prestamo      |
-| UPDATE_LOAN     | Actualizar prestamo |
-| APPROVE_LOAN    | Aprobar prestamo    |
-| REJECT_LOAN     | Rechazar prestamo   |
+| CREATE_LOAN     | Crear préstamo      |
+| UPDATE_LOAN     | Actualizar préstamo |
+| APPROVE_LOAN    | Aprobar préstamo    |
+| REJECT_LOAN     | Rechazar préstamo   |
 | CREATE_PAYMENT  | Registrar pago      |
 | SUBMIT_VOUCHER  | Subir voucher       |
 | PROCESS_VOUCHER | Procesar voucher    |
 | CREATE_USER     | Crear usuario       |
 | UPDATE_USER     | Actualizar usuario  |
 | DELETE_USER     | Eliminar usuario    |
-| CHANGE_PASSWORD | Cambiar contrasena  |
+| CHANGE_PASSWORD | Cambiar contraseña  |

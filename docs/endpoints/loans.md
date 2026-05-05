@@ -1,4 +1,4 @@
-# Prestamos
+# Préstamos
 
 ## Tabla de Contenidos
 
@@ -14,7 +14,7 @@
 
 ## Create Loan
 
-Crear un nuevo prestamo.
+Crear un nuevo préstamo.
 
 ### Endpoint
 
@@ -30,8 +30,8 @@ Privado (Admin, Owner)
 
 | Encabezado    | Valor            | Obligatorio |
 | ------------- | ---------------- | ----------- |
-| Authorization | Bearer {token}   | Si          |
-| Content-Type  | application/json | Si          |
+| Authorization | Bearer {token}   | Sí          |
+| Content-Type  | application/json | Sí          |
 
 ### Cuerpo de Solicitud
 
@@ -53,26 +53,26 @@ Privado (Admin, Owner)
 
 ### Diccionario de Datos
 
-| Campo             | Tipo   | Obligatorio | Descripcion          | Restricciones                                       |
+| Campo             | Tipo   | Obligatorio | Descripción          | Restricciones                                       |
 | ----------------- | ------ | ----------- | -------------------- | --------------------------------------------------- |
-| clientId          | uuid   | Si          | ID del cliente       | UUID valido                                         |
-| investorId        | uuid   | No          | ID del inversionista | UUID valido o null                                  |
-| principal         | string | Si          | Monto principal      | Numero positivo                                     |
-| interestRate      | string | Si          | Tasa de interes      | Numero >= 0                                         |
-| interestType      | enum   | No          | Tipo de interes      | simple, compound (default: simple)                  |
-| interestPeriod    | enum   | No          | Periodo de interes   | monthly, annual (default: monthly)                  |
-| installmentsCount | number | Si          | Numero de cuotas     | Entero positivo                                     |
+| clientId          | uuid   | Sí          | ID del cliente       | UUID válido                                         |
+| investorId        | uuid   | No          | ID del inversionista | UUID válido o null                                  |
+| principal         | string | Sí          | Monto principal      | Número positivo                                     |
+| interestRate      | string | Sí          | Tasa de interés      | Número >= 0                                         |
+| interestType      | enum   | No          | Tipo de interés      | simple, compound (default: simple)                  |
+| interestPeriod    | enum   | No          | Periodo de interés   | monthly, annual (default: monthly)                  |
+| installmentsCount | number | Sí          | Número de cuotas     | Entero positivo                                     |
 | frequency         | enum   | No          | Frecuencia de pago   | daily, weekly, biweekly, monthly (default: monthly) |
-| paymentDay        | number | No          | Dia de pago          | 1-31                                                |
+| paymentDay        | number | No          | Día de pago          | 1-31                                                |
 | startDate         | string | No          | Fecha de inicio      | ISO8601                                             |
-| observation       | string | No          | Observacion          | -                                                   |
+| observation       | string | No          | Observación          | -                                                   |
 
 ### Respuesta Exitosa
 
 ```json
 {
   "success": true,
-  "message": "Prestamo creado y enviado a revision",
+  "message": "Préstamo creado y enviado a revisión",
   "data": {
     "id": "uuid",
     "clientId": "uuid",
@@ -89,10 +89,10 @@ Privado (Admin, Owner)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion           |
+| Código | Descripción           |
 | ------ | --------------------- |
-| 201    | Prestamo creado       |
-| 400    | Datos invalidos       |
+| 201    | Préstamo creado       |
+| 400    | Datos inválidos       |
 | 401    | No autorizado         |
 | 404    | Cliente no encontrado |
 | 500    | Error interno         |
@@ -101,7 +101,7 @@ Privado (Admin, Owner)
 
 ## Get All Loans
 
-Listar prestamos. Filtra automaticamente segun el rol.
+Listar préstamos. Filtra automáticamente según el rol.
 
 ### Endpoint
 
@@ -117,22 +117,22 @@ Privado
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
-### Parametros de Consulta
+### Parámetros de Consulta
 
-| Campo  | Tipo   | Descripcion        |
+| Campo  | Tipo   | Descripción        |
 | ------ | ------ | ------------------ |
 | status | string | Filtrar por estado |
-| page   | number | Numero de pagina   |
-| limit  | number | Limite por pagina  |
+| page   | number | Número de página   |
+| limit  | number | Límite por página  |
 
 ### Respuesta Exitosa
 
 ```json
 {
   "success": true,
-  "message": "Prestamos obtenidos",
+  "message": "Préstamos obtenidos",
   "data": [
     {
       "id": "uuid",
@@ -153,9 +153,9 @@ Privado
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion         |
+| Código | Descripción         |
 | ------ | ------------------- |
-| 200    | Prestamos obtenidos |
+| 200    | Préstamos obtenidos |
 | 401    | No autorizado       |
 | 500    | Error interno       |
 
@@ -179,7 +179,7 @@ Privado
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
@@ -206,7 +206,7 @@ Privado
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion      |
+| Código | Descripción      |
 | ------ | ---------------- |
 | 200    | Resumen obtenido |
 | 401    | No autorizado    |
@@ -216,7 +216,7 @@ Privado
 
 ## Get Loan By ID
 
-Obtener detalle de un prestamo especifico.
+Obtener detalle de un préstamo específico.
 
 ### Endpoint
 
@@ -224,11 +224,11 @@ Obtener detalle de un prestamo especifico.
 GET /api/v1/loans/:id
 ```
 
-### Parametros de Ruta
+### Parámetros de Ruta
 
-| Parametro | Tipo | Descripcion     |
+| Parámetro | Tipo | Descripción     |
 | --------- | ---- | --------------- |
-| id        | uuid | ID del prestamo |
+| id        | uuid | ID del préstamo |
 
 ### Acceso
 
@@ -238,14 +238,14 @@ Privado
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
 ```json
 {
   "success": true,
-  "message": "Prestamo obtenido",
+  "message": "Préstamo obtenido",
   "data": {
     "id": "uuid",
     "clientId": "uuid",
@@ -267,18 +267,18 @@ Privado
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion            |
+| Código | Descripción            |
 | ------ | ---------------------- |
-| 200    | Prestamo obtenido      |
+| 200    | Préstamo obtenido      |
 | 401    | No autorizado          |
-| 404    | Prestamo no encontrado |
+| 404    | Préstamo no encontrado |
 | 500    | Error interno          |
 
 ---
 
 ## Get Loan Installments
 
-Obtener el cronograma de pagos (cuotas) de un prestamo.
+Obtener el cronograma de pagos (cuotas) de un préstamo.
 
 ### Endpoint
 
@@ -286,11 +286,11 @@ Obtener el cronograma de pagos (cuotas) de un prestamo.
 GET /api/v1/loans/:id/installments
 ```
 
-### Parametros de Ruta
+### Parámetros de Ruta
 
-| Parametro | Tipo | Descripcion     |
+| Parámetro | Tipo | Descripción     |
 | --------- | ---- | --------------- |
-| id        | uuid | ID del prestamo |
+| id        | uuid | ID del préstamo |
 
 ### Acceso
 
@@ -300,7 +300,7 @@ Privado
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
@@ -334,18 +334,18 @@ Privado
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion            |
+| Código | Descripción            |
 | ------ | ---------------------- |
 | 200    | Cronograma obtenido    |
 | 401    | No autorizado          |
-| 404    | Prestamo no encontrado |
+| 404    | Préstamo no encontrado |
 | 500    | Error interno          |
 
 ---
 
 ## Approve Loan
 
-Aprobar un prestamo.
+Aprobar un préstamo.
 
 ### Endpoint
 
@@ -353,11 +353,11 @@ Aprobar un prestamo.
 PATCH /api/v1/loans/:id/approve
 ```
 
-### Parametros de Ruta
+### Parámetros de Ruta
 
-| Parametro | Tipo | Descripcion     |
+| Parámetro | Tipo | Descripción     |
 | --------- | ---- | --------------- |
-| id        | uuid | ID del prestamo |
+| id        | uuid | ID del préstamo |
 
 ### Acceso
 
@@ -367,7 +367,7 @@ Privado (Admin, Owner, Investor asignado)
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Cuerpo de Solicitud
 
@@ -378,7 +378,7 @@ Sin cuerpo
 ```json
 {
   "success": true,
-  "message": "Prestamo aprobado",
+  "message": "Préstamo aprobado",
   "data": {
     "id": "uuid",
     "status": "active"
@@ -391,19 +391,19 @@ Sin cuerpo
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion            |
+| Código | Descripción            |
 | ------ | ---------------------- |
-| 200    | Prestamo aprobado      |
+| 200    | Préstamo aprobado      |
 | 401    | No autorizado          |
 | 403    | No tiene permisos      |
-| 404    | Prestamo no encontrado |
+| 404    | Préstamo no encontrado |
 | 500    | Error interno          |
 
 ---
 
 ## Reject Loan
 
-Rechazar un prestamo.
+Rechazar un préstamo.
 
 ### Endpoint
 
@@ -411,11 +411,11 @@ Rechazar un prestamo.
 PATCH /api/v1/loans/:id/reject
 ```
 
-### Parametros de Ruta
+### Parámetros de Ruta
 
-| Parametro | Tipo | Descripcion     |
+| Parámetro | Tipo | Descripción     |
 | --------- | ---- | --------------- |
-| id        | uuid | ID del prestamo |
+| id        | uuid | ID del préstamo |
 
 ### Acceso
 
@@ -425,8 +425,8 @@ Privado (Admin, Owner, Investor asignado)
 
 | Encabezado    | Valor            | Obligatorio |
 | ------------- | ---------------- | ----------- |
-| Authorization | Bearer {token}   | Si          |
-| Content-Type  | application/json | Si          |
+| Authorization | Bearer {token}   | Sí          |
+| Content-Type  | application/json | Sí          |
 
 ### Cuerpo de Solicitud
 
@@ -438,16 +438,16 @@ Privado (Admin, Owner, Investor asignado)
 
 ### Diccionario de Datos
 
-| Campo       | Tipo   | Obligatorio | Descripcion       |
+| Campo       | Tipo   | Obligatorio | Descripción       |
 | ----------- | ------ | ----------- | ----------------- |
-| observation | string | No          | Razon del rechazo |
+| observation | string | No          | Razón del rechazo |
 
 ### Respuesta Exitosa
 
 ```json
 {
   "success": true,
-  "message": "Prestamo rechazado",
+  "message": "Préstamo rechazado",
   "data": {
     "id": "uuid",
     "status": "rejected"
@@ -460,10 +460,10 @@ Privado (Admin, Owner, Investor asignado)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion            |
+| Código | Descripción            |
 | ------ | ---------------------- |
-| 200    | Prestamo rechazado     |
+| 200    | Préstamo rechazado     |
 | 401    | No autorizado          |
 | 403    | No tiene permisos      |
-| 404    | Prestamo no encontrado |
+| 404    | Préstamo no encontrado |
 | 500    | Error interno          |

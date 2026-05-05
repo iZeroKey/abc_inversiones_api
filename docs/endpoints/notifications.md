@@ -10,7 +10,7 @@
 
 ## Get My Notifications
 
-Obtener notificaciones del usuario actual.
+Obtener notificaciones del usuario actual. Sin parámetros mantiene compatibilidad y devuelve la primera página con `limit=20`.
 
 ### Endpoint
 
@@ -26,15 +26,15 @@ Privado
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
-### Parametros de Consulta
+### Parámetros de Consulta
 
-| Campo  | Tipo    | Descripcion                   |
-| ------ | ------- | ----------------------------- |
-| isRead | boolean | Filtrar por estado de lectura |
-| page   | number  | Numero de pagina              |
-| limit  | number  | Limite por pagina             |
+| Campo  | Tipo    | Descripción                                      |
+| ------ | ------- | ------------------------------------------------ |
+| isRead | boolean | Opcional. `true` para leídas, `false` para no leídas |
+| page   | number  | Opcional. Número de página, default 1            |
+| limit  | number  | Opcional. Límite por página, default 20, max 50  |
 
 ### Respuesta Exitosa
 
@@ -45,8 +45,8 @@ Privado
   "data": [
     {
       "id": "uuid",
-      "title": "Prestamo aprobado",
-      "body": "Tu prestamo ha sido aprobado",
+      "title": "Préstamo aprobado",
+      "body": "Tu préstamo ha sido aprobado",
       "type": "LOAN_APPROVED",
       "isRead": false,
       "data": null,
@@ -55,14 +55,20 @@ Privado
   ],
   "meta": {
     "timestamp": "2026-01-01T00:00:00.000Z",
-    "pagination": {...}
+    "page": 1,
+    "limit": 20,
+    "total": 1,
+    "totalPages": 1,
+    "unreadCount": 1
   }
 }
 ```
 
+`total` respeta el filtro `isRead`. `unreadCount` siempre representa todas las notificaciones no leídas del usuario, independientemente del filtro. `totalPages` usa mínimo 1, incluso cuando `total` es 0.
+
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion              |
+| Código | Descripción              |
 | ------ | ------------------------ |
 | 200    | Notificaciones obtenidas |
 | 401    | No autorizado            |
@@ -72,7 +78,7 @@ Privado
 
 ## Mark All As Read
 
-Marcar todas las notificaciones como leidas.
+Marcar todas las notificaciones como leídas.
 
 ### Endpoint
 
@@ -88,14 +94,14 @@ Privado
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
 ```json
 {
   "success": true,
-  "message": "Notificaciones marcadas como leidas",
+  "message": "Notificaciones marcadas como leídas",
   "data": null,
   "meta": {
     "timestamp": "2026-01-01T00:00:00.000Z"
@@ -105,7 +111,7 @@ Privado
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion                 |
+| Código | Descripción                 |
 | ------ | --------------------------- |
 | 200    | Notificaciones actualizadas |
 | 401    | No autorizado               |
@@ -115,7 +121,7 @@ Privado
 
 ## Mark As Read
 
-Marcar una notificación específica como leida.
+Marcar una notificación específica como leída.
 
 ### Endpoint
 
@@ -123,11 +129,11 @@ Marcar una notificación específica como leida.
 PATCH /api/v1/notifications/:id/read
 ```
 
-### Parametros de Ruta
+### Parámetros de Ruta
 
-| Parametro | Tipo | Descripcion           |
+| Parámetro | Tipo | Descripción           |
 | --------- | ---- | --------------------- |
-| id        | uuid | ID de la notificacion |
+| id        | uuid | ID de la notificación |
 
 ### Acceso
 
@@ -137,14 +143,14 @@ Privado
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
 ```json
 {
   "success": true,
-  "message": "Notificacion marcada como leida",
+  "message": "Notificación marcada como leída",
   "data": {
     "id": "uuid",
     "isRead": true
@@ -157,9 +163,9 @@ Privado
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion                |
+| Código | Descripción                |
 | ------ | -------------------------- |
-| 200    | Notificacion actualizada   |
+| 200    | Notificación actualizada   |
 | 401    | No autorizado              |
-| 404    | Notificacion no encontrada |
+| 404    | Notificación no encontrada |
 | 500    | Error interno              |

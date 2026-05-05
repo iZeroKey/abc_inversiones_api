@@ -21,13 +21,13 @@ POST /api/v1/access-requests
 
 ### Acceso
 
-Publico
+Público
 
 ### Encabezados
 
 | Encabezado   | Valor            | Obligatorio |
 | ------------ | ---------------- | ----------- |
-| Content-Type | application/json | Si          |
+| Content-Type | application/json | Sí          |
 
 ### Cuerpo de Solicitud
 
@@ -44,13 +44,13 @@ Publico
 
 ### Diccionario de Datos
 
-| Campo          | Tipo   | Obligatorio | Descripcion        | Restricciones         |
+| Campo          | Tipo   | Obligatorio | Descripción        | Restricciones         |
 | -------------- | ------ | ----------- | ------------------ | --------------------- |
-| email          | string | Si          | Correo electronico | Debe ser email valido |
-| firstName      | string | Si          | Nombres            | Minimo 2 caracteres   |
-| lastName       | string | Si          | Apellidos          | Minimo 2 caracteres   |
-| phone          | string | Si          | Telefono           | Minimo 7 caracteres   |
-| roleRequested  | enum   | Si          | Rol solicitado     | client o investor     |
+| email          | string | Sí          | Correo electrónico | Debe ser email válido |
+| firstName      | string | Sí          | Nombres            | Mínimo 2 caracteres   |
+| lastName       | string | Sí          | Apellidos          | Mínimo 2 caracteres   |
+| phone          | string | Sí          | Teléfono           | Mínimo 7 caracteres   |
+| roleRequested  | enum   | Sí          | Rol solicitado     | client o investor     |
 | additionalData | object | No          | Datos adicionales  | -                     |
 
 ### Respuesta Exitosa
@@ -63,7 +63,7 @@ Publico
     "id": "uuid",
     "email": "email@example.com",
     "firstName": "Juan",
-    "lastName": "Perez",
+    "lastName": "Pérez",
     "roleRequested": "client",
     "status": "pending"
   },
@@ -75,10 +75,10 @@ Publico
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion      |
+| Código | Descripción      |
 | ------ | ---------------- |
 | 201    | Solicitud creada |
-| 400    | Datos invalidos  |
+| 400    | Datos inválidos  |
 | 500    | Error interno    |
 
 ---
@@ -101,15 +101,15 @@ Privado (Admin, Owner)
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
-### Parametros de Consulta
+### Parámetros de Consulta
 
-| Campo  | Tipo   | Descripcion        |
+| Campo  | Tipo   | Descripción        |
 | ------ | ------ | ------------------ |
 | status | string | Filtrar por estado |
-| page   | number | Numero de pagina   |
-| limit  | number | Limite por pagina  |
+| page   | number | Número de página   |
+| limit  | number | Límite por página  |
 
 ### Respuesta Exitosa
 
@@ -122,7 +122,7 @@ Privado (Admin, Owner)
       "id": "uuid",
       "email": "email@example.com",
       "firstName": "Juan",
-      "lastName": "Perez",
+      "lastName": "Pérez",
       "phone": "+51 999 999 999",
       "roleRequested": "client",
       "status": "pending",
@@ -138,7 +138,7 @@ Privado (Admin, Owner)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion           |
+| Código | Descripción           |
 | ------ | --------------------- |
 | 200    | Solicitudes obtenidas |
 | 401    | No autorizado         |
@@ -156,9 +156,9 @@ Obtener el detalle completo de una solicitud de acceso específica.
 GET /api/v1/access-requests/:id
 ```
 
-### Parametros de Ruta
+### Parámetros de Ruta
 
-| Parametro | Tipo | Descripcion        |
+| Parámetro | Tipo | Descripción        |
 | --------- | ---- | ------------------ |
 | id        | uuid | ID de la solicitud |
 
@@ -170,7 +170,7 @@ Privado (Admin, Owner)
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
@@ -182,7 +182,7 @@ Privado (Admin, Owner)
     "id": "uuid",
     "email": "email@example.com",
     "firstName": "Juan",
-    "lastName": "Perez",
+    "lastName": "Pérez",
     "phone": "+51 999 999 999",
     "roleRequested": "client",
     "status": "pending",
@@ -199,7 +199,7 @@ Privado (Admin, Owner)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion             |
+| Código | Descripción             |
 | ------ | ----------------------- |
 | 200    | Solicitud obtenida      |
 | 401    | No autorizado           |
@@ -210,7 +210,7 @@ Privado (Admin, Owner)
 
 ## Update Status
 
-Actualizar el estado de una solicitud. Si se aprueba, crea el usuario automaticamente.
+Actualizar el estado de una solicitud. Si se aprueba, crea el usuario automáticamente.
 
 ### Endpoint
 
@@ -218,9 +218,9 @@ Actualizar el estado de una solicitud. Si se aprueba, crea el usuario automatica
 PATCH /api/v1/access-requests/:id/status
 ```
 
-### Parametros de Ruta
+### Parámetros de Ruta
 
-| Parametro | Tipo | Descripcion        |
+| Parámetro | Tipo | Descripción        |
 | --------- | ---- | ------------------ |
 | id        | uuid | ID de la solicitud |
 
@@ -232,8 +232,8 @@ Privado (Admin, Owner)
 
 | Encabezado    | Valor            | Obligatorio |
 | ------------- | ---------------- | ----------- |
-| Authorization | Bearer {token}   | Si          |
-| Content-Type  | application/json | Si          |
+| Authorization | Bearer {token}   | Sí          |
+| Content-Type  | application/json | Sí          |
 
 ### Cuerpo de Solicitud
 
@@ -247,11 +247,11 @@ Privado (Admin, Owner)
 
 ### Diccionario de Datos
 
-| Campo           | Tipo   | Obligatorio | Descripcion        | Restricciones                          |
+| Campo           | Tipo   | Obligatorio | Descripción        | Restricciones                          |
 | --------------- | ------ | ----------- | ------------------ | -------------------------------------- |
-| status          | enum   | Si          | Nuevo estado       | pending, in_review, approved, rejected |
-| observation     | string | No          | Observacion        | -                                      |
-| initialPassword | string | No          | Contrasena inicial | Minimo 6 caracteres                    |
+| status          | enum   | Sí          | Nuevo estado       | pending, in_review, approved, rejected |
+| observation     | string | No          | Observación        | -                                      |
+| initialPassword | string | No          | Contraseña inicial | Mínimo 6 caracteres                    |
 
 ### Respuesta Exitosa
 
@@ -273,10 +273,10 @@ Privado (Admin, Owner)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion             |
+| Código | Descripción             |
 | ------ | ----------------------- |
 | 200    | Solicitud actualizada   |
-| 400    | Datos invalidos         |
+| 400    | Datos inválidos         |
 | 401    | No autorizado           |
 | 404    | Solicitud no encontrada |
 | 500    | Error interno           |

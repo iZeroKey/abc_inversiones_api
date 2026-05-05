@@ -1,51 +1,51 @@
 # ABC Inversiones API
 
-Backend de ABC Inversiones para la gestión de usuarios, solicitudes de acceso, prestamos, cuotas, pagos, vouchers, auditoria, notificaciones y reportes.
+Backend de ABC Inversiones para la gestión de usuarios, solicitudes de acceso, préstamos, cuotas, pagos, vouchers, auditoría, notificaciones y reportes.
 
 ## Tabla de Contenidos
 
-1. [Informacion General](#informacion-general)
-2. [Stack Tecnologico](#stack-tecnologico)
+1. [Información General](#información-general)
+2. [Stack Tecnológico](#stack-tecnológico)
 3. [Arquitectura](#arquitectura)
 4. [Roles y Permisos](#roles-y-permisos)
 5. [Modelo de Datos](#modelo-de-datos)
 6. [API Endpoints](#api-endpoints)
-7. [Configuracion](#configuracion)
+7. [Configuración](#configuración)
 8. [Scripts](#scripts)
 9. [Seguridad](#seguridad)
 
 ---
 
-## Informacion General
+## Información General
 
 - **Empresa**: ABC Inversiones S.A.C.
 - **Nombre del proyecto**: abc-inversiones-api
-- **Version**: 1.0.0
+- **Versión**: 1.0.0
 - **Tipo**: API RESTful
 
-ABC Inversiones es una plataforma de gestión de prestamos que permite:
+ABC Inversiones es una plataforma de gestión de préstamos que permite:
 
-- Autenticacion y control de acceso por roles
-- Gestion de solicitudes de acceso de clientes e inversionistas
-- Creacion y seguimiento de prestamos
-- Generación automatica de cuotas
-- Registro y validacion de pagos
-- Carga de vouchers con flujo derevision
-- OCR asistido para prellenado de formularios
-- Auditoria de acciones sensibles
+- Autenticación y control de acceso por roles
+- Gestión de solicitudes de acceso de clientes e inversionistas
+- Creación y seguimiento de préstamos
+- Generación automática de cuotas
+- Registro y validación de pagos
+- Carga de vouchers con flujo de revisión
+- OCR asistido para completar formularios
+- Auditoría de acciones sensibles
 - Notificaciones internas
 - Reportes operativos
 
 ---
 
-## Stack Tecnologico
+## Stack Tecnológico
 
 - **Runtime**: Node.js
 - **Lenguaje**: TypeScript
 - **Framework**: Express
 - **ORM**: Drizzle ORM
 - **Base de datos**: PostgreSQL (Supabase)
-- **Autenticacion**: Supabase Auth
+- **Autenticación**: Supabase Auth
 - **Almacenamiento**: Supabase Storage
 - **Upload Streaming**: Busboy (multipart parser de bajo nivel)
 - **OCR**: Google Cloud Vision API
@@ -60,7 +60,7 @@ src/
 ├── config/          # DB, env, logger, supabase client
 ├── db/schema/       # Esquemas Drizzle ORM
 ├── middleware/
-│   ├── auth.middleware.ts           # JWT via Supabase Auth
+│   ├── auth.middleware.ts           # JWT vía Supabase Auth
 │   ├── role.middleware.ts           # Autorización por rol
 │   ├── stream-upload.middleware.ts  # Busboy streaming/buffer (vouchers, OCR, avatars)
 │   └── error-handler.middleware.ts  # Manejo global de errores
@@ -82,24 +82,24 @@ El backend usa dos estrategias de upload según el endpoint:
 | `POST /payment-vouchers/analyze` | `bufferOcrUpload` (busboy) | Buffer → Vision API | 1.5 MB | Vision API necesita la imagen completa |
 | `PATCH /users/me/avatar` | `bufferAvatarUpload` (busboy) | Buffer → Storage | 2 MB | Reemplazo seguro del avatar anterior |
 
-**¿Por qué streaming?** La API se despliega en Cloud Run (Santiago) detrás de un Cloudflare Worker con límite de 100s por conexión. Con multer, el archivo se acumula en RAM antes de procesarse; con busboy, los campos de texto se parsean **durante** la subida del archivo, permitiendo validación concurrente y reduciendo el tiempo total de respuesta.
+**¿Por qué streaming?** La API se despliega en Cloud Run (Santiago) detrás de un Cloudflare Worker con límite de 100s por conexión. Con multer, el archivo se acumula en RAM antes de procesarse; con busboy, los campos de texto se procesan **durante** la subida del archivo, permitiendo validación concurrente y reduciendo el tiempo total de respuesta.
 
 ---
 
 ## Roles y Permisos
 
-| Rol        | Descripcion   | Permisos                            |
+| Rol        | Descripción   | Permisos                            |
 | ---------- | ------------- | ----------------------------------- |
-| `admin`    | Administrador | Acceso total a todos los modulos    |
+| `admin`    | Administrador | Acceso total a todos los módulos    |
 | `owner`    | Dueño         | Acceso total (similar a admin)      |
-| `client`   | Cliente       | Ver sus prestamos, subir vouchers   |
-| `investor` | Inversionista | Ver sus prestamos, revisar vouchers |
+| `client`   | Cliente       | Ver sus préstamos, subir vouchers   |
+| `investor` | Inversionista | Ver sus préstamos, revisar vouchers |
 
-### Flujo de Validacion
+### Flujo de Validación
 
-1. **Cliente**: Solo ve sus propios prestamos y vouchers
-2. **Inversionista**: Ve prestamos asignados, puede aprobar/rechazar vouchers preliminarmente
-3. **Admin/Owner**: Acceso total, validacion final de vouchers
+1. **Cliente**: Solo ve sus propios préstamos y vouchers
+2. **Inversionista**: Ve préstamos asignados, puede aprobar/rechazar vouchers preliminarmente
+3. **Admin/Owner**: Acceso total, validación final de vouchers
 
 ---
 
@@ -107,149 +107,149 @@ El backend usa dos estrategias de upload según el endpoint:
 
 ### Tablas
 
-| Tabla              | Descripcion           |
+| Tabla              | Descripción           |
 | ------------------ | --------------------- |
 | `users`            | Usuarios registrados  |
 | `access_requests`  | Solicitudes de acceso |
-| `loans`            | Prestamos             |
-| `installments`     | Cuotas de prestamos   |
+| `loans`            | Préstamos             |
+| `installments`     | Cuotas de préstamos   |
 | `payments`         | Pagos registrados     |
 | `payment_vouchers` | Vouchers de pago      |
-| `audit_logs`       | Log de auditoria      |
+| `audit_logs`       | Log de auditoría      |
 | `notifications`    | Notificaciones        |
 
 ### Detalles de Tablas
 
 #### users
 
-| Campo        | Tipo       | Descripcion              |
+| Campo        | Tipo       | Descripción              |
 | ------------ | ---------- | ------------------------ |
-| `id`         | text(UUID) | ID unico (Supabase Auth) |
+| `id`         | text(UUID) | ID único (Supabase Auth) |
 | `first_name` | text       | Nombres                  |
 | `last_name`  | text       | Apellidos                |
-| `email`      | text       | Correo electronico       |
-| `phone`      | text       | Telefono                 |
+| `email`      | text       | Correo electrónico       |
+| `phone`      | text       | Teléfono                 |
 | `avatar_url` | text       | URL del avatar           |
 | `role`       | enum       | admin, client, investor  |
 | `is_owner`   | boolean    | Es propietario           |
-| `active`     | boolean    | Esta activo              |
-| `created_at` | timestamp  | Fecha de creacion        |
-| `updated_at` | timestamp  | Fecha de actualizacion   |
-| `deleted_at` | timestamp  | Fecha de eliminacion     |
+| `active`     | boolean    | Está activo              |
+| `created_at` | timestamp  | Fecha de creación        |
+| `updated_at` | timestamp  | Fecha de actualización   |
+| `deleted_at` | timestamp  | Fecha de eliminación     |
 
 #### access_requests
 
-| Campo             | Tipo      | Descripcion                            |
+| Campo             | Tipo      | Descripción                            |
 | ----------------- | --------- | -------------------------------------- |
-| `id`              | uuid      | ID unico                               |
+| `id`              | uuid      | ID único                               |
 | `email`           | text      | Correo solicitante                     |
 | `first_name`      | text      | Nombres                                |
 | `last_name`       | text      | Apellidos                              |
-| `phone`           | text      | Telefono                               |
+| `phone`           | text      | Teléfono                               |
 | `role_requested`  | enum      | client, investor                       |
 | `status`          | enum      | pending, in_review, approved, rejected |
 | `additional_data` | jsonb     | Datos adicionales                      |
-| `observation`     | text      | Observacion                            |
-| `created_at`      | timestamp | Fecha de creacion                      |
-| `updated_at`      | timestamp | Fecha de actualizacion                 |
+| `observation`     | text      | Observación                            |
+| `created_at`      | timestamp | Fecha de creación                      |
+| `updated_at`      | timestamp | Fecha de actualización                 |
 
 #### loans
 
-| Campo                | Tipo      | Descripcion                                                                             |
+| Campo                | Tipo      | Descripción                                                                             |
 | -------------------- | --------- | --------------------------------------------------------------------------------------- |
-| `id`                 | uuid      | ID unico                                                                                |
+| `id`                 | uuid      | ID único                                                                                |
 | `client_id`          | text      | ID del cliente                                                                          |
 | `investor_id`        | text      | ID del inversionista                                                                    |
 | `principal`          | numeric   | Monto principal                                                                         |
-| `interest_rate`      | numeric   | Tasa de interes                                                                         |
+| `interest_rate`      | numeric   | Tasa de interés                                                                         |
 | `interest_type`      | enum      | simple, compound                                                                        |
 | `interest_period`    | enum      | monthly, annual                                                                         |
-| `installments_count` | integer   | Numero de cuotas                                                                        |
+| `installments_count` | integer   | Número de cuotas                                                                        |
 | `frequency`          | enum      | daily, weekly, biweekly, monthly                                                        |
-| `payment_day`        | integer   | Dia de pago                                                                             |
+| `payment_day`        | integer   | Día de pago                                                                             |
 | `total_debt`         | numeric   | Deuda total                                                                             |
 | `status`             | enum      | draft, pending_investor_review, pending_admin_review, active, rejected, paid, defaulted |
 | `is_company_funded`  | boolean   | financiado por empresa                                                                  |
 | `start_date`         | timestamp | Fecha de inicio                                                                         |
-| `observation`        | text      | Observacion                                                                             |
-| `created_at`         | timestamp | Fecha de creacion                                                                       |
-| `updated_at`         | timestamp | Fecha de actualizacion                                                                  |
+| `observation`        | text      | Observación                                                                             |
+| `created_at`         | timestamp | Fecha de creación                                                                       |
+| `updated_at`         | timestamp | Fecha de actualización                                                                  |
 
 #### installments
 
-| Campo                | Tipo      | Descripcion            |
+| Campo                | Tipo      | Descripción            |
 | -------------------- | --------- | ---------------------- |
-| `id`                 | uuid      | ID unico               |
-| `loan_id`            | uuid      | ID del prestamo        |
-| `installment_number` | integer   | Numero de cuota        |
+| `id`                 | uuid      | ID único               |
+| `loan_id`            | uuid      | ID del préstamo        |
+| `installment_number` | integer   | Número de cuota        |
 | `due_date`           | timestamp | Fecha de vencimiento   |
 | `amount`             | numeric   | Monto de la cuota      |
 | `paid_amount`        | numeric   | Monto pagado           |
 | `status`             | enum      | pending, paid, overdue |
-| `created_at`         | timestamp | Fecha de creacion      |
-| `updated_at`         | timestamp | Fecha de actualizacion |
+| `created_at`         | timestamp | Fecha de creación      |
+| `updated_at`         | timestamp | Fecha de actualización |
 
 #### payments
 
-| Campo              | Tipo      | Descripcion                    |
+| Campo              | Tipo      | Descripción                    |
 | ------------------ | --------- | ------------------------------ |
-| `id`               | uuid      | ID unico                       |
-| `loan_id`          | uuid      | ID del prestamo                |
+| `id`               | uuid      | ID único                       |
+| `loan_id`          | uuid      | ID del préstamo                |
 | `installment_id`   | uuid      | ID de la cuota                 |
 | `amount`           | numeric   | Monto del pago                 |
 | `payment_date`     | timestamp | Fecha del pago                 |
 | `method`           | enum      | cash, transfer, deposit, other |
 | `reference`        | text      | Referencia                     |
-| `observation`      | text      | Observacion                    |
+| `observation`      | text      | Observación                    |
 | `registered_by_id` | text      | ID de quien registra           |
 | `status`           | enum      | confirmed, reversed            |
-| `created_at`       | timestamp | Fecha de creacion              |
-| `updated_at`       | timestamp | Fecha de actualizacion         |
+| `created_at`       | timestamp | Fecha de creación              |
+| `updated_at`       | timestamp | Fecha de actualización         |
 
 #### payment_vouchers
 
-| Campo             | Tipo      | Descripcion                                                                                          |
+| Campo             | Tipo      | Descripción                                                                                          |
 | ----------------- | --------- | ---------------------------------------------------------------------------------------------------- |
-| `id`              | uuid      | ID unico                                                                                             |
-| `loan_id`         | uuid      | ID del prestamo                                                                                      |
+| `id`              | uuid      | ID único                                                                                             |
+| `loan_id`         | uuid      | ID del préstamo                                                                                      |
 | `client_id`       | text      | ID del cliente                                                                                       |
 | `amount`          | numeric   | Monto del voucher                                                                                    |
-| `operation_id`    | text      | ID de operacion bancaria                                                                             |
-| `operation_date`  | timestamp | Fecha de operacion                                                                                   |
+| `operation_id`    | text      | ID de operación bancaria                                                                             |
+| `operation_date`  | timestamp | Fecha de operación                                                                                   |
 | `evidence_url`    | text      | URL de la evidencia                                                                                  |
 | `status`          | enum      | draft, pending_investor_review, investor_approved, investor_rejected, owner_approved, owner_rejected |
-| `observation`     | text      | Observacion                                                                                          |
-| `processed_by_id` | text      | ID de quien proceso                                                                                  |
-| `created_at`      | timestamp | Fecha de creacion                                                                                    |
-| `updated_at`      | timestamp | Fecha de actualizacion                                                                               |
+| `observation`     | text      | Observación                                                                                          |
+| `processed_by_id` | text      | ID de quien procesó                                                                                  |
+| `created_at`      | timestamp | Fecha de creación                                                                                    |
+| `updated_at`      | timestamp | Fecha de actualización                                                                               |
 
 #### audit_logs
 
-| Campo        | Tipo      | Descripcion       |
+| Campo        | Tipo      | Descripción       |
 | ------------ | --------- | ----------------- |
-| `id`         | uuid      | ID unico          |
+| `id`         | uuid      | ID único          |
 | `user_id`    | text      | ID del usuario    |
-| `action`     | text      | Accion realizada  |
-| `module`     | text      | Modulo            |
+| `action`     | text      | Acción realizada  |
+| `module`     | text      | Módulo            |
 | `entity_id`  | text      | ID de la entidad  |
 | `old_data`   | jsonb     | Datos anteriores  |
 | `new_data`   | jsonb     | Datos nuevos      |
-| `ip_address` | text      | Direccion IP      |
+| `ip_address` | text      | Dirección IP      |
 | `user_agent` | text      | User Agent        |
-| `created_at` | timestamp | Fecha de creacion |
+| `created_at` | timestamp | Fecha de creación |
 
 #### notifications
 
-| Campo        | Tipo      | Descripcion       |
+| Campo        | Tipo      | Descripción       |
 | ------------ | --------- | ----------------- |
-| `id`         | uuid      | ID unico          |
+| `id`         | uuid      | ID único          |
 | `user_id`    | text      | ID del usuario    |
-| `title`      | text      | Titulo            |
+| `title`      | text      | Título            |
 | `body`       | text      | Cuerpo            |
 | `type`       | text      | Tipo              |
-| `is_read`    | boolean   | Leida             |
+| `is_read`    | boolean   | Leída             |
 | `data`       | text      | Datos adicionales |
-| `created_at` | timestamp | Fecha de creacion |
+| `created_at` | timestamp | Fecha de creación |
 
 ---
 
@@ -257,19 +257,21 @@ El backend usa dos estrategias de upload según el endpoint:
 
 Todos los endpoints tienen el prefijo `/api/v1`.
 
-### Autenticacion
+### Autenticación
 
-| Metodo | Endpoint              | Descripcion        | Acceso  |
+| Método | Endpoint              | Descripción        | Acceso  |
 | ------ | --------------------- | ------------------ | ------- |
-| POST   | /auth/login           | Iniciar sesion     | Publico |
-| POST   | /auth/refresh         | Refrescar sesion   | Publico |
-| POST   | /auth/logout          | Cerrar sesion      | Privado |
+| POST   | /auth/login           | Iniciar sesión     | Público |
+| POST   | /auth/refresh         | Refrescar sesión   | Público |
+| POST   | /auth/logout          | Cerrar sesión      | Privado |
 | POST   | /auth/register        | Registrar usuario  | Admin   |
-| POST   | /auth/change-password | Cambiar contrasena | Privado |
+| POST   | /auth/change-password | Cambiar contraseña | Privado |
+
+`/auth/logout` revoca sesiones/refresh tokens en Supabase con scope global; los access tokens existentes pueden seguir vigentes hasta expirar. `/auth/change-password` verifica la contraseña actual y actualiza la nueva contraseña con Supabase Admin.
 
 ### Usuarios
 
-| Metodo | Endpoint         | Descripcion        | Acceso  |
+| Método | Endpoint         | Descripción        | Acceso  |
 | ------ | ---------------- | ------------------ | ------- |
 | GET    | /users/me        | Perfil actual      | Privado |
 | PATCH  | /users/me/avatar | Actualizar avatar  | Privado |
@@ -279,37 +281,41 @@ Todos los endpoints tienen el prefijo `/api/v1`.
 | PATCH  | /users/:id       | Actualizar usuario | Privado |
 | DELETE | /users/:id       | Eliminar usuario   | Admin   |
 
+En `PATCH /users/:id`, un usuario solo puede actualizar sus campos de perfil (`firstName`, `lastName`, `phone`). Admin/owner puede actualizar campos administrativos como `role` y `active`; `isOwner` queda reservado a owners.
+
 ### Solicitudes de Acceso
 
-| Metodo | Endpoint                    | Descripcion        | Acceso  |
+| Método | Endpoint                    | Descripción        | Acceso  |
 | ------ | --------------------------- | ------------------ | ------- |
-| POST   | /access-requests            | Crear solicitud    | Publico |
+| POST   | /access-requests            | Crear solicitud    | Público |
 | GET    | /access-requests            | Listar solicitudes | Admin   |
 | GET    | /access-requests/:id        | Solicitud por ID   | Admin   |
 | PATCH  | /access-requests/:id/status | Actualizar estado  | Admin   |
 
-### Prestamos
+### Préstamos
 
-| Metodo | Endpoint                | Descripcion        | Acceso  |
+| Método | Endpoint                | Descripción        | Acceso  |
 | ------ | ----------------------- | ------------------ | ------- |
-| POST   | /loans                  | Crear prestamo     | Admin   |
-| GET    | /loans                  | Listar prestamos   | Privado |
+| POST   | /loans                  | Crear préstamo     | Admin   |
+| GET    | /loans                  | Listar préstamos   | Privado |
 | GET    | /loans/summary          | Resumen financiero | Privado |
-| GET    | /loans/:id              | Prestamo por ID    | Privado |
+| GET    | /loans/:id              | Préstamo por ID    | Privado |
 | GET    | /loans/:id/installments | Cronograma         | Privado |
-| PATCH  | /loans/:id/approve      | Aprobar prestamo   | Privado |
-| PATCH  | /loans/:id/reject       | Rechazar prestamo  | Privado |
+| PATCH  | /loans/:id/approve      | Aprobar préstamo   | Privado |
+| PATCH  | /loans/:id/reject       | Rechazar préstamo  | Privado |
 
 ### Pagos
 
-| Metodo | Endpoint               | Descripcion        | Acceso  |
+| Método | Endpoint               | Descripción        | Acceso  |
 | ------ | ---------------------- | ------------------ | ------- |
 | POST   | /payments              | Registrar pago     | Admin   |
-| GET    | /payments/loan/:loanId | Pagos por prestamo | Privado |
+| GET    | /payments/loan/:loanId | Pagos por préstamo | Privado |
+
+Los pagos se aplican a cuotas `pending` y `overdue` por fecha de vencimiento. El backend rechaza pagos excedentes con 400 y marca el préstamo como `paid` cuando todas sus cuotas quedan pagadas.
 
 ### Vouchers
 
-| Metodo | Endpoint                              | Descripcion           | Acceso          |
+| Método | Endpoint                              | Descripción           | Acceso          |
 | ------ | ------------------------------------- | --------------------- | --------------- |
 | POST   | /payment-vouchers/analyze             | Analizar OCR          | Client          |
 | POST   | /payment-vouchers                     | Subir voucher         | Client          |
@@ -319,33 +325,35 @@ Todos los endpoints tienen el prefijo `/api/v1`.
 
 ### Notificaciones
 
-| Metodo | Endpoint                | Descripcion           | Acceso  |
+| Método | Endpoint                | Descripción           | Acceso  |
 | ------ | ----------------------- | --------------------- | ------- |
 | GET    | /notifications          | Listar notificaciones | Privado |
-| PATCH  | /notifications/read-all | Marcar todas leidas   | Privado |
-| PATCH  | /notifications/:id/read | Marcar leida          | Privado |
+| PATCH  | /notifications/read-all | Marcar todas leídas   | Privado |
+| PATCH  | /notifications/:id/read | Marcar leída          | Privado |
+
+`GET /notifications` soporta `isRead=true|false`, `page` y `limit` (max 50). La respuesta incluye `meta.page`, `meta.limit`, `meta.total`, `meta.totalPages` y `meta.unreadCount`.
 
 ### Reportes
 
-| Metodo | Endpoint           | Descripcion            | Acceso          |
+| Método | Endpoint           | Descripción            | Acceso          |
 | ------ | ------------------ | ---------------------- | --------------- |
 | GET    | /reports/statement | Estado de cuenta       | Admin, Client   |
 | GET    | /reports/portfolio | Portafolio inversiones | Admin, Investor |
 | GET    | /reports/dashboard | Dashboard admin        | Admin           |
 
-### Auditoria
+### Auditoría
 
-| Metodo | Endpoint    | Descripcion | Acceso |
+| Método | Endpoint    | Descripción | Acceso |
 | ------ | ----------- | ----------- | ------ |
 | GET    | /audit-logs | Listar logs | Admin  |
 
 ---
 
-## Configuracion
+## Configuración
 
 ### Variables de Entorno
 
-| Variable                         | Tipo    | Descripcion       | Default             |
+| Variable                         | Tipo    | Descripción       | Default             |
 | -------------------------------- | ------- | ----------------- | ------------------- |
 | `NODE_ENV`                       | string  | Entorno           | development         |
 | `PORT`                           | number  | Puerto            | 3000                |
@@ -363,11 +371,11 @@ Todos los endpoints tienen el prefijo `/api/v1`.
 
 ## Scripts
 
-| Comando              | Descripcion           |
+| Comando              | Descripción           |
 | -------------------- | --------------------- |
 | `pnpm dev`           | Iniciar en desarrollo |
 | `pnpm build`         | Compilar              |
-| `pnpm start`         | Iniciar produccion    |
+| `pnpm start`         | Iniciar producción    |
 | `pnpm typecheck`     | Verificar tipos       |
 | `pnpm test`          | Ejecutar pruebas      |
 | `pnpm db:push`       | Aplicar esquema       |
@@ -378,18 +386,18 @@ Todos los endpoints tienen el prefijo `/api/v1`.
 
 ## Seguridad
 
-- Autenticacion via Supabase Auth
-- Autorizacion por roles en cada endpoint
+- Autenticación vía Supabase Auth
+- Autorización por roles en cada endpoint
 - Row Level Security (RLS) en todas las tablas
-- Indices unicos para evitar duplicados
+- Índices únicos para evitar duplicados
 - Logging estructurado con Pino
 - Error handling global
 - Validación de MIME types en uploads (JPEG, PNG, WebP)
 - Límite de tamaño por endpoint (1.5MB OCR, 5MB vouchers/avatars)
 
-### Respuesta Estandar
+### Respuesta Estándar
 
-Todas las respuestasfollowan el siguiente formato:
+Todas las respuestas siguen el siguiente formato:
 
 ```json
 {
@@ -406,5 +414,5 @@ Todas las respuestasfollowan el siguiente formato:
 
 ## Links
 
-- [Documentacion de Endpoints](./docs/endpoints/)
-- [Configuracion](./docs/config/)
+- [Documentación de Endpoints](./docs/endpoints/)
+- [Configuración](./docs/config/)

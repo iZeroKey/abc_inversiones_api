@@ -1,4 +1,4 @@
-# Autenticacion
+# Autenticación
 
 ## Tabla de Contenidos
 
@@ -12,7 +12,7 @@
 
 ## Login
 
-Iniciar sesion en la plataforma y obtener token de sesion.
+Iniciar sesión en la plataforma y obtener token de sesión.
 
 ### Endpoint
 
@@ -22,13 +22,13 @@ POST /api/v1/auth/login
 
 ### Acceso
 
-Publico
+Público
 
 ### Encabezados
 
 | Encabezado   | Valor            | Obligatorio |
 | ------------ | ---------------- | ----------- |
-| Content-Type | application/json | Si          |
+| Content-Type | application/json | Sí          |
 
 ### Cuerpo de Solicitud
 
@@ -41,10 +41,10 @@ Publico
 
 ### Diccionario de Datos
 
-| Campo    | Tipo   | Obligatorio | Descripcion        | Restricciones            |
+| Campo    | Tipo   | Obligatorio | Descripción        | Restricciones            |
 | -------- | ------ | ----------- | ------------------ | ------------------------ |
-| email    | string | Si          | Correo electronico | Debe ser un email valido |
-| password | string | Si          | Contrasena         | Minimo 6 caracteres      |
+| email    | string | Sí          | Correo electrónico | Debe ser un email válido |
+| password | string | Sí          | Contraseña         | Mínimo 6 caracteres      |
 
 ### Respuesta Exitosa
 
@@ -57,7 +57,7 @@ Publico
       "id": "uuid",
       "email": "email@example.com",
       "firstName": "Juan",
-      "lastName": "Perez",
+      "lastName": "Pérez",
       "role": "client",
       "isOwner": false,
       "active": true
@@ -79,7 +79,7 @@ Publico
 ```json
 {
   "success": false,
-  "message": "Credenciales invalidas",
+  "message": "Credenciales inválidas",
   "data": null,
   "meta": {
     "timestamp": "2026-01-01T00:00:00.000Z"
@@ -89,18 +89,18 @@ Publico
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion            |
+| Código | Descripción            |
 | ------ | ---------------------- |
 | 200    | Login exitoso          |
-| 400    | Datos invalidos        |
-| 401    | Credenciales invalidas |
+| 400    | Datos inválidos        |
+| 401    | Credenciales inválidas |
 | 500    | Error interno          |
 
 ---
 
 ## Refresh
 
-Refrescar la sesion usando el `refresh_token` devuelto por login. Supabase rota el `refresh_token`, por lo que el cliente debe guardar el nuevo valor retornado.
+Refrescar la sesión usando el `refresh_token` devuelto por login. Supabase rota el `refresh_token`, por lo que el cliente debe guardar el nuevo valor retornado.
 
 ### Endpoint
 
@@ -110,13 +110,13 @@ POST /api/v1/auth/refresh
 
 ### Acceso
 
-Publico
+Público
 
 ### Encabezados
 
 | Encabezado   | Valor            | Obligatorio |
 | ------------ | ---------------- | ----------- |
-| Content-Type | application/json | Si          |
+| Content-Type | application/json | Sí          |
 
 ### Cuerpo de Solicitud
 
@@ -128,16 +128,16 @@ Publico
 
 ### Diccionario de Datos
 
-| Campo         | Tipo   | Obligatorio | Descripcion                    | Restricciones        |
+| Campo         | Tipo   | Obligatorio | Descripción                    | Restricciones        |
 | ------------- | ------ | ----------- | ------------------------------ | -------------------- |
-| refresh_token | string | Si          | Token de refresco de la sesion | No puede estar vacio |
+| refresh_token | string | Sí          | Token de refresco de la sesión | No puede estar vacío |
 
 ### Respuesta Exitosa
 
 ```json
 {
   "success": true,
-  "message": "Sesion refrescada correctamente",
+  "message": "Sesión refrescada correctamente",
   "data": {
     "session": {
       "access_token": "xxxx...",
@@ -156,7 +156,7 @@ Publico
 ```json
 {
   "success": false,
-  "message": "Refresh token invalido o expirado",
+  "message": "Refresh token inválido o expirado",
   "data": "Invalid Refresh Token: Refresh Token Not Found",
   "meta": {
     "timestamp": "2026-01-01T00:00:00.000Z"
@@ -166,18 +166,18 @@ Publico
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion                       |
+| Código | Descripción                       |
 | ------ | --------------------------------- |
-| 200    | Sesion refrescada correctamente   |
-| 400    | Datos invalidos                   |
-| 401    | Refresh token invalido o expirado |
+| 200    | Sesión refrescada correctamente   |
+| 400    | Datos inválidos                   |
+| 401    | Refresh token inválido o expirado |
 | 500    | Error interno                     |
 
 ---
 
 ## Logout
 
-Cerrar la sesion activa del usuario.
+Cerrar la sesión del usuario autenticado. El backend llama a Supabase Admin con el JWT recibido y scope `global`, por lo que revoca refresh tokens/sesiones asociadas. Los access tokens ya emitidos pueden seguir siendo válidos hasta su expiración; el cliente debe borrar su sesión local al recibir 200.
 
 ### Endpoint
 
@@ -193,7 +193,7 @@ Privado
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Cuerpo de Solicitud
 
@@ -214,7 +214,7 @@ Sin cuerpo
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion    |
+| Código | Descripción    |
 | ------ | -------------- |
 | 200    | Logout exitoso |
 | 401    | No autenticado |
@@ -240,8 +240,8 @@ Privado (Admin, Owner)
 
 | Encabezado    | Valor            | Obligatorio |
 | ------------- | ---------------- | ----------- |
-| Authorization | Bearer {token}   | Si          |
-| Content-Type  | application/json | Si          |
+| Authorization | Bearer {token}   | Sí          |
+| Content-Type  | application/json | Sí          |
 
 ### Cuerpo de Solicitud
 
@@ -259,13 +259,13 @@ Privado (Admin, Owner)
 
 ### Diccionario de Datos
 
-| Campo     | Tipo    | Obligatorio | Descripcion        | Restricciones                             |
+| Campo     | Tipo    | Obligatorio | Descripción        | Restricciones                             |
 | --------- | ------- | ----------- | ------------------ | ----------------------------------------- |
-| email     | string  | Si          | Correo electronico | Debe ser un email valido y unico          |
-| password  | string  | Si          | Contrasena         | Minimo 6 caracteres                       |
-| firstName | string  | Si          | Nombres            | Minimo 2 caracteres                       |
-| lastName  | string  | Si          | Apellidos          | Minimo 2 caracteres                       |
-| phone     | string  | No          | Telefono           | -                                         |
+| email     | string  | Sí          | Correo electrónico | Debe ser un email válido y único          |
+| password  | string  | Sí          | Contraseña         | Mínimo 6 caracteres                       |
+| firstName | string  | Sí          | Nombres            | Mínimo 2 caracteres                       |
+| lastName  | string  | Sí          | Apellidos          | Mínimo 2 caracteres                       |
+| phone     | string  | No          | Teléfono           | -                                         |
 | role      | enum    | No          | Rol del usuario    | client, investor, admin (default: client) |
 | isOwner   | boolean | No          | Es propietario     | (default: false)                          |
 
@@ -279,7 +279,7 @@ Privado (Admin, Owner)
     "id": "uuid",
     "email": "email@example.com",
     "firstName": "Juan",
-    "lastName": "Perez",
+    "lastName": "Pérez",
     "role": "client"
   },
   "meta": {
@@ -290,10 +290,10 @@ Privado (Admin, Owner)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion     |
+| Código | Descripción     |
 | ------ | --------------- |
 | 201    | Usuario creado  |
-| 400    | Datos invalidos |
+| 400    | Datos inválidos |
 | 401    | No autorizado   |
 | 409    | Email ya existe |
 | 500    | Error interno   |
@@ -302,7 +302,8 @@ Privado (Admin, Owner)
 
 ## Change Password
 
-Cambiar la contrasena del usuario autenticado tras verificar la actual.
+Cambiar la contraseña del usuario autenticado tras verificar la actual.
+La contraseña actual se verifica con Supabase Auth y el cambio se aplica en backend con Supabase Admin sobre el ID del usuario autenticado.
 
 ### Endpoint
 
@@ -318,8 +319,8 @@ Privado
 
 | Encabezado    | Valor            | Obligatorio |
 | ------------- | ---------------- | ----------- |
-| Authorization | Bearer {token}   | Si          |
-| Content-Type  | application/json | Si          |
+| Authorization | Bearer {token}   | Sí          |
+| Content-Type  | application/json | Sí          |
 
 ### Cuerpo de Solicitud
 
@@ -332,17 +333,17 @@ Privado
 
 ### Diccionario de Datos
 
-| Campo           | Tipo   | Obligatorio | Descripcion       | Restricciones       |
+| Campo           | Tipo   | Obligatorio | Descripción       | Restricciones       |
 | --------------- | ------ | ----------- | ----------------- | ------------------- |
-| currentPassword | string | Si          | Contrasena actual | Minimo 1 caracter   |
-| newPassword     | string | Si          | Nueva contrasena  | Minimo 6 caracteres |
+| currentPassword | string | Sí          | Contraseña actual | Mínimo 1 carácter   |
+| newPassword     | string | Sí          | Nueva contraseña  | Mínimo 6 caracteres |
 
 ### Respuesta Exitosa
 
 ```json
 {
   "success": true,
-  "message": "Contrasena cambiada exitosamente",
+  "message": "Contraseña cambiada exitosamente",
   "data": null,
   "meta": {
     "timestamp": "2026-01-01T00:00:00.000Z"
@@ -355,7 +356,7 @@ Privado
 ```json
 {
   "success": false,
-  "message": "La contrasena actual es incorrecta",
+  "message": "La contraseña actual es incorrecta",
   "data": null,
   "meta": {
     "timestamp": "2026-01-01T00:00:00.000Z"
@@ -365,9 +366,9 @@ Privado
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion                           |
+| Código | Descripción                           |
 | ------ | ------------------------------------- |
-| 200    | Contrasena cambiada                   |
-| 400    | Datos invalidos                       |
-| 401    | No autorizado o contrasena incorrecta |
+| 200    | Contraseña cambiada                   |
+| 400    | Datos inválidos                       |
+| 401    | No autorizado o contraseña incorrecta |
 | 500    | Error interno                         |

@@ -30,7 +30,7 @@ Privado
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
@@ -42,7 +42,7 @@ Privado
     "id": "uuid",
     "email": "email@example.com",
     "firstName": "Juan",
-    "lastName": "Perez",
+    "lastName": "Pérez",
     "phone": "+51 999 999 999",
     "avatarUrl": "https://...",
     "role": "client",
@@ -59,7 +59,7 @@ Privado
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion      |
+| Código | Descripción      |
 | ------ | ---------------- |
 | 200    | Usuario obtenido |
 | 401    | No autenticado   |
@@ -85,12 +85,12 @@ Privado
 
 | Encabezado    | Valor               | Obligatorio |
 | ------------- | ------------------- | ----------- |
-| Authorization | Bearer {token}      | Si          |
-| Content-Type  | multipart/form-data | Si          |
+| Authorization | Bearer {token}      | Sí          |
+| Content-Type  | multipart/form-data | Sí          |
 
 ### Cuerpo de Solicitud
 
-| Campo  | Tipo | Descripcion                       |
+| Campo  | Tipo | Descripción                       |
 | ------ | ---- | --------------------------------- |
 | avatar | file | Imagen (JPEG, PNG, WebP, max 5MB) |
 
@@ -111,10 +111,10 @@ Privado
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion        |
+| Código | Descripción        |
 | ------ | ------------------ |
 | 200    | Avatar actualizado |
-| 400    | Archivo invalido   |
+| 400    | Archivo inválido   |
 | 401    | No autenticado     |
 | 500    | Error interno      |
 
@@ -138,7 +138,7 @@ Privado
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
@@ -150,7 +150,7 @@ Privado
     "id": "uuid",
     "email": "email@example.com",
     "firstName": "Juan",
-    "lastName": "Perez",
+    "lastName": "Pérez",
     "phone": "+51 999 999 999",
     "avatarUrl": null,
     "role": "client",
@@ -167,7 +167,7 @@ Privado
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion      |
+| Código | Descripción      |
 | ------ | ---------------- |
 | 200    | Avatar eliminado |
 | 401    | No autenticado   |
@@ -194,14 +194,14 @@ Privado (Admin, Owner)
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
-### Parametros de Consulta
+### Parámetros de Consulta
 
-| Campo | Tipo   | Descripcion                     |
+| Campo | Tipo   | Descripción                     |
 | ----- | ------ | ------------------------------- |
-| page  | number | Numero de pagina (default: 1)   |
-| limit | number | Limite por pagina (default: 20) |
+| page  | number | Número de página (default: 1)   |
+| limit | number | Límite por página (default: 20) |
 
 ### Respuesta Exitosa
 
@@ -214,7 +214,7 @@ Privado (Admin, Owner)
       "id": "uuid",
       "email": "email@example.com",
       "firstName": "Juan",
-      "lastName": "Perez",
+      "lastName": "Pérez",
       "role": "client",
       "active": true
     }
@@ -233,7 +233,7 @@ Privado (Admin, Owner)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion        |
+| Código | Descripción        |
 | ------ | ------------------ |
 | 200    | Usuarios obtenidos |
 | 401    | No autorizado      |
@@ -243,7 +243,7 @@ Privado (Admin, Owner)
 
 ## Get User By ID
 
-Obtener informacion detallada de un usuario por ID.
+Obtener información detallada de un usuario por ID.
 
 ### Endpoint
 
@@ -251,9 +251,9 @@ Obtener informacion detallada de un usuario por ID.
 GET /api/v1/users/:id
 ```
 
-### Parametros de Ruta
+### Parámetros de Ruta
 
-| Parametro | Tipo | Descripcion    |
+| Parámetro | Tipo | Descripción    |
 | --------- | ---- | -------------- |
 | id        | uuid | ID del usuario |
 
@@ -265,19 +265,19 @@ Privado (Admin, Owner)
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
 ```json
 {
   "success": true,
-  "message": "Usuario obtido",
+  "message": "Usuario obtenido",
   "data": {
     "id": "uuid",
     "email": "email@example.com",
     "firstName": "Juan",
-    "lastName": "Perez",
+    "lastName": "Pérez",
     "phone": "+51 999 999 999",
     "role": "client",
     "isOwner": false,
@@ -293,7 +293,7 @@ Privado (Admin, Owner)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion           |
+| Código | Descripción           |
 | ------ | --------------------- |
 | 200    | Usuario obtenido      |
 | 401    | No autorizado         |
@@ -304,7 +304,12 @@ Privado (Admin, Owner)
 
 ## Update User
 
-Actualizar datos de un usuario.
+Actualizar datos de un usuario. El endpoint valida campos distintos según quien actualiza:
+
+- El usuario autenticado solo puede actualizar sus campos de perfil: `firstName`, `lastName`, `phone`.
+- Admin/owner puede actualizar campos de perfil y administrativos: `role`, `active`.
+- `isOwner` solo puede ser modificado por un owner.
+- Campos sensibles como `id`, `email`, `avatarUrl`, `deletedAt`, `createdAt` y `updatedAt` no se aceptan por este endpoint.
 
 ### Endpoint
 
@@ -312,9 +317,9 @@ Actualizar datos de un usuario.
 PATCH /api/v1/users/:id
 ```
 
-### Parametros de Ruta
+### Parámetros de Ruta
 
-| Parametro | Tipo | Descripcion    |
+| Parámetro | Tipo | Descripción    |
 | --------- | ---- | -------------- |
 | id        | uuid | ID del usuario |
 
@@ -326,10 +331,22 @@ Privado
 
 | Encabezado    | Valor            | Obligatorio |
 | ------------- | ---------------- | ----------- |
-| Authorization | Bearer {token}   | Si          |
-| Content-Type  | application/json | Si          |
+| Authorization | Bearer {token}   | Sí          |
+| Content-Type  | application/json | Sí          |
 
 ### Cuerpo de Solicitud
+
+Usuario actualizando su propio perfil:
+
+```json
+{
+  "firstName": "string",
+  "lastName": "string",
+  "phone": "string"
+}
+```
+
+Admin/owner actualizando otro usuario:
 
 ```json
 {
@@ -337,19 +354,21 @@ Privado
   "lastName": "string",
   "phone": "string",
   "role": "client | investor | admin",
-  "active": true
+  "active": true,
+  "isOwner": false
 }
 ```
 
 ### Diccionario de Datos
 
-| Campo     | Tipo    | Obligatorio | Descripcion                  |
+| Campo     | Tipo    | Obligatorio | Descripción                  |
 | --------- | ------- | ----------- | ---------------------------- |
 | firstName | string  | No          | Nombres (min 2 caracteres)   |
 | lastName  | string  | No          | Apellidos (min 2 caracteres) |
-| phone     | string  | No          | Numero de telefono           |
-| role      | enum    | No          | Rol del usuario              |
-| active    | boolean | No          | Estado activo                |
+| phone     | string  | No          | Número de teléfono           |
+| role      | enum    | No          | Solo admin/owner             |
+| active    | boolean | No          | Solo admin/owner             |
+| isOwner   | boolean | No          | Solo owner                   |
 
 ### Respuesta Exitosa
 
@@ -360,7 +379,7 @@ Privado
   "data": {
     "id": "uuid",
     "firstName": "Juan",
-    "lastName": "Perez",
+    "lastName": "Pérez",
     ...
   },
   "meta": {
@@ -371,11 +390,12 @@ Privado
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion           |
+| Código | Descripción           |
 | ------ | --------------------- |
 | 200    | Usuario actualizado   |
-| 400    | Datos invalidos       |
+| 400    | Datos inválidos       |
 | 401    | No autorizado         |
+| 403    | Sin permiso           |
 | 404    | Usuario no encontrado |
 | 500    | Error interno         |
 
@@ -391,9 +411,9 @@ Realizar un borrado lógico (soft delete) de un usuario.
 DELETE /api/v1/users/:id
 ```
 
-### Parametros de Ruta
+### Parámetros de Ruta
 
-| Parametro | Tipo | Descripcion    |
+| Parámetro | Tipo | Descripción    |
 | --------- | ---- | -------------- |
 | id        | uuid | ID del usuario |
 
@@ -405,7 +425,7 @@ Privado (Admin, Owner)
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
@@ -422,7 +442,7 @@ Privado (Admin, Owner)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion           |
+| Código | Descripción           |
 | ------ | --------------------- |
 | 200    | Usuario eliminado     |
 | 401    | No autorizado         |

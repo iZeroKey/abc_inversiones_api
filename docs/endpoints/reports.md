@@ -19,9 +19,9 @@ GET /api/v1/reports/statement
 GET /api/v1/reports/statement/:clientId
 ```
 
-### Parametros de Ruta
+### Parámetros de Ruta
 
-| Parametro | Tipo | Descripcion               |
+| Parámetro | Tipo | Descripción               |
 | --------- | ---- | ------------------------- |
 | clientId  | uuid | ID del cliente (opcional) |
 
@@ -33,7 +33,7 @@ Privado (Client para sí mismo, Admin para cualquiera)
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
@@ -45,7 +45,7 @@ Privado (Client para sí mismo, Admin para cualquiera)
     "client": {
       "id": "uuid",
       "firstName": "Juan",
-      "lastName": "Perez"
+      "lastName": "Pérez"
     },
     "loans": [
       {
@@ -74,7 +74,7 @@ Privado (Client para sí mismo, Admin para cualquiera)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion               |
+| Código | Descripción               |
 | ------ | ------------------------- |
 | 200    | Estado de cuenta obtenido |
 | 401    | No autorizado             |
@@ -94,9 +94,9 @@ GET /api/v1/reports/portfolio
 GET /api/v1/reports/portfolio/:investorId
 ```
 
-### Parametros de Ruta
+### Parámetros de Ruta
 
-| Parametro  | Tipo | Descripcion                     |
+| Parámetro  | Tipo | Descripción                     |
 | ---------- | ---- | ------------------------------- |
 | investorId | uuid | ID del inversionista (opcional) |
 
@@ -108,7 +108,7 @@ Privado (Investor para sí mismo, Admin para cualquiera)
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
@@ -120,12 +120,12 @@ Privado (Investor para sí mismo, Admin para cualquiera)
     "investor": {
       "id": "uuid",
       "firstName": "Juan",
-      "lastName": "Perez"
+      "lastName": "Pérez"
     },
     "investments": [
       {
         "loanId": "uuid",
-        "client": "Juan Perez",
+        "client": "Juan Pérez",
         "principal": "10000.00",
         "interestRate": "5.00",
         "totalReturn": "15000.00",
@@ -147,7 +147,7 @@ Privado (Investor para sí mismo, Admin para cualquiera)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion                 |
+| Código | Descripción                 |
 | ------ | --------------------------- |
 | 200    | Portafolio obtenido         |
 | 401    | No autorizado               |
@@ -158,7 +158,7 @@ Privado (Investor para sí mismo, Admin para cualquiera)
 
 ## Admin Dashboard
 
-Dashboard global de administracion con estadisticas.
+Dashboard global de administración con estadísticas.
 
 ### Endpoint
 
@@ -174,7 +174,7 @@ Privado (Admin, Owner)
 
 | Encabezado    | Valor          | Obligatorio |
 | ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Si          |
+| Authorization | Bearer {token} | Sí          |
 
 ### Respuesta Exitosa
 
@@ -214,7 +214,7 @@ Privado (Admin, Owner)
 
 ### Códigos de Estado HTTP
 
-| Codigo | Descripcion        |
+| Código | Descripción        |
 | ------ | ------------------ |
 | 200    | Dashboard obtenido |
 | 401    | No autorizado      |
