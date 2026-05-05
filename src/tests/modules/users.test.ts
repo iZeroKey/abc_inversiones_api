@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { authHeader, getUserByEmail, loginAs, request, seededEmails } from "../helpers/integration.js";
+import {
+  authHeader,
+  createAuthUser,
+  getUserByEmail,
+  loginAs,
+  request,
+  seededEmails,
+  uniqueEmail,
+} from "../helpers/integration.js";
 
 describe("Users Module Integration", () => {
   describe("GET /api/v1/users/me", () => {
@@ -36,15 +44,79 @@ describe("Users Module Integration", () => {
   });
 
   describe("PATCH /api/v1/users/:id", () => {
-    it("debería permitir a un usuario actualizar su propio nombre", async () => {
-      const client = await getUserByEmail(seededEmails.client);
+    it("debería permitir a un usuario actualizar sus datos de perfil seguros", async () => {
+      const client = await createAuthUser({
+        email: uniqueEmail("user-self-update"),
+        firstName: "Perfil",
+        lastName: "Seguro",
+        role: "client",
+      });
+
       const res = await request
-        .patch(`/api/v1/users/${client!.id}`)
-        .set(authHeader(await loginAs(seededEmails.client)))
-        .send({ firstName: "NuevoNombre" });
+        .patch(`/api/v1/users/${client.id}`)
+        .set(authHeader(await loginAs(client.email)))
+        .send({ firstName: "NuevoNombre", lastName: "Actualizado", phone: "999888777" });
 
       expect(res.status).toBe(200);
       expect(res.body.data.firstName).toBe("NuevoNombre");
+      expect(res.body.data.lastName).toBe("Actualizado");
+      expect(res.body.data.phone).toBe("999888777");
+    });
+
+    it("debería impedir que un cliente cambie su propio rol", async () => {
+      const client = await createAuthUser({
+        email: uniqueEmail("user-role-block"),
+        firstName: "Rol",
+        lastName: "Bloqueado",
+        role: "client",
+      });
+
+      const res = await request
+        .patch(`/api/v1/users/${client.id}`)
+        .set(authHeader(await loginAs(client.email)))
+        .send({ role: "admin" });
+
+      expect(res.status).toBe(400);
+
+      const updated = await getUserByEmail(client.email);
+      expect(updated?.role).toBe("client");
+    });
+
+    it("debería impedir que un cliente cambie su propio estado active", async () => {
+      const client = await createAuthUser({
+        email: uniqueEmail("user-active-block"),
+        firstName: "Activo",
+        lastName: "Bloqueado",
+        role: "client",
+      });
+
+      const res = await request
+        .patch(`/api/v1/users/${client.id}`)
+        .set(authHeader(await loginAs(client.email)))
+        .send({ active: false });
+
+      expect(res.status).toBe(400);
+
+      const updated = await getUserByEmail(client.email);
+      expect(updated?.active).toBe(true);
+    });
+
+    it("debería permitir al admin cambiar datos administrativos permitidos", async () => {
+      const client = await createAuthUser({
+        email: uniqueEmail("admin-user-update"),
+        firstName: "Admin",
+        lastName: "Target",
+        role: "client",
+      });
+
+      const res = await request
+        .patch(`/api/v1/users/${client.id}`)
+        .set(authHeader(await loginAs(seededEmails.admin)))
+        .send({ role: "investor", active: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.role).toBe("investor");
+      expect(res.body.data.active).toBe(false);
     });
 
     it("debería denegar a un cliente actualizar a otro usuario", async () => {

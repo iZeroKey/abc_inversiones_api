@@ -7,10 +7,22 @@ import {
   sendError,
   formatZodError,
 } from "../../utils/response.util.js";
-import { updateUserSchema } from "./users.schema.js";
+import { adminUpdateUserSchema, selfUpdateUserSchema } from "./users.schema.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { deleteStorageReference, resolveFileUrl, uploadAvatar } from "../../utils/storage.util.js";
+
+const selfForbiddenFields = new Set([
+  "id",
+  "email",
+  "avatarUrl",
+  "role",
+  "active",
+  "isOwner",
+  "createdAt",
+  "updatedAt",
+  "deletedAt",
+]);
 
 const attachSignedAvatarUrl = async <T extends { avatarUrl?: string | null }>(user: T): Promise<T> => {
   if (!user.avatarUrl) {
@@ -64,19 +76,43 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
   try {
     const id = req.params.id as string;
     const currentUser = req.user!;
+    const isSelfUpdate = currentUser.id === id;
+    const isAdminOrOwner = currentUser.role === "admin" || currentUser.isOwner;
 
-    if (currentUser.id !== id && currentUser.role !== "admin") {
+    if (!isSelfUpdate && !isAdminOrOwner) {
       sendError(res, 403, "No tienes permiso para actualizar este usuario");
       return;
     }
 
-    const validation = updateUserSchema.safeParse(req.body);
+    if (isSelfUpdate) {
+      const forbiddenFields = Object.keys(req.body).filter((field) =>
+        selfForbiddenFields.has(field),
+      );
+
+      if (forbiddenFields.length > 0) {
+        sendError(res, 400, "No puedes modificar campos administrativos en tu perfil", {
+          fields: forbiddenFields,
+        });
+        return;
+      }
+    }
+
+    const validation = (isSelfUpdate ? selfUpdateUserSchema : adminUpdateUserSchema).safeParse(req.body);
     if (!validation.success) {
       sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
       return;
     }
 
+    if (!isSelfUpdate && "isOwner" in validation.data && !currentUser.isOwner) {
+      sendError(res, 403, "Solo un owner puede modificar isOwner");
+      return;
+    }
+
     const [oldUser] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (!oldUser) {
+      sendError(res, 404, "Usuario no encontrado");
+      return;
+    }
 
     const [updatedUser] = await db
       .update(users)

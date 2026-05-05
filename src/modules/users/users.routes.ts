@@ -47,7 +47,7 @@ router.get("/:id", authenticate, authorize(["admin"]), controller.getUserById);
  * @route   PATCH /api/v1/users/:id
  * @desc    Actualizar datos de un usuario. Los usuarios solo pueden actualizarse a sí mismos, salvo el Admin.
  * @access  Private
- * @body    { firstName, lastName, phone, role, active }
+ * @body    Self: { firstName, lastName, phone } | Admin: { firstName, lastName, phone, role, active, isOwner }
  */
 router.patch("/:id", authenticate, controller.updateUser);
 
