@@ -103,7 +103,14 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
 
 export const logout = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { error } = await supabase.auth.signOut();
+    const token = req.headers.authorization?.split(" ")[1];
+
+    if (!token) {
+      sendError(res, 401, "No se proporcionó token de autenticación");
+      return;
+    }
+
+    const { error } = await supabaseAdmin.auth.admin.signOut(token, "global");
     if (error) {
       sendError(res, 500, "Error al cerrar sesión", error.message);
       return;
@@ -195,7 +202,7 @@ export const changePassword = async (
       return;
     }
 
-    const { error: updateError } = await supabase.auth.updateUser({
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(req.user!.id, {
       password: newPassword,
     });
 

@@ -15,7 +15,7 @@ describe("Auth Endpoints", () => {
     it("debería retornar 400 si los datos son inválidos", async () => {
       const res = await request
         .post("/api/v1/auth/login")
-        .send({ email: "invalido" });
+        .send({ email: "inválido" });
 
       expect(res.status).toBe(400);
     });
@@ -132,6 +132,33 @@ describe("Auth Endpoints", () => {
         .send({ email: tempUser.email, password: newPassword });
 
       expect(relogin.status).toBe(200);
+
+      const oldPasswordLogin = await request
+        .post("/api/v1/auth/login")
+        .send({ email: tempUser.email, password: TEST_PASSWORD });
+
+      expect(oldPasswordLogin.status).toBe(401);
+    });
+
+    it("debería rechazar el cambio si la contraseña actual es incorrecta", async () => {
+      const tempUser = await createAuthUser({
+        email: uniqueEmail("changepw-bad"),
+        firstName: "Cambio",
+        lastName: "Fallido",
+        role: "client",
+      });
+
+      const token = await loginAs(tempUser.email);
+
+      const res = await request
+        .post("/api/v1/auth/change-password")
+        .set(authHeader(token))
+        .send({
+          currentPassword: "wrong-password",
+          newPassword: "new-password123",
+        });
+
+      expect(res.status).toBe(401);
     });
   });
 });
