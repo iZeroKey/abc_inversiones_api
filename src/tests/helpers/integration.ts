@@ -146,6 +146,7 @@ export const createNotificationFixture = async (params: {
   type?: string;
   isRead?: boolean;
   data?: string | null;
+  createdAt?: Date;
 }) => {
   const [notification] = await db.insert(notifications).values({
     userId: params.userId,
@@ -154,6 +155,7 @@ export const createNotificationFixture = async (params: {
     type: params.type || "SYSTEM",
     isRead: params.isRead ?? false,
     data: params.data || null,
+    ...(params.createdAt ? { createdAt: params.createdAt } : {}),
   }).returning();
 
   return notification;

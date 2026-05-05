@@ -3,32 +3,37 @@ import { ZodError } from "zod";
 import { DateTime } from "luxon";
 import { env } from "../config/env.js";
 
-export interface ApiResponse<T = unknown> {
+export interface ApiResponse<T = unknown, M extends Record<string, unknown> = Record<string, unknown>> {
   success: boolean;
   message: string;
   data?: T;
   meta: {
     timestamp: string;
-  };
+  } & M;
 }
 
 const getTimestamp = () => {
   return DateTime.now().setZone(env.APP_TIMEZONE).toISO() || new Date().toISOString();
 };
 
-export const sendSuccess = <T>(
+export const sendSuccess = <
+  T,
+  M extends Record<string, unknown> = Record<string, unknown>,
+>(
   res: Response,
   status: number,
   message: string,
-  data?: T
+  data?: T,
+  meta?: M,
 ): void => {
-  const response: ApiResponse<T> = {
+  const response: ApiResponse<T, M> = {
     success: true,
     message,
     data,
     meta: {
+      ...meta,
       timestamp: getTimestamp(),
-    },
+    } as ApiResponse<T, M>["meta"],
   };
   res.status(status).json(response);
 };
