@@ -135,7 +135,7 @@ const extractAmount = (text: string): string | null => {
 
 const extractOperationId = (text: string): string | null => {
   const labeledPatterns = [
-    /(?:n(?:[°ºo]\.?)?\s*ope(?:raci[oó]n)?|nro\.?\s*ope(?:raci[oó]n)?|n[úu]mero\s*de\s*ope(?:raci[oó]n)?|operaci[oó]n|operation\s*id|codigo\s*de\s*operaci[oó]n)\s*[:#.-]?\s*([A-Z0-9][A-Z0-9\s-]{5,}?)(?=\s*(?:[-–—]+\s*)?(?:importe|monto|fecha|hora|nombre|cta|cuenta|deposito|dep[oó]sito)\b|$)/i,
+    /(?:n(?:[°ºo]\.?)?\s*ope(?:raci[oó]n)?|nro\.?\s*ope(?:raci[oó]n)?|n[úu]mero\s*de\s*ope(?:raci[oó]n)?|operaci[oó]n|operation\s*id|c[oó]digo\s*de\s*operaci[oó]n)\s*[:#.-]?\s*([A-Z0-9][A-Z0-9\s-]{5,}?)(?=\s*(?:[-–—]+\s*)?(?:importe|monto|fecha|hora|nombre|cta|cuenta|dep[oó]sito)\b|$)/i,
     /(?:voucher|constancia|transacci[oó]n)\s*[:#.-]?\s*([A-Z0-9][A-Z0-9\s-]{5,}?)(?=\s*(?:[-–—]+\s*)?(?:importe|monto|fecha|hora|nombre|cta|cuenta|deposito|dep[oó]sito)\b|$)/i,
   ];
 
@@ -162,7 +162,7 @@ const extractOperationId = (text: string): string | null => {
   }
 
   const labelIndex = text.search(
-    /n(?:[°ºo]\.?)?\s*ope(?:raci[oó]n)?|nro\.?\s*ope(?:raci[oó]n)?|n[úu]mero\s*de\s*ope(?:raci[oó]n)?|operaci[oó]n|operation\s*id|codigo\s*de\s*operaci[oó]n/i,
+    /n(?:[°ºo]\.?)?\s*ope(?:raci[oó]n)?|nro\.?\s*ope(?:raci[oó]n)?|n[úu]mero\s*de\s*ope(?:raci[oó]n)?|operaci[oó]n|operation\s*id|c[oó]digo\s*de\s*operaci[oó]n/i,
   );
 
   if (labelIndex >= 0) {
