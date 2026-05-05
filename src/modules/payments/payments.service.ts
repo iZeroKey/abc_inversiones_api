@@ -2,7 +2,7 @@ import { db } from "../../config/db.js";
 import { payments } from "../../db/schema/payments.js";
 import { installments } from "../../db/schema/installments.js";
 import { loans } from "../../db/schema/loans.js";
-import { eq, and, asc, sql } from "drizzle-orm";
+import { eq, and, asc, sql, or, ne } from "drizzle-orm";
 
 export interface ProcessPaymentParams {
   loanId: string;
@@ -15,48 +15,89 @@ export interface ProcessPaymentParams {
   installmentId?: string | null;
 }
 
+export class PaymentBusinessError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode: 400 | 404 = 400,
+  ) {
+    super(message);
+    this.name = "PaymentBusinessError";
+  }
+}
+
+const toCents = (value: string | number): number => {
+  return Math.round(Number(value) * 100);
+};
+
+const fromCents = (value: number): string => {
+  return (value / 100).toFixed(2);
+};
+
 /**
  * Lógica central de aplicación de pagos (Waterfall logic)
  */
 export const processPaymentLogic = async (params: ProcessPaymentParams) => {
   return await db.transaction(async (tx) => {
     const { loanId, amount, method, reference, observation, registeredById, paymentDate } = params;
-    const amountToApply = Number(amount);
+    const amountToApply = toCents(amount);
+    const effectivePaymentDate = paymentDate || new Date();
 
     const [loan] = await tx.select().from(loans).where(eq(loans.id, loanId)).limit(1);
-    if (!loan) throw new Error("Préstamo no encontrado");
-    if (loan.status !== "active") throw new Error("El préstamo no está activo");
+    if (!loan) throw new PaymentBusinessError("Préstamo no encontrado", 404);
+    if (loan.status !== "active") throw new PaymentBusinessError("El préstamo no está activo");
+
+    const pendingInstallments = await tx.select()
+      .from(installments)
+      .where(and(
+        eq(installments.loanId, loanId),
+        or(eq(installments.status, "pending"), eq(installments.status, "overdue")),
+      ))
+      .orderBy(asc(installments.dueDate));
+
+    const outstandingDebt = pendingInstallments.reduce((total, inst) => {
+      return total + Math.max(toCents(inst.amount) - toCents(inst.paidAmount), 0);
+    }, 0);
+
+    if (outstandingDebt <= 0) {
+      throw new PaymentBusinessError("El préstamo no tiene deuda pendiente");
+    }
+
+    if (amountToApply > outstandingDebt) {
+      throw new PaymentBusinessError("El pago excede la deuda pendiente");
+    }
 
     const [newPayment] = await tx.insert(payments).values({
       loanId,
-      amount,
+      amount: fromCents(amountToApply),
       method,
       reference,
       observation,
       registeredById,
-      paymentDate: paymentDate || new Date(),
+      paymentDate: effectivePaymentDate,
     }).returning();
-
-    const pendingInstallments = await tx.select()
-      .from(installments)
-      .where(and(eq(installments.loanId, loanId), eq(installments.status, "pending")))
-      .orderBy(asc(installments.dueDate));
 
     let remainingBalance = amountToApply;
 
     for (const inst of pendingInstallments) {
       if (remainingBalance <= 0) break;
 
-      const currentDebt = Number(inst.amount) - Number(inst.paidAmount);
+      const installmentAmount = toCents(inst.amount);
+      const currentPaidAmount = toCents(inst.paidAmount);
+      const currentDebt = Math.max(installmentAmount - currentPaidAmount, 0);
       const paymentForThisInst = Math.min(remainingBalance, currentDebt);
-      const newPaidAmount = Number(inst.paidAmount) + paymentForThisInst;
+      const newPaidAmount = currentPaidAmount + paymentForThisInst;
+      const nextStatus = newPaidAmount >= installmentAmount
+        ? "paid"
+        : inst.dueDate < effectivePaymentDate
+          ? "overdue"
+          : "pending";
       
       remainingBalance -= paymentForThisInst;
 
       await tx.update(installments)
         .set({
-          paidAmount: newPaidAmount.toFixed(2),
-          status: newPaidAmount >= Number(inst.amount) ? "paid" : "pending",
+          paidAmount: fromCents(newPaidAmount),
+          status: nextStatus,
           updatedAt: new Date(),
         })
         .where(eq(installments.id, inst.id));
@@ -64,7 +105,7 @@ export const processPaymentLogic = async (params: ProcessPaymentParams) => {
 
     const [remainingPending] = await tx.select({ count: sql<number>`count(*)` })
       .from(installments)
-      .where(and(eq(installments.loanId, loanId), eq(installments.status, "pending")));
+      .where(and(eq(installments.loanId, loanId), ne(installments.status, "paid")));
 
     if (Number(remainingPending.count) === 0) {
       await tx.update(loans)

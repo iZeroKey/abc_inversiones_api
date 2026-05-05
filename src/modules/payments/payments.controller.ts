@@ -11,7 +11,7 @@ import {
   sendSuccess,
 } from "../../utils/response.util.js";
 import { createPaymentSchema } from "./payments.schema.js";
-import { processPaymentLogic } from "./payments.service.js";
+import { PaymentBusinessError, processPaymentLogic } from "./payments.service.js";
 
 export const registerPayment = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -39,7 +39,8 @@ export const registerPayment = async (req: AuthRequest, res: Response): Promise<
     sendSuccess(res, 201, "Pago registrado y aplicado correctamente", result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Error al registrar el pago";
-    sendError(res, 500, message, error);
+    const status = error instanceof PaymentBusinessError ? error.statusCode : 500;
+    sendError(res, status, message, error);
   }
 };
 
