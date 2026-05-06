@@ -3,6 +3,7 @@ import { Response } from "express";
 import { db } from "../../config/db.js";
 import { installments } from "../../db/schema/installments.js";
 import { loans } from "../../db/schema/loans.js";
+import { users } from "../../db/schema/users.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { sendNotification } from "../../utils/notification.util.js";
@@ -12,29 +13,14 @@ import {
     sendSuccess,
 } from "../../utils/response.util.js";
 import {
-  calculateDueDate,
   normalizeScheduleStartDate,
   type LoanFrequency,
 } from "./loans.schedule.js";
+import {
+  buildInstallmentDrafts,
+  calculateLoanFinancials,
+} from "./loans.finance.js";
 import { createLoanSchema, rejectLoanSchema } from "./loans.schema.js";
-
-const calculateTotalDebt = (
-  principal: number,
-  rate: number,
-  count: number,
-  type: "simple" | "compound",
-  period: "monthly" | "annual",
-): number => {
-  // TODO: interestPeriod is currently not applied in debt calculation.
-  // Review financial formula before exposing annual/monthly rates as final business behavior.
-  void period;
-
-  if (type === "simple") {
-    return principal + principal * (rate / 100) * count;
-  } else {
-    return principal * Math.pow(1 + rate / 100, count);
-  }
-};
 
 const canAccessLoan = (user: AuthRequest["user"], loan: typeof loans.$inferSelect): boolean => {
   if (!user) return false;
@@ -43,6 +29,9 @@ const canAccessLoan = (user: AuthRequest["user"], loan: typeof loans.$inferSelec
   if (user.role === "investor") return loan.investorId === user.id;
   return false;
 };
+
+const isAdminOrOwner = (user: AuthRequest["user"]): boolean =>
+  !!user && (user.role === "admin" || user.isOwner);
 
 export const createLoan = async (
   req: AuthRequest,
@@ -58,14 +47,11 @@ export const createLoan = async (
     const data = validation.data;
     const principal = Number(data.principal);
     const rate = Number(data.interestRate);
-
-    const totalDebt = calculateTotalDebt(
+    const { totalDebt } = calculateLoanFinancials({
       principal,
-      rate,
-      data.installmentsCount,
-      data.interestType,
-      data.interestPeriod,
-    );
+      interestRate: rate,
+      installmentsCount: data.installmentsCount,
+    });
 
     const hasInvestor = !!data.investorId;
     const initialStatus = hasInvestor
@@ -290,6 +276,64 @@ export const getSummary = async (
   }
 };
 
+export const getAdminLoanSummary = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const user = req.user!;
+
+    if (!isAdminOrOwner(user)) {
+      sendError(res, 403, "No tienes permisos para ver el resumen administrativo");
+      return;
+    }
+
+    const results = await db
+      .select({
+        id: loans.id,
+        displayId: sql<string>`concat('PR-', lpad((row_number() over (order by ${loans.createdAt}, ${loans.id}))::text, 4, '0'))`,
+        clientId: loans.clientId,
+        clientCode: sql<string>`concat('CL-', lpad((dense_rank() over (order by ${users.createdAt}, ${users.id}))::text, 4, '0'))`,
+        clientName: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
+        creditDate: loans.startDate,
+        principal: loans.principal,
+        frequency: loans.frequency,
+        interestRate: loans.interestRate,
+        totalDebt: loans.totalDebt,
+        status: loans.status,
+        paidAmount: sql<string>`COALESCE(sum(${installments.paidAmount}), 0)`,
+        totalInterest: sql<string>`${loans.totalDebt} - ${loans.principal}`,
+        remainingDebt: sql<string>`COALESCE(sum(GREATEST(${installments.amount} - ${installments.paidAmount}, 0)), ${loans.totalDebt})`,
+        remainingInstallments: sql<number>`(CASE WHEN count(${installments.id}) = 0 THEN ${loans.installmentsCount} ELSE count(*) FILTER (WHERE ${installments.status} <> 'paid') END)::int`,
+        createdAt: loans.createdAt,
+      })
+      .from(loans)
+      .innerJoin(users, eq(users.id, loans.clientId))
+      .leftJoin(installments, eq(installments.loanId, loans.id))
+      .groupBy(
+        loans.id,
+        loans.clientId,
+        loans.startDate,
+        loans.principal,
+        loans.frequency,
+        loans.interestRate,
+        loans.totalDebt,
+        loans.status,
+        loans.installmentsCount,
+        loans.createdAt,
+        users.id,
+        users.firstName,
+        users.lastName,
+        users.createdAt,
+      )
+      .orderBy(desc(loans.createdAt));
+
+    sendSuccess(res, 200, "Resumen administrativo de préstamos obtenido", results);
+  } catch (error) {
+    sendError(res, 500, "Error al obtener resumen administrativo de préstamos", error);
+  }
+};
+
 export const approveLoan = async (
   req: AuthRequest,
   res: Response,
@@ -345,39 +389,68 @@ export const approveLoan = async (
       return;
     }
 
-    if (
-      (user.role === "admin" || user.isOwner) &&
-      loan.status === "pending_admin_review"
-    ) {
-      const installmentsList = [];
-      const amountPerInstallment =
-        Number(loan.totalDebt) / loan.installmentsCount;
-      // paymentDay is deprecated for schedule generation.
-      // The payment day is now derived from startDate.day.
-      const startDate = normalizeScheduleStartDate(loan.startDate || new Date());
-
-      for (let i = 1; i <= loan.installmentsCount; i++) {
-        const dueDate = calculateDueDate(
-          startDate,
-          i,
-          loan.frequency as LoanFrequency,
-        );
-
-        installmentsList.push({
-          loanId: loan.id,
-          installmentNumber: i,
-          dueDate: dueDate.toJSDate(),
-          amount: amountPerInstallment.toFixed(2),
-          paidAmount: "0.00",
-          status: "pending" as const,
-        });
+    if (isAdminOrOwner(user)) {
+      if (loan.status === "paid") {
+        sendSuccess(res, 200, "Préstamo ya se encuentra pagado", loan);
+        return;
       }
 
-      await db.insert(installments).values(installmentsList);
+      const approvableStatuses = [
+        "draft",
+        "pending_investor_review",
+        "pending_admin_review",
+        "active",
+        "rejected",
+        "defaulted",
+      ];
+
+      if (!approvableStatuses.includes(loan.status)) {
+        sendError(res, 400, "Este préstamo no puede ser aprobado en su estado actual");
+        return;
+      }
+
+      const startDate = normalizeScheduleStartDate(loan.startDate || new Date());
+      const schedule = buildInstallmentDrafts({
+        loanId: loan.id,
+        principal: Number(loan.principal),
+        interestRate: Number(loan.interestRate),
+        installmentsCount: loan.installmentsCount,
+        frequency: loan.frequency as LoanFrequency,
+        startDate,
+      });
+
+      let installmentsList = await db
+        .select()
+        .from(installments)
+        .where(eq(installments.loanId, loan.id))
+        .orderBy(installments.installmentNumber);
+
+      if (loan.status === "active" && installmentsList.length > 0) {
+        sendSuccess(res, 200, "Préstamo ya se encuentra activo", {
+          loan,
+          installments: installmentsList,
+        });
+        return;
+      }
+
+      const totalDebt = installmentsList.length > 0
+        ? Number(loan.totalDebt)
+        : schedule.totalDebt;
+
+      if (installmentsList.length === 0) {
+        installmentsList = await db
+          .insert(installments)
+          .values(schedule.installments)
+          .returning();
+      }
 
       const [updated] = await db
         .update(loans)
-        .set({ status: "active", updatedAt: new Date() })
+        .set({
+          status: "active",
+          totalDebt: totalDebt.toFixed(2),
+          updatedAt: new Date(),
+        })
         .where(eq(loans.id, id))
         .returning();
 
@@ -386,7 +459,7 @@ export const approveLoan = async (
         action: "ADMIN_APPROVE_LOAN",
         module: "LOANS",
         entityId: id,
-        newData: { status: "active" },
+        newData: { status: "active", totalDebt: totalDebt.toFixed(2) },
         req,
       });
 
@@ -416,7 +489,7 @@ export const approveLoan = async (
       return;
     }
 
-    sendError(res, 400, "No tienes permisos para aprobar en este estado");
+    sendError(res, 400, "No tienes permisos para aprobar este préstamo");
   } catch (error) {
     sendError(res, 500, "Error al aprobar el préstamo", error);
   }
@@ -453,20 +526,23 @@ export const rejectLoan = async (
       return;
     }
 
-    // Solo se pueden rechazar préstamos en estado de revisión
-    const rejectableStatuses = ["pending_investor_review", "pending_admin_review"];
-    if (!rejectableStatuses.includes(loan.status)) {
-      sendError(res, 400, "Este préstamo no puede ser rechazado en su estado actual");
-      return;
-    }
-
     // Validar permisos según rol
     if (user.role === "investor") {
       if (loan.status !== "pending_investor_review" || loan.investorId !== user.id) {
         sendError(res, 403, "No tienes permisos para rechazar este préstamo");
         return;
       }
-    } else if (user.role !== "admin" && !user.isOwner) {
+    } else if (isAdminOrOwner(user)) {
+      if (loan.status === "paid") {
+        sendError(res, 400, "No se puede rechazar un préstamo pagado");
+        return;
+      }
+
+      if (loan.status === "rejected") {
+        sendSuccess(res, 200, "Préstamo ya se encuentra rechazado", loan);
+        return;
+      }
+    } else {
       sendError(res, 403, "No tienes permisos para rechazar préstamos");
       return;
     }

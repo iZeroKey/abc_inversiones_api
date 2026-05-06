@@ -1,6 +1,7 @@
 import { DateTime } from "luxon";
+import { env } from "../../config/env.js";
 
-export const BUSINESS_TIMEZONE = "America/Lima";
+export const BUSINESS_TIMEZONE = env.APP_TIMEZONE;
 
 export type LoanFrequency = "monthly" | "biweekly" | "weekly" | "daily";
 
@@ -62,7 +63,7 @@ export function calculateDueDate(
     case "weekly":
       return normalizedStartDate.plus({ days: 7 * installmentNumber });
     case "daily":
-      return normalizedStartDate.plus({ days: installmentNumber });
+      return normalizedStartDate.plus({ days: installmentNumber + 1 });
     default:
       throw new Error(`Unsupported loan frequency: ${frequency}`);
   }

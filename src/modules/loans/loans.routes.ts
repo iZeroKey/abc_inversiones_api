@@ -9,7 +9,7 @@ const router = Router();
  * @route   POST /api/v1/loans
  * @desc    Crear un nuevo préstamo. Solo accesible por administradores.
  * @access  Private (Admin, Owner)
- * @body    { clientId, investorId, principal, interestRate, installmentsCount, frequency, paymentDay, startDate }
+ * @body    { clientId, investorId, principal, interestRate, installmentsCount, frequency, startDate }
  */
 router.post("/", authenticate, authorize(["admin"]), controller.createLoan);
 
@@ -26,6 +26,13 @@ router.get("/", authenticate, controller.getAllLoans);
  * @access  Private
  */
 router.get("/summary", authenticate, controller.getSummary);
+
+/**
+ * @route   GET /api/v1/loans/admin-summary
+ * @desc    Tabla resumen administrativa de préstamos para la vista de gestión.
+ * @access  Private (Admin, Owner)
+ */
+router.get("/admin-summary", authenticate, authorize(["admin"]), controller.getAdminLoanSummary);
 
 /**
  * @route   GET /api/v1/loans/:id

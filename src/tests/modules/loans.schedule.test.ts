@@ -101,11 +101,37 @@ describe("Loan schedule date calculations", () => {
     });
   });
 
-  it("calcula diario con 1 día exacto", () => {
+  it("calcula diario con la regla del Excel: la primera cuota inicia 2 días después", () => {
     expectSchedule("2026-01-31", "daily", {
-      1: "2026-02-01",
-      2: "2026-02-02",
-      3: "2026-02-03",
+      1: "2026-02-02",
+      2: "2026-02-03",
+      3: "2026-02-04",
+    });
+  });
+
+  it("calcula las fechas del Excel para inicio 08/05/2026", () => {
+    expectSchedule("2026-05-08", "monthly", {
+      1: "2026-06-08",
+      2: "2026-07-08",
+      12: "2027-05-08",
+    });
+
+    expectSchedule("2026-05-08", "biweekly", {
+      1: "2026-05-23",
+      2: "2026-06-07",
+      12: "2026-11-04",
+    });
+
+    expectSchedule("2026-05-08", "weekly", {
+      1: "2026-05-15",
+      2: "2026-05-22",
+      12: "2026-07-31",
+    });
+
+    expectSchedule("2026-05-08", "daily", {
+      1: "2026-05-10",
+      2: "2026-05-11",
+      12: "2026-05-21",
     });
   });
 

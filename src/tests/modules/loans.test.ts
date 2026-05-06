@@ -3,6 +3,7 @@ import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
 import { db } from "../../config/db.js";
 import { installments } from "../../db/schema/installments.js";
+import { loans } from "../../db/schema/loans.js";
 import { BUSINESS_TIMEZONE } from "../../modules/loans/loans.schedule.js";
 import { authHeader, createAuthUser, createLoanFixture, getUserByEmail, loginAs, request, seededEmails, uniqueEmail } from "../helpers/integration.js";
 
@@ -28,6 +29,7 @@ describe("Loans Module", () => {
     expect(res.status).toBe(201);
     expect(res.body.data.clientId).toBe(client!.id);
     expect(res.body.data.status).toBe("pending_admin_review");
+    expect(res.body.data.totalDebt).toBe("1353.90");
   });
 
   it("debería generar cronograma mensual desde startDate al aprobar finalmente", async () => {
@@ -70,6 +72,68 @@ describe("Loans Module", () => {
     ]);
   });
 
+  it("debería permitir que un admin active directamente un préstamo pendiente de inversionista", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+    const client = await getUserByEmail(seededEmails.client);
+    const investor = await getUserByEmail(seededEmails.investor);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: investor!.id,
+      status: "pending_investor_review",
+      isCompanyFunded: false,
+      principal: "10000.00",
+      interestRate: "5.00",
+      totalDebt: "0.00",
+      installmentsCount: 12,
+      frequency: "daily",
+      startDate: new Date("2026-05-08T00:00:00.000-05:00"),
+    });
+
+    const res = await request
+      .patch(`/api/v1/loans/${loan.id}/approve`)
+      .set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.loan.status).toBe("active");
+    expect(res.body.data.loan.totalDebt).toBe("13539.05");
+
+    const [updatedLoan] = await db
+      .select()
+      .from(loans)
+      .where(eq(loans.id, loan.id))
+      .limit(1);
+    const generatedInstallments = await db
+      .select()
+      .from(installments)
+      .where(eq(installments.loanId, loan.id))
+      .orderBy(installments.installmentNumber);
+
+    expect(updatedLoan.totalDebt).toBe("13539.05");
+    expect(generatedInstallments).toHaveLength(12);
+    expect(generatedInstallments.at(0)?.amount).toBe("1128.25");
+    expect(generatedInstallments.at(-1)?.amount).toBe("1128.30");
+    expect(
+      generatedInstallments.map((installment) =>
+        DateTime.fromJSDate(installment.dueDate, {
+          zone: BUSINESS_TIMEZONE,
+        }).toISODate(),
+      ),
+    ).toEqual([
+      "2026-05-10",
+      "2026-05-11",
+      "2026-05-12",
+      "2026-05-13",
+      "2026-05-14",
+      "2026-05-15",
+      "2026-05-16",
+      "2026-05-17",
+      "2026-05-18",
+      "2026-05-19",
+      "2026-05-20",
+      "2026-05-21",
+    ]);
+  });
+
   it("debería permitir rechazar un préstamo en revisión", async () => {
     const adminToken = await loginAs(seededEmails.admin);
     const client = await getUserByEmail(seededEmails.client);
@@ -89,12 +153,63 @@ describe("Loans Module", () => {
     expect(res.body.data.status).toBe("rejected");
   });
 
-  it("debería rechazar el rechazo de un préstamo activo", async () => {
+  it("debería exponer el resumen administrativo de préstamos", async () => {
     const adminToken = await loginAs(seededEmails.admin);
     const client = await getUserByEmail(seededEmails.client);
     const loan = await createLoanFixture({
       clientId: client!.id,
       status: "active",
+      isCompanyFunded: true,
+      investorId: null,
+      principal: "1000.00",
+      totalDebt: "1200.00",
+      installmentsCount: 4,
+    });
+
+    await db.insert(installments).values([
+      {
+        loanId: loan.id,
+        installmentNumber: 1,
+        dueDate: new Date("2026-02-01T00:00:00.000-05:00"),
+        amount: "300.00",
+        paidAmount: "300.00",
+        status: "paid",
+      },
+      {
+        loanId: loan.id,
+        installmentNumber: 2,
+        dueDate: new Date("2026-03-01T00:00:00.000-05:00"),
+        amount: "300.00",
+        paidAmount: "0.00",
+        status: "pending",
+      },
+    ]);
+
+    const res = await request
+      .get("/api/v1/loans/admin-summary")
+      .set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    const row = res.body.data.find((item: { id: string }) => item.id === loan.id);
+    expect(row).toMatchObject({
+      id: loan.id,
+      displayId: expect.stringMatching(/^PR-\d{4,}$/),
+      clientId: client!.id,
+      clientCode: expect.stringMatching(/^CL-\d{4,}$/),
+      clientName: `${client!.firstName} ${client!.lastName}`,
+      paidAmount: "300.00",
+      totalInterest: "200.00",
+      remainingDebt: "300.00",
+      remainingInstallments: 1,
+    });
+  });
+
+  it("debería rechazar el rechazo de un préstamo pagado", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      status: "paid",
       isCompanyFunded: true,
       investorId: null,
     });

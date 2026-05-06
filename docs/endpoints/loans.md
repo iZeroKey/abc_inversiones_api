@@ -7,8 +7,9 @@
 3. [Get Summary](#get-summary)
 4. [Get Loan By ID](#get-loan-by-id)
 5. [Get Loan Installments](#get-loan-installments)
-6. [Approve Loan](#approve-loan)
-7. [Reject Loan](#reject-loan)
+6. [Get Admin Loan Summary](#get-admin-loan-summary)
+7. [Approve Loan](#approve-loan)
+8. [Reject Loan](#reject-loan)
 
 ---
 
@@ -41,11 +42,8 @@ Privado (Admin, Owner)
   "investorId": "uuid",
   "principal": "string",
   "interestRate": "string",
-  "interestType": "simple | compound",
-  "interestPeriod": "monthly | annual",
   "installmentsCount": "number",
   "frequency": "daily | weekly | biweekly | monthly",
-  "paymentDay": "number",
   "startDate": "ISO8601 date",
   "observation": "string"
 }
@@ -59,13 +57,20 @@ Privado (Admin, Owner)
 | investorId        | uuid   | No          | ID del inversionista | UUID válido o null                                  |
 | principal         | string | Sí          | Monto principal      | Número positivo                                     |
 | interestRate      | string | Sí          | Tasa de interés      | Número >= 0                                         |
-| interestType      | enum   | No          | Tipo de interés      | simple, compound (default: simple)                  |
-| interestPeriod    | enum   | No          | Periodo de interés   | monthly, annual (default: monthly)                  |
 | installmentsCount | number | Sí          | Número de cuotas     | Entero positivo                                     |
 | frequency         | enum   | No          | Frecuencia de pago   | daily, weekly, biweekly, monthly (default: monthly) |
-| paymentDay        | number | No          | Día de pago          | 1-31                                                |
-| startDate         | string | No          | Fecha de inicio      | ISO8601                                             |
+| startDate         | string | Sí          | Fecha de inicio      | ISO8601                                             |
 | observation       | string | No          | Observación          | -                                                   |
+
+### Regla Financiera y Cronograma
+
+- `totalDebt` se calcula con cuota fija: `cuota = (principal * rate) / (1 - (1 + rate) ** -installmentsCount)`.
+- `frequency` no cambia el importe de la cuota; solo cambia las fechas de vencimiento.
+- Mensual: `startDate + i meses`, ajustando al último día válido si el mes no tiene el día original.
+- Quincenal: `startDate + 15 * i días`.
+- Semanal: `startDate + 7 * i días`.
+- Diario: `startDate + (i + 1) días`.
+- Para cuadrar centavos, la última cuota puede ajustarse frente a la cuota mostrada redondeada.
 
 ### Respuesta Exitosa
 
@@ -78,7 +83,7 @@ Privado (Admin, Owner)
     "clientId": "uuid",
     "principal": "10000.00",
     "interestRate": "5.00",
-    "totalDebt": "15000.00",
+    "totalDebt": "13539.05",
     "status": "pending_investor_review"
   },
   "meta": {
@@ -138,7 +143,7 @@ Privado
       "id": "uuid",
       "clientId": "uuid",
       "principal": "10000.00",
-      "totalDebt": "15000.00",
+      "totalDebt": "13539.05",
       "status": "active",
       "installmentsCount": 3,
       "createdAt": "2026-01-01T00:00:00.000Z"
@@ -251,7 +256,7 @@ Privado
     "clientId": "uuid",
     "principal": "10000.00",
     "interestRate": "5.00",
-    "totalDebt": "15000.00",
+    "totalDebt": "13539.05",
     "status": "active",
     "installmentsCount": 3,
     "frequency": "monthly",
@@ -343,6 +348,69 @@ Privado
 
 ---
 
+## Get Admin Loan Summary
+
+Tabla resumen administrativa de préstamos para la vista tipo resumen del frontend.
+
+### Endpoint
+
+```
+GET /api/v1/loans/admin-summary
+```
+
+### Acceso
+
+Privado (Admin, Owner)
+
+### Encabezados
+
+| Encabezado    | Valor          | Obligatorio |
+| ------------- | -------------- | ----------- |
+| Authorization | Bearer {token} | Sí          |
+
+### Respuesta Exitosa
+
+```json
+{
+  "success": true,
+  "message": "Resumen administrativo de préstamos obtenido",
+  "data": [
+    {
+      "id": "uuid",
+      "displayId": "PR-0001",
+      "clientId": "uuid",
+      "clientCode": "CL-0001",
+      "clientName": "Juan Perez",
+      "creditDate": "2026-05-08T00:00:00.000-05:00",
+      "principal": "10000.00",
+      "frequency": "monthly",
+      "interestRate": "5.00",
+      "paidAmount": "3000.00",
+      "totalInterest": "3539.05",
+      "remainingDebt": "10539.05",
+      "remainingInstallments": 7,
+      "totalDebt": "13539.05",
+      "status": "active",
+      "createdAt": "2026-05-08T00:00:00.000-05:00"
+    }
+  ],
+  "meta": {
+    "timestamp": "2026-01-01T00:00:00.000Z"
+  }
+}
+```
+
+### Códigos de Estado HTTP
+
+| Código | Descripción                         |
+| ------ | ----------------------------------- |
+| 200    | Resumen administrativo obtenido     |
+| 401    | No autorizado                       |
+| 403    | No tiene permisos administrativos   |
+| 500    | Error interno                       |
+
+---
+
 ## Approve Loan
 
 Aprobar un préstamo.
@@ -363,6 +431,14 @@ PATCH /api/v1/loans/:id/approve
 
 Privado (Admin, Owner, Investor asignado)
 
+### Reglas
+
+- Inversionista asignado: puede aprobar un préstamo en `pending_investor_review`; el préstamo pasa a `pending_admin_review`.
+- Admin/Owner: puede activar directamente préstamos en `draft`, `pending_investor_review`, `pending_admin_review`, `rejected`, `defaulted` o `active`.
+- Si el préstamo ya tiene cuotas, la aprobación administrativa no duplica el cronograma.
+- Si el préstamo no tiene cuotas, se generan usando la regla financiera y de fechas indicada en [Create Loan](#create-loan).
+- Un préstamo `paid` responde exitosamente como ya pagado y no se modifica.
+
 ### Encabezados
 
 | Encabezado    | Valor          | Obligatorio |
@@ -378,10 +454,22 @@ Sin cuerpo
 ```json
 {
   "success": true,
-  "message": "Préstamo aprobado",
+  "message": "Préstamo activado y cuotas generadas",
   "data": {
-    "id": "uuid",
-    "status": "active"
+    "loan": {
+      "id": "uuid",
+      "status": "active",
+      "totalDebt": "13539.05"
+    },
+    "installments": [
+      {
+        "installmentNumber": 1,
+        "dueDate": "2026-06-08T00:00:00.000-05:00",
+        "amount": "1128.25",
+        "paidAmount": "0.00",
+        "status": "pending"
+      }
+    ]
   },
   "meta": {
     "timestamp": "2026-01-01T00:00:00.000Z"
@@ -420,6 +508,12 @@ PATCH /api/v1/loans/:id/reject
 ### Acceso
 
 Privado (Admin, Owner, Investor asignado)
+
+### Reglas
+
+- Inversionista asignado: puede rechazar únicamente préstamos en `pending_investor_review`.
+- Admin/Owner: puede rechazar préstamos en cualquier estado salvo `paid`.
+- Si el préstamo ya está `rejected`, la respuesta es exitosa y no se modifica.
 
 ### Encabezados
 
