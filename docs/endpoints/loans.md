@@ -17,6 +17,16 @@
 
 Crear un nuevo préstamo.
 
+`id` es el UUID interno del préstamo. Para UI, búsquedas y tablas operativas debe usarse `publicCode`.
+
+Formato de códigos públicos:
+
+| Entidad        | Formato    | Ejemplo    |
+| -------------- | ---------- | ---------- |
+| Préstamo       | `PR-00000` | `PR-00001` |
+| Cliente        | `CL-00000` | `CL-00001` |
+| Inversionista  | `IN-00000` | `IN-00001` |
+
 ### Endpoint
 
 ```
@@ -80,7 +90,13 @@ Privado (Admin, Owner)
   "message": "Préstamo creado y enviado a revisión",
   "data": {
     "id": "uuid",
+    "publicCode": "PR-00001",
     "clientId": "uuid",
+    "clientCode": "CL-00001",
+    "clientName": "Juan Perez",
+    "investorId": "uuid",
+    "investorCode": "IN-00001",
+    "investorName": "Maria Gomez",
     "principal": "10000.00",
     "interestRate": "5.00",
     "totalDebt": "13539.05",
@@ -126,11 +142,15 @@ Privado
 
 ### Parámetros de Consulta
 
-| Campo  | Tipo   | Descripción        |
-| ------ | ------ | ------------------ |
-| status | string | Filtrar por estado |
-| page   | number | Número de página   |
-| limit  | number | Límite por página  |
+| Campo      | Tipo   | Descripción                                                                 |
+| ---------- | ------ | --------------------------------------------------------------------------- |
+| status     | string | Filtrar por estado                                                          |
+| clientId   | uuid   | Filtrar por UUID interno de cliente                                         |
+| investorId | uuid   | Filtrar por UUID interno de inversionista                                   |
+| search     | string | Buscar por `publicCode`, `clientCode`, `investorCode` o nombres relacionados |
+| q          | string | Alias de `search`                                                           |
+| page       | number | Número de página                                                            |
+| limit      | number | Límite por página                                                           |
 
 ### Respuesta Exitosa
 
@@ -141,7 +161,13 @@ Privado
   "data": [
     {
       "id": "uuid",
+      "publicCode": "PR-00001",
       "clientId": "uuid",
+      "clientCode": "CL-00001",
+      "clientName": "Juan Perez",
+      "investorId": "uuid",
+      "investorCode": "IN-00001",
+      "investorName": "Maria Gomez",
       "principal": "10000.00",
       "totalDebt": "13539.05",
       "status": "active",
@@ -233,7 +259,7 @@ GET /api/v1/loans/:id
 
 | Parámetro | Tipo | Descripción     |
 | --------- | ---- | --------------- |
-| id        | uuid | ID del préstamo |
+| id        | uuid | UUID interno del préstamo |
 
 ### Acceso
 
@@ -253,7 +279,13 @@ Privado
   "message": "Préstamo obtenido",
   "data": {
     "id": "uuid",
+    "publicCode": "PR-00001",
     "clientId": "uuid",
+    "clientCode": "CL-00001",
+    "clientName": "Juan Perez",
+    "investorId": "uuid",
+    "investorCode": "IN-00001",
+    "investorName": "Maria Gomez",
     "principal": "10000.00",
     "interestRate": "5.00",
     "totalDebt": "13539.05",
@@ -377,10 +409,13 @@ Privado (Admin, Owner)
   "data": [
     {
       "id": "uuid",
-      "displayId": "PR-0001",
+      "publicCode": "PR-00001",
       "clientId": "uuid",
-      "clientCode": "CL-0001",
+      "clientCode": "CL-00001",
       "clientName": "Juan Perez",
+      "investorId": "uuid",
+      "investorCode": "IN-00001",
+      "investorName": "Maria Gomez",
       "creditDate": "2026-05-08T00:00:00.000-05:00",
       "principal": "10000.00",
       "frequency": "monthly",
@@ -458,6 +493,11 @@ Sin cuerpo
   "data": {
     "loan": {
       "id": "uuid",
+      "publicCode": "PR-00001",
+      "clientCode": "CL-00001",
+      "clientName": "Juan Perez",
+      "investorCode": "IN-00001",
+      "investorName": "Maria Gomez",
       "status": "active",
       "totalDebt": "13539.05"
     },

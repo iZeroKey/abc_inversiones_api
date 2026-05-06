@@ -5,6 +5,7 @@ import { supabase, supabaseAdmin } from "../../config/supabase.js";
 import { users } from "../../db/schema/users.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
+import { generatePublicCodeForRole } from "../../utils/public-code.util.js";
 import {
   formatZodError,
   sendError,
@@ -156,6 +157,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         lastName,
         role,
         isOwner,
+        publicCode: await generatePublicCodeForRole(role),
       })
       .returning();
 

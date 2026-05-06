@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { users } from "./users.js";
@@ -15,6 +16,7 @@ export const loans = pgTable(
   "loans",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    publicCode: text("public_code"),
     clientId: text("client_id")
       .notNull()
       .references(() => users.id),
@@ -61,7 +63,8 @@ export const loans = pgTable(
       .defaultNow()
       .notNull(),
   },
-  () => [
+  (table) => [
+    uniqueIndex("loans_public_code_unique").on(table.publicCode),
     // RLS
     pgPolicy("admin_loans_all", {
       for: "all",

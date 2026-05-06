@@ -16,6 +16,16 @@
 
 Obtener el perfil del usuario actualmente autenticado.
 
+`id` es el UUID interno. Para UI y búsquedas operativas se debe usar `publicCode` cuando exista.
+
+Formato de códigos públicos:
+
+| Rol           | Formato    | Ejemplo    |
+| ------------- | ---------- | ---------- |
+| Cliente       | `CL-00000` | `CL-00001` |
+| Inversionista | `IN-00000` | `IN-00001` |
+| Admin/Owner   | `null`     | `null`     |
+
 ### Endpoint
 
 ```
@@ -40,6 +50,7 @@ Privado
   "message": "Usuario obtenido",
   "data": {
     "id": "uuid",
+    "publicCode": "CL-00001",
     "email": "email@example.com",
     "firstName": "Juan",
     "lastName": "Pérez",
@@ -212,6 +223,7 @@ Privado (Admin, Owner)
   "data": [
     {
       "id": "uuid",
+      "publicCode": "CL-00001",
       "email": "email@example.com",
       "firstName": "Juan",
       "lastName": "Pérez",
@@ -255,7 +267,7 @@ GET /api/v1/users/:id
 
 | Parámetro | Tipo | Descripción    |
 | --------- | ---- | -------------- |
-| id        | uuid | ID del usuario |
+| id        | uuid | UUID interno del usuario |
 
 ### Acceso
 
@@ -275,6 +287,7 @@ Privado (Admin, Owner)
   "message": "Usuario obtenido",
   "data": {
     "id": "uuid",
+    "publicCode": "CL-00001",
     "email": "email@example.com",
     "firstName": "Juan",
     "lastName": "Pérez",
@@ -378,6 +391,7 @@ Admin/owner actualizando otro usuario:
   "message": "Usuario actualizado",
   "data": {
     "id": "uuid",
+    "publicCode": "CL-00001",
     "firstName": "Juan",
     "lastName": "Pérez",
     ...

@@ -10,6 +10,7 @@ import { loans } from "../../db/schema/loans.js";
 import { notifications } from "../../db/schema/notifications.js";
 import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
 import { users } from "../../db/schema/users.js";
+import { generatePublicCode, generatePublicCodeForRole } from "../../utils/public-code.util.js";
 
 export const request = supertest(app);
 
@@ -79,6 +80,7 @@ export const createAuthUser = async (params: {
     phone: params.phone,
     role: params.role,
     isOwner: params.isOwner || false,
+    publicCode: await generatePublicCodeForRole(params.role),
     active: true,
   }).returning();
 
@@ -102,6 +104,7 @@ export const createLoanFixture = async (params: {
   const [loan] = await db.insert(loans).values({
     clientId: params.clientId,
     investorId: params.investorId || null,
+    publicCode: await generatePublicCode("loan"),
     principal: params.principal || "1000.00",
     interestRate: params.interestRate || "5.00",
     installmentsCount: params.installmentsCount || 4,

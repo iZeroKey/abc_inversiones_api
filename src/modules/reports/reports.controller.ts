@@ -5,7 +5,7 @@ import { installments } from "../../db/schema/installments.js";
 import { payments } from "../../db/schema/payments.js";
 import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
 import { users } from "../../db/schema/users.js";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, getTableColumns, sql } from "drizzle-orm";
 import { sendSuccess, sendError } from "../../utils/response.util.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 
@@ -27,6 +27,7 @@ export const getClientStatement = async (req: AuthRequest, res: Response): Promi
     // Datos del cliente
     const [client] = await db.select({
       id: users.id,
+      publicCode: users.publicCode,
       firstName: users.firstName,
       lastName: users.lastName,
       email: users.email,
@@ -39,7 +40,12 @@ export const getClientStatement = async (req: AuthRequest, res: Response): Promi
     }
 
     // Préstamos del cliente
-    const clientLoans = await db.select().from(loans)
+    const clientLoans = await db.select({
+      ...getTableColumns(loans),
+      clientCode: users.publicCode,
+      clientName: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
+    }).from(loans)
+      .innerJoin(users, eq(users.id, loans.clientId))
       .where(eq(loans.clientId, targetClientId))
       .orderBy(desc(loans.createdAt));
 
@@ -104,12 +110,16 @@ export const getInvestorPortfolio = async (req: AuthRequest, res: Response): Pro
     // Inversiones activas
     const investorLoans = await db.select({
       loanId: loans.id,
+      publicCode: loans.publicCode,
       clientId: loans.clientId,
+      clientCode: users.publicCode,
+      clientName: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
       principal: loans.principal,
       totalDebt: loans.totalDebt,
       status: loans.status,
       createdAt: loans.createdAt,
     }).from(loans)
+      .innerJoin(users, eq(users.id, loans.clientId))
       .where(eq(loans.investorId, targetInvestorId))
       .orderBy(desc(loans.createdAt));
 
@@ -126,6 +136,7 @@ export const getInvestorPortfolio = async (req: AuthRequest, res: Response): Pro
     const pendingVouchers = await db.select({
       voucherId: paymentVouchers.id,
       loanId: paymentVouchers.loanId,
+      loanPublicCode: loans.publicCode,
       amount: paymentVouchers.amount,
       operationId: paymentVouchers.operationId,
       createdAt: paymentVouchers.createdAt,

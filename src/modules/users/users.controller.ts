@@ -11,9 +11,11 @@ import { adminUpdateUserSchema, selfUpdateUserSchema } from "./users.schema.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { deleteStorageReference, resolveFileUrl, uploadAvatar } from "../../utils/storage.util.js";
+import { generatePublicCodeForRole } from "../../utils/public-code.util.js";
 
 const selfForbiddenFields = new Set([
   "id",
+  "publicCode",
   "email",
   "avatarUrl",
   "role",
@@ -114,10 +116,17 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
+    const roleAfterUpdate = ("role" in validation.data
+      ? validation.data.role || oldUser.role
+      : oldUser.role) as "admin" | "client" | "investor";
+    const publicCode = oldUser.publicCode
+      || await generatePublicCodeForRole(roleAfterUpdate);
+
     const [updatedUser] = await db
       .update(users)
       .set({
         ...validation.data,
+        publicCode,
         updatedAt: new Date(),
       })
       .where(eq(users.id, id))

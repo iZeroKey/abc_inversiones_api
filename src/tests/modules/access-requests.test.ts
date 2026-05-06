@@ -52,6 +52,7 @@ describe("Access Requests Module", () => {
       const [createdUser] = await db.select().from(users).where(eq(users.email, email)).limit(1);
       expect(createdUser).toBeDefined();
       expect(createdUser?.role).toBe("investor");
+      expect(createdUser?.publicCode).toMatch(/^IN-\d{5}$/);
 
       const [updatedRequest] = await db.select().from(accessRequests).where(eq(accessRequests.id, accessRequest.id)).limit(1);
       expect(updatedRequest?.status).toBe("approved");

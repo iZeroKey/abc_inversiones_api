@@ -40,6 +40,12 @@ const APP_TABLES = [
   "users",
 ] as const;
 
+const APP_SEQUENCES = [
+  "loan_public_code_seq",
+  "client_public_code_seq",
+  "investor_public_code_seq",
+] as const;
+
 const isBucketNotFoundError = (message?: string): boolean => {
   if (!message) {
     return false;
@@ -190,6 +196,14 @@ async function resetApp(): Promise<void> {
     );
   }
   console.log("   Tablas eliminadas.");
+
+  console.log("\n5) Eliminando secuencias de códigos públicos...");
+  for (const sequenceName of APP_SEQUENCES) {
+    await queryClient.unsafe(
+      `DROP SEQUENCE IF EXISTS public.${sequenceName} CASCADE;`,
+    );
+  }
+  console.log("   Secuencias eliminadas.");
 
   console.log("\nReseteo completo finalizado.");
   await queryClient.end();

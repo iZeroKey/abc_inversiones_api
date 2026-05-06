@@ -1,4 +1,5 @@
-import { and, desc, eq, lt, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, ilike, lt, or, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { Response } from "express";
 import { db } from "../../config/db.js";
 import { installments } from "../../db/schema/installments.js";
@@ -7,6 +8,7 @@ import { users } from "../../db/schema/users.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { sendNotification } from "../../utils/notification.util.js";
+import { generatePublicCode } from "../../utils/public-code.util.js";
 import {
     formatZodError,
     sendError,
@@ -32,6 +34,30 @@ const canAccessLoan = (user: AuthRequest["user"], loan: typeof loans.$inferSelec
 
 const isAdminOrOwner = (user: AuthRequest["user"]): boolean =>
   !!user && (user.role === "admin" || user.isOwner);
+
+const clientUsers = alias(users, "client_users");
+const investorUsers = alias(users, "investor_users");
+const loanColumns = getTableColumns(loans);
+
+const loanWithParticipantsSelection = {
+  ...loanColumns,
+  clientCode: clientUsers.publicCode,
+  clientName: sql<string>`concat(${clientUsers.firstName}, ' ', ${clientUsers.lastName})`,
+  investorCode: investorUsers.publicCode,
+  investorName: sql<string | null>`CASE WHEN ${investorUsers.id} IS NULL THEN NULL ELSE concat(${investorUsers.firstName}, ' ', ${investorUsers.lastName}) END`,
+};
+
+const selectLoanWithParticipantsById = async (id: string) => {
+  const [loan] = await db
+    .select(loanWithParticipantsSelection)
+    .from(loans)
+    .innerJoin(clientUsers, eq(clientUsers.id, loans.clientId))
+    .leftJoin(investorUsers, eq(investorUsers.id, loans.investorId))
+    .where(eq(loans.id, id))
+    .limit(1);
+
+  return loan;
+};
 
 export const createLoan = async (
   req: AuthRequest,
@@ -62,6 +88,7 @@ export const createLoan = async (
       .insert(loans)
       .values({
         ...data,
+        publicCode: await generatePublicCode("loan"),
         principal: principal.toString(),
         interestRate: rate.toString(),
         totalDebt: totalDebt.toFixed(2),
@@ -88,7 +115,8 @@ export const createLoan = async (
       data: { loanId: newLoan.id }
     });
 
-    sendSuccess(res, 201, "Préstamo creado y enviado a revisión", newLoan);
+    const responseLoan = await selectLoanWithParticipantsById(newLoan.id);
+    sendSuccess(res, 201, "Préstamo creado y enviado a revisión", responseLoan || newLoan);
   } catch (error) {
     sendError(res, 500, "Error al crear el préstamo", error);
   }
@@ -100,7 +128,7 @@ export const getAllLoans = async (
 ): Promise<void> => {
   try {
     const user = req.user!;
-    const { status, clientId, investorId, from, to } = req.query;
+    const { status, clientId, investorId, from, to, search, q } = req.query;
 
     const conditions: SQL[] = [];
 
@@ -118,9 +146,32 @@ export const getAllLoans = async (
     if (from) conditions.push(sql`${loans.createdAt} >= ${new Date(from as string)}`);
     if (to) conditions.push(sql`${loans.createdAt} <= ${new Date(to as string)}`);
 
+    const searchTerm = typeof search === "string"
+      ? search.trim()
+      : typeof q === "string"
+        ? q.trim()
+        : "";
+
+    if (searchTerm) {
+      const searchPattern = `%${searchTerm}%`;
+      conditions.push(
+        or(
+          ilike(loans.publicCode, searchPattern),
+          ilike(clientUsers.publicCode, searchPattern),
+          ilike(investorUsers.publicCode, searchPattern),
+          ilike(clientUsers.firstName, searchPattern),
+          ilike(clientUsers.lastName, searchPattern),
+          ilike(investorUsers.firstName, searchPattern),
+          ilike(investorUsers.lastName, searchPattern),
+        )!,
+      );
+    }
+
     const results = await db
-      .select()
+      .select(loanWithParticipantsSelection)
       .from(loans)
+      .innerJoin(clientUsers, eq(clientUsers.id, loans.clientId))
+      .leftJoin(investorUsers, eq(investorUsers.id, loans.investorId))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(loans.createdAt));
     sendSuccess(res, 200, "Préstamos obtenidos", results);
@@ -136,11 +187,7 @@ export const getLoanById = async (
   try {
     const id = req.params.id as string;
     const user = req.user!;
-    const [loan] = await db
-      .select()
-      .from(loans)
-      .where(eq(loans.id, id))
-      .limit(1);
+    const loan = await selectLoanWithParticipantsById(id);
 
     if (!loan) {
       sendError(res, 404, "Préstamo no encontrado");
@@ -291,10 +338,13 @@ export const getAdminLoanSummary = async (
     const results = await db
       .select({
         id: loans.id,
-        displayId: sql<string>`concat('PR-', lpad((row_number() over (order by ${loans.createdAt}, ${loans.id}))::text, 4, '0'))`,
+        publicCode: loans.publicCode,
         clientId: loans.clientId,
-        clientCode: sql<string>`concat('CL-', lpad((dense_rank() over (order by ${users.createdAt}, ${users.id}))::text, 4, '0'))`,
-        clientName: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
+        clientCode: clientUsers.publicCode,
+        clientName: sql<string>`concat(${clientUsers.firstName}, ' ', ${clientUsers.lastName})`,
+        investorId: loans.investorId,
+        investorCode: investorUsers.publicCode,
+        investorName: sql<string | null>`CASE WHEN ${investorUsers.id} IS NULL THEN NULL ELSE concat(${investorUsers.firstName}, ' ', ${investorUsers.lastName}) END`,
         creditDate: loans.startDate,
         principal: loans.principal,
         frequency: loans.frequency,
@@ -308,7 +358,8 @@ export const getAdminLoanSummary = async (
         createdAt: loans.createdAt,
       })
       .from(loans)
-      .innerJoin(users, eq(users.id, loans.clientId))
+      .innerJoin(clientUsers, eq(clientUsers.id, loans.clientId))
+      .leftJoin(investorUsers, eq(investorUsers.id, loans.investorId))
       .leftJoin(installments, eq(installments.loanId, loans.id))
       .groupBy(
         loans.id,
@@ -321,10 +372,14 @@ export const getAdminLoanSummary = async (
         loans.status,
         loans.installmentsCount,
         loans.createdAt,
-        users.id,
-        users.firstName,
-        users.lastName,
-        users.createdAt,
+        clientUsers.id,
+        clientUsers.publicCode,
+        clientUsers.firstName,
+        clientUsers.lastName,
+        investorUsers.id,
+        investorUsers.publicCode,
+        investorUsers.firstName,
+        investorUsers.lastName,
       )
       .orderBy(desc(loans.createdAt));
 
@@ -380,11 +435,12 @@ export const approveLoan = async (
         data: { loanId: id }
       });
 
+      const responseLoan = await selectLoanWithParticipantsById(updated.id);
       sendSuccess(
         res,
         200,
         "Préstamo aprobado por inversionista. Pendiente de Admin.",
-        updated,
+        responseLoan || updated,
       );
       return;
     }
@@ -426,8 +482,9 @@ export const approveLoan = async (
         .orderBy(installments.installmentNumber);
 
       if (loan.status === "active" && installmentsList.length > 0) {
+        const responseLoan = await selectLoanWithParticipantsById(loan.id);
         sendSuccess(res, 200, "Préstamo ya se encuentra activo", {
-          loan,
+          loan: responseLoan || loan,
           installments: installmentsList,
         });
         return;
@@ -482,8 +539,9 @@ export const approveLoan = async (
         });
       }
 
+      const responseLoan = await selectLoanWithParticipantsById(updated.id);
       sendSuccess(res, 200, "Préstamo activado y cuotas generadas", {
-        loan: updated,
+        loan: responseLoan || updated,
         installments: installmentsList,
       });
       return;
@@ -539,7 +597,8 @@ export const rejectLoan = async (
       }
 
       if (loan.status === "rejected") {
-        sendSuccess(res, 200, "Préstamo ya se encuentra rechazado", loan);
+        const responseLoan = await selectLoanWithParticipantsById(loan.id);
+        sendSuccess(res, 200, "Préstamo ya se encuentra rechazado", responseLoan || loan);
         return;
       }
     } else {
@@ -575,7 +634,8 @@ export const rejectLoan = async (
       data: { loanId: id },
     });
 
-    sendSuccess(res, 200, "Préstamo rechazado", updated);
+    const responseLoan = await selectLoanWithParticipantsById(updated.id);
+    sendSuccess(res, 200, "Préstamo rechazado", responseLoan || updated);
   } catch (error) {
     sendError(res, 500, "Error al rechazar el préstamo", error);
   }

@@ -5,12 +5,14 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const users = pgTable(
   "users",
   {
     id: text("id").primaryKey(), // UUID de Supabase Auth
+    publicCode: text("public_code"),
     firstName: text("first_name").notNull(),
     lastName: text("last_name").notNull(),
     email: text("email").notNull().unique(),
@@ -29,7 +31,8 @@ export const users = pgTable(
       .notNull(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
-  () => [
+  (table) => [
+    uniqueIndex("users_public_code_unique").on(table.publicCode),
     pgPolicy("admin_all_access", {
       for: "all",
       to: "authenticated",

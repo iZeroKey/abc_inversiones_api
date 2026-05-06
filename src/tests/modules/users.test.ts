@@ -8,6 +8,7 @@ import {
   seededEmails,
   uniqueEmail,
 } from "../helpers/integration.js";
+import { generatePublicCode } from "../../utils/public-code.util.js";
 
 describe("Users Module Integration", () => {
   describe("GET /api/v1/users/me", () => {
@@ -19,6 +20,7 @@ describe("Users Module Integration", () => {
       expect(res.status).toBe(200);
       expect(res.body.data.email).toBe(seededEmails.admin);
       expect(res.body.data.role).toBe("admin");
+      expect(res.body.data.publicCode).toBeNull();
     });
   });
 
@@ -31,6 +33,21 @@ describe("Users Module Integration", () => {
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body.data)).toBe(true);
       expect(res.body.data.length).toBeGreaterThan(0);
+
+      const client = res.body.data.find((user: { email: string }) => user.email === seededEmails.client);
+      const investor = res.body.data.find((user: { email: string }) => user.email === seededEmails.investor);
+      expect(client.publicCode).toBe("CL-00001");
+      expect(investor.publicCode).toBe("IN-00001");
+    });
+
+    it("debería generar códigos únicos sin duplicación", async () => {
+      const publicCodes = [];
+      for (let i = 0; i < 4; i++) {
+        publicCodes.push(await generatePublicCode("client"));
+      }
+
+      expect(new Set(publicCodes).size).toBe(publicCodes.length);
+      expect(publicCodes.every((code) => /^CL-\d{5}$/.test(code || ""))).toBe(true);
     });
 
     it("debería denegar acceso a un cliente para listar usuarios", async () => {
@@ -117,6 +134,25 @@ describe("Users Module Integration", () => {
       expect(res.status).toBe(200);
       expect(res.body.data.role).toBe("investor");
       expect(res.body.data.active).toBe(false);
+      expect(res.body.data.publicCode).toBe(client.publicCode);
+    });
+
+    it("debería asignar código público si un admin convierte un usuario sin código a cliente", async () => {
+      const adminUser = await createAuthUser({
+        email: uniqueEmail("admin-to-client"),
+        firstName: "Sin",
+        lastName: "Codigo",
+        role: "admin",
+      });
+
+      const res = await request
+        .patch(`/api/v1/users/${adminUser.id}`)
+        .set(authHeader(await loginAs(seededEmails.admin)))
+        .send({ role: "client" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.role).toBe("client");
+      expect(res.body.data.publicCode).toMatch(/^CL-\d{5}$/);
     });
 
     it("debería denegar a un cliente actualizar a otro usuario", async () => {

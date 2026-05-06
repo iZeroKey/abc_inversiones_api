@@ -98,10 +98,12 @@ describe("Auth Endpoints", () => {
 
       expect(res.status).toBe(201);
       expect(res.body.data.user.email).toBe(email);
+      expect(res.body.data.user.publicCode).toMatch(/^CL-\d{5}$/);
 
       const created = await getUserByEmail(email);
       expect(created).toBeDefined();
       expect(created?.role).toBe("client");
+      expect(created?.publicCode).toMatch(/^CL-\d{5}$/);
     });
   });
 

@@ -2,6 +2,8 @@ import "dotenv/config";
 import { db } from "../config/db.js";
 import { supabaseAdmin } from "../config/supabase.js";
 import { users } from "../db/schema/users.js";
+import { eq } from "drizzle-orm";
+import { generatePublicCodeForRole } from "../utils/public-code.util.js";
 
 async function seed() {
   console.log("Sembrando base de datos...");
@@ -81,11 +83,20 @@ async function seed() {
         role: userData.role,
         isOwner: userData.isOwner,
       };
+      const [existingLocalUser] = await db
+        .select({ publicCode: users.publicCode })
+        .from(users)
+        .where(eq(users.email, userData.email))
+        .limit(1);
+      const publicCode = existingLocalUser?.publicCode
+        || await generatePublicCodeForRole(userData.role);
+
       await db
         .insert(users)
         .values({
           ...localData,
           id: supabaseId,
+          publicCode,
         })
         .onConflictDoUpdate({
           target: users.email,
@@ -96,6 +107,7 @@ async function seed() {
             phone: localData.phone,
             role: localData.role,
             isOwner: localData.isOwner,
+            publicCode,
           },
         });
     }

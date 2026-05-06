@@ -16,6 +16,7 @@ import {
 } from "./access-requests.schema.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { sendNotification } from "../../utils/notification.util.js";
+import { generatePublicCodeForRole } from "../../utils/public-code.util.js";
 
 export const createRequest = async (
   req: Request,
@@ -146,6 +147,7 @@ export const updateStatus = async (
         lastName: accessRequest.lastName,
         phone: accessRequest.phone,
         role: accessRequest.roleRequested,
+        publicCode: await generatePublicCodeForRole(accessRequest.roleRequested),
       });
 
       await logAudit({

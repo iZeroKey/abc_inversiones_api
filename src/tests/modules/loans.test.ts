@@ -21,13 +21,14 @@ describe("Loans Module", () => {
         interestRate: "5",
         installmentsCount: 12,
         frequency: "monthly",
-        interestType: "simple",
-        interestPeriod: "monthly",
         startDate: "2026-01-31T00:00:00.000-05:00",
       });
 
     expect(res.status).toBe(201);
     expect(res.body.data.clientId).toBe(client!.id);
+    expect(res.body.data.publicCode).toMatch(/^PR-\d{5}$/);
+    expect(res.body.data.clientCode).toBe("CL-00001");
+    expect(res.body.data.clientName).toBe(`${client!.firstName} ${client!.lastName}`);
     expect(res.body.data.status).toBe("pending_admin_review");
     expect(res.body.data.totalDebt).toBe("1353.90");
   });
@@ -96,6 +97,9 @@ describe("Loans Module", () => {
     expect(res.status).toBe(200);
     expect(res.body.data.loan.status).toBe("active");
     expect(res.body.data.loan.totalDebt).toBe("13539.05");
+    expect(res.body.data.loan.publicCode).toMatch(/^PR-\d{5}$/);
+    expect(res.body.data.loan.clientCode).toBe("CL-00001");
+    expect(res.body.data.loan.investorCode).toBe("IN-00001");
 
     const [updatedLoan] = await db
       .select()
@@ -193,15 +197,37 @@ describe("Loans Module", () => {
     const row = res.body.data.find((item: { id: string }) => item.id === loan.id);
     expect(row).toMatchObject({
       id: loan.id,
-      displayId: expect.stringMatching(/^PR-\d{4,}$/),
+      publicCode: loan.publicCode,
       clientId: client!.id,
-      clientCode: expect.stringMatching(/^CL-\d{4,}$/),
+      clientCode: "CL-00001",
       clientName: `${client!.firstName} ${client!.lastName}`,
       paidAmount: "300.00",
       totalInterest: "200.00",
       remainingDebt: "300.00",
       remainingInstallments: 1,
     });
+  });
+
+  it("debería buscar préstamos por código público de préstamo, cliente e inversionista", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+    const client = await getUserByEmail(seededEmails.client);
+    const investor = await getUserByEmail(seededEmails.investor);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: investor!.id,
+      status: "active",
+      isCompanyFunded: false,
+    });
+
+    for (const term of [loan.publicCode, client!.publicCode, investor!.publicCode]) {
+      const res = await request
+        .get("/api/v1/loans")
+        .query({ search: term })
+        .set(authHeader(adminToken));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.some((item: { id: string }) => item.id === loan.id)).toBe(true);
+    }
   });
 
   it("debería rechazar el rechazo de un préstamo pagado", async () => {
