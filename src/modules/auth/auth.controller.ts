@@ -122,7 +122,7 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const register = async (req: Request, res: Response): Promise<void> => {
+export const register = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const validation = registerSchema.safeParse(req.body);
     if (!validation.success) {
@@ -132,6 +132,17 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     const { email, password, firstName, lastName, phone, role, isOwner } =
       validation.data;
+    const currentUser = req.user!;
+
+    if (!currentUser.isOwner && role === "admin") {
+      sendError(res, 403, "Solo un owner puede crear administradores");
+      return;
+    }
+
+    if (!currentUser.isOwner && isOwner) {
+      sendError(res, 403, "Solo un owner puede crear owners");
+      return;
+    }
 
     const { data: authData, error: authError } =
       await supabaseAdmin.auth.admin.createUser({
@@ -156,7 +167,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         firstName,
         lastName,
         role,
-        isOwner,
+        isOwner: currentUser.isOwner ? isOwner : false,
         publicCode: await generatePublicCodeForRole(role),
       })
       .returning();

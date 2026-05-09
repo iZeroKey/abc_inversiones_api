@@ -30,7 +30,7 @@ router.post("/logout", authenticate, controller.logout);
 
 /**
  * @route   POST /api/v1/auth/register
- * @desc    Registrar manualmente un nuevo usuario (Solo Admin).
+ * @desc    Registrar manualmente un nuevo usuario. Owner puede crear cualquier rol; admin no owner solo client/investor.
  * @access  Private (Admin, Owner)
  * @body    { email, password, firstName, lastName, phone, role, isOwner }
  */

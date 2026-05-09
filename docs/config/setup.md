@@ -146,6 +146,14 @@ pnpm setup:storage
 pnpm test
 ```
 
+Opcionalmente, con el servidor local encendido, puedes sembrar datos de prueba usando llamadas reales al API:
+
+```bash
+pnpm db:seed:api
+```
+
+Por defecto usa `http://localhost:3000/api/v1`, autentica al owner `admin@abc.com` y crea/actualiza usuarios `api.*@abc.com`. Puedes ajustar `API_SEED_BASE_URL`, `API_SEED_OWNER_EMAIL`, `API_SEED_OWNER_PASSWORD` y `API_SEED_DEFAULT_PASSWORD`.
+
 6. **Iniciar desarrollo**
 
 ```bash
@@ -164,6 +172,7 @@ pnpm dev
 | `pnpm lint`           | Verificar código               |
 | `pnpm db:push`        | Aplicar esquema a DB           |
 | `pnpm db:seed`        | Sembrar datos iniciales        |
+| `pnpm db:seed:api`    | Sembrar datos mediante API HTTP |
 | `pnpm setup:storage`  | Configurar buckets             |
 | `pnpm check:overdue`  | Verificar cuotas vencidas      |
 | `pnpm send:reminders` | Enviar recordatorios           |

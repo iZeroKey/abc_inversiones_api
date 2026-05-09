@@ -7,7 +7,6 @@ export const selfUpdateUserSchema = z.strictObject({
 });
 
 export const adminUpdateUserSchema = selfUpdateUserSchema.extend({
-  role: z.enum(["client", "investor", "admin"]).optional(),
   active: z.boolean().optional(),
   isOwner: z.boolean().optional(),
 });

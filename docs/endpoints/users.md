@@ -24,7 +24,7 @@ Formato de códigos públicos:
 | ------------- | ---------- | ---------- |
 | Cliente       | `CL-00000` | `CL-00001` |
 | Inversionista | `IN-00000` | `IN-00001` |
-| Admin/Owner   | `null`     | `null`     |
+| Admin/Owner   | `AD-00000` | `AD-00001` |
 
 ### Endpoint
 
@@ -201,6 +201,8 @@ GET /api/v1/users
 
 Privado (Admin, Owner)
 
+Los owners pueden consultar cualquier usuario. Un administrador no owner no puede gestionar a otro administrador.
+
 ### Encabezados
 
 | Encabezado    | Valor          | Obligatorio |
@@ -273,6 +275,8 @@ GET /api/v1/users/:id
 
 Privado (Admin, Owner)
 
+Los owners pueden consultar cualquier usuario. Un administrador no owner no puede gestionar a otro administrador.
+
 ### Encabezados
 
 | Encabezado    | Valor          | Obligatorio |
@@ -320,7 +324,10 @@ Privado (Admin, Owner)
 Actualizar datos de un usuario. El endpoint valida campos distintos según quien actualiza:
 
 - El usuario autenticado solo puede actualizar sus campos de perfil: `firstName`, `lastName`, `phone`.
-- Admin/owner puede actualizar campos de perfil y administrativos: `role`, `active`.
+- Owner puede actualizar cualquier usuario, excepto contraseña y rol.
+- Admin no owner puede actualizar usuarios no administradores, pero no puede gestionar a otro admin; sobre sí mismo solo actualiza campos de perfil.
+- Cliente e inversionista solo pueden actualizar su propio perfil.
+- El rol es inmutable: no se acepta `role` en actualizaciones.
 - `isOwner` solo puede ser modificado por un owner.
 - Campos sensibles como `id`, `email`, `avatarUrl`, `deletedAt`, `createdAt` y `updatedAt` no se aceptan por este endpoint.
 
@@ -366,7 +373,6 @@ Admin/owner actualizando otro usuario:
   "firstName": "string",
   "lastName": "string",
   "phone": "string",
-  "role": "client | investor | admin",
   "active": true,
   "isOwner": false
 }
@@ -379,7 +385,6 @@ Admin/owner actualizando otro usuario:
 | firstName | string  | No          | Nombres (min 2 caracteres)   |
 | lastName  | string  | No          | Apellidos (min 2 caracteres) |
 | phone     | string  | No          | Número de teléfono           |
-| role      | enum    | No          | Solo admin/owner             |
 | active    | boolean | No          | Solo admin/owner             |
 | isOwner   | boolean | No          | Solo owner                   |
 

@@ -37,6 +37,34 @@ const attachSignedAvatarUrl = async <T extends { avatarUrl?: string | null }>(us
   };
 };
 
+const canManageTargetUser = (
+  currentUser: typeof users.$inferSelect,
+  targetUser: typeof users.$inferSelect,
+): boolean => {
+  if (currentUser.isOwner) {
+    return true;
+  }
+
+  if (currentUser.id === targetUser.id) {
+    return true;
+  }
+
+  return currentUser.role === "admin" && targetUser.role !== "admin";
+};
+
+const canUseAdministrativeUpdate = (
+  currentUser: typeof users.$inferSelect,
+  targetUser: typeof users.$inferSelect,
+): boolean => {
+  if (currentUser.isOwner) {
+    return true;
+  }
+
+  return currentUser.role === "admin"
+    && currentUser.id !== targetUser.id
+    && targetUser.role !== "admin";
+};
+
 export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const user = req.user!;
@@ -67,6 +95,11 @@ export const getUserById = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
+    if (!canManageTargetUser(req.user!, user)) {
+      sendError(res, 403, "No tienes permiso para gestionar este usuario");
+      return;
+    }
+
     const responseUser = await attachSignedAvatarUrl(user);
     sendSuccess(res, 200, "Usuario obtenido", responseUser);
   } catch (error) {
@@ -78,15 +111,26 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
   try {
     const id = req.params.id as string;
     const currentUser = req.user!;
-    const isSelfUpdate = currentUser.id === id;
-    const isAdminOrOwner = currentUser.role === "admin" || currentUser.isOwner;
 
-    if (!isSelfUpdate && !isAdminOrOwner) {
-      sendError(res, 403, "No tienes permiso para actualizar este usuario");
+    const [oldUser] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (!oldUser) {
+      sendError(res, 404, "Usuario no encontrado");
       return;
     }
 
-    if (isSelfUpdate) {
+    if (!canManageTargetUser(currentUser, oldUser)) {
+      sendError(res, 403, "No tienes permiso para gestionar este usuario");
+      return;
+    }
+
+    if ("role" in req.body) {
+      sendError(res, 400, "No se puede modificar el rol de un usuario");
+      return;
+    }
+
+    const useAdminSchema = canUseAdministrativeUpdate(currentUser, oldUser);
+
+    if (!useAdminSchema) {
       const forbiddenFields = Object.keys(req.body).filter((field) =>
         selfForbiddenFields.has(field),
       );
@@ -99,28 +143,19 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
       }
     }
 
-    const validation = (isSelfUpdate ? selfUpdateUserSchema : adminUpdateUserSchema).safeParse(req.body);
+    const validation = (useAdminSchema ? adminUpdateUserSchema : selfUpdateUserSchema).safeParse(req.body);
     if (!validation.success) {
       sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
       return;
     }
 
-    if (!isSelfUpdate && "isOwner" in validation.data && !currentUser.isOwner) {
+    if ("isOwner" in validation.data && !currentUser.isOwner) {
       sendError(res, 403, "Solo un owner puede modificar isOwner");
       return;
     }
 
-    const [oldUser] = await db.select().from(users).where(eq(users.id, id)).limit(1);
-    if (!oldUser) {
-      sendError(res, 404, "Usuario no encontrado");
-      return;
-    }
-
-    const roleAfterUpdate = ("role" in validation.data
-      ? validation.data.role || oldUser.role
-      : oldUser.role) as "admin" | "client" | "investor";
     const publicCode = oldUser.publicCode
-      || await generatePublicCodeForRole(roleAfterUpdate);
+      || await generatePublicCodeForRole(oldUser.role);
 
     const [updatedUser] = await db
       .update(users)
@@ -255,6 +290,17 @@ export const deleteAvatar = async (req: AuthRequest, res: Response): Promise<voi
 export const deleteUser = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const id = req.params.id as string;
+
+    const [targetUser] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (!targetUser) {
+      sendError(res, 404, "Usuario no encontrado");
+      return;
+    }
+
+    if (!canManageTargetUser(req.user!, targetUser)) {
+      sendError(res, 403, "No tienes permiso para gestionar este usuario");
+      return;
+    }
     
     const [deletedUser] = await db
       .update(users)

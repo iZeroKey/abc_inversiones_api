@@ -105,6 +105,49 @@ describe("Auth Endpoints", () => {
       expect(created?.role).toBe("client");
       expect(created?.publicCode).toMatch(/^CL-\d{5}$/);
     });
+
+    it("debería permitir al owner registrar un administrador con código público", async () => {
+      const ownerToken = await loginAs(seededEmails.admin);
+      const email = uniqueEmail("register-admin");
+
+      const res = await request
+        .post("/api/v1/auth/register")
+        .set(authHeader(ownerToken))
+        .send({
+          email,
+          password: TEST_PASSWORD,
+          firstName: "Nuevo",
+          lastName: "Admin",
+          role: "admin",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.user.email).toBe(email);
+      expect(res.body.data.user.role).toBe("admin");
+      expect(res.body.data.user.publicCode).toMatch(/^AD-\d{5}$/);
+    });
+
+    it("debería impedir que un admin no owner registre administradores", async () => {
+      const manager = await createAuthUser({
+        email: uniqueEmail("register-manager"),
+        firstName: "Admin",
+        lastName: "NoOwner",
+        role: "admin",
+      });
+
+      const res = await request
+        .post("/api/v1/auth/register")
+        .set(authHeader(await loginAs(manager.email)))
+        .send({
+          email: uniqueEmail("forbidden-admin"),
+          password: TEST_PASSWORD,
+          firstName: "Admin",
+          lastName: "Bloqueado",
+          role: "admin",
+        });
+
+      expect(res.status).toBe(403);
+    });
   });
 
   describe("POST /api/v1/auth/change-password", () => {

@@ -1,10 +1,10 @@
 import { queryClient } from "../config/db.js";
 
-export type PublicCodeKind = "loan" | "client" | "investor";
+export type PublicCodeKind = "loan" | "client" | "investor" | "admin";
 export type PublicCodeRole = "client" | "investor" | "admin";
 
 type PublicCodeSpec = {
-  prefix: "PR" | "CL" | "IN";
+  prefix: "PR" | "CL" | "IN" | "AD";
   sequenceName: string;
 };
 
@@ -23,14 +23,18 @@ export const publicCodeSpecs: Record<PublicCodeKind, PublicCodeSpec> = {
     prefix: "IN",
     sequenceName: "investor_public_code_seq",
   },
+  admin: {
+    prefix: "AD",
+    sequenceName: "admin_public_code_seq",
+  },
 };
 
 export function publicCodeKindForRole(
   role: PublicCodeRole,
-): Exclude<PublicCodeKind, "loan"> | null {
+): Exclude<PublicCodeKind, "loan"> {
   if (role === "client") return "client";
   if (role === "investor") return "investor";
-  return null;
+  return "admin";
 }
 
 export function formatPublicCode(
@@ -83,7 +87,7 @@ export async function setPublicCodeSequenceValue(
 
 export async function generatePublicCodeForRole(
   role: PublicCodeRole,
-): Promise<string | null> {
+): Promise<string> {
   const kind = publicCodeKindForRole(role);
-  return kind ? generatePublicCode(kind) : null;
+  return generatePublicCode(kind);
 }

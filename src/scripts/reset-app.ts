@@ -44,6 +44,7 @@ const APP_SEQUENCES = [
   "loan_public_code_seq",
   "client_public_code_seq",
   "investor_public_code_seq",
+  "admin_public_code_seq",
 ] as const;
 
 const isBucketNotFoundError = (message?: string): boolean => {

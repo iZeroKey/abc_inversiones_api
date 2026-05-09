@@ -224,7 +224,7 @@ Sin cuerpo
 
 ## Register
 
-Registrar manualmente un nuevo usuario. Solo accesible por administradores.
+Registrar manualmente un nuevo usuario. El owner puede crear cualquier rol. Un administrador no owner puede crear clientes e inversionistas, pero no administradores ni owners.
 
 ### Endpoint
 
@@ -267,7 +267,7 @@ Privado (Admin, Owner)
 | lastName  | string  | Sí          | Apellidos          | Mínimo 2 caracteres                       |
 | phone     | string  | No          | Teléfono           | -                                         |
 | role      | enum    | No          | Rol del usuario    | client, investor, admin (default: client) |
-| isOwner   | boolean | No          | Es propietario     | (default: false)                          |
+| isOwner   | boolean | No          | Es propietario     | Solo owner (default: false)               |
 
 ### Respuesta Exitosa
 
@@ -278,6 +278,7 @@ Privado (Admin, Owner)
   "data": {
     "id": "uuid",
     "email": "email@example.com",
+    "publicCode": "CL-00001",
     "firstName": "Juan",
     "lastName": "Pérez",
     "role": "client"

@@ -20,7 +20,7 @@ describe("Users Module Integration", () => {
       expect(res.status).toBe(200);
       expect(res.body.data.email).toBe(seededEmails.admin);
       expect(res.body.data.role).toBe("admin");
-      expect(res.body.data.publicCode).toBeNull();
+      expect(res.body.data.publicCode).toBe("AD-00001");
     });
   });
 
@@ -36,6 +36,8 @@ describe("Users Module Integration", () => {
 
       const client = res.body.data.find((user: { email: string }) => user.email === seededEmails.client);
       const investor = res.body.data.find((user: { email: string }) => user.email === seededEmails.investor);
+      const admin = res.body.data.find((user: { email: string }) => user.email === seededEmails.admin);
+      expect(admin.publicCode).toBe("AD-00001");
       expect(client.publicCode).toBe("CL-00001");
       expect(investor.publicCode).toBe("IN-00001");
     });
@@ -118,7 +120,13 @@ describe("Users Module Integration", () => {
       expect(updated?.active).toBe(true);
     });
 
-    it("debería permitir al admin cambiar datos administrativos permitidos", async () => {
+    it("debería permitir al admin cambiar datos administrativos permitidos de un no admin", async () => {
+      const manager = await createAuthUser({
+        email: uniqueEmail("manager-user-update"),
+        firstName: "Admin",
+        lastName: "Operador",
+        role: "admin",
+      });
       const client = await createAuthUser({
         email: uniqueEmail("admin-user-update"),
         firstName: "Admin",
@@ -128,31 +136,75 @@ describe("Users Module Integration", () => {
 
       const res = await request
         .patch(`/api/v1/users/${client.id}`)
-        .set(authHeader(await loginAs(seededEmails.admin)))
-        .send({ role: "investor", active: false });
+        .set(authHeader(await loginAs(manager.email)))
+        .send({ active: false });
 
       expect(res.status).toBe(200);
-      expect(res.body.data.role).toBe("investor");
+      expect(res.body.data.role).toBe("client");
       expect(res.body.data.active).toBe(false);
       expect(res.body.data.publicCode).toBe(client.publicCode);
     });
 
-    it("debería asignar código público si un admin convierte un usuario sin código a cliente", async () => {
-      const adminUser = await createAuthUser({
-        email: uniqueEmail("admin-to-client"),
-        firstName: "Sin",
-        lastName: "Codigo",
+    it("debería impedir que el owner cambie el rol de un usuario", async () => {
+      const client = await createAuthUser({
+        email: uniqueEmail("owner-role-block"),
+        firstName: "Rol",
+        lastName: "Fijo",
+        role: "client",
+      });
+
+      const res = await request
+        .patch(`/api/v1/users/${client.id}`)
+        .set(authHeader(await loginAs(seededEmails.admin)))
+        .send({ role: "investor" });
+
+      expect(res.status).toBe(400);
+      const updated = await getUserByEmail(client.email);
+      expect(updated?.role).toBe("client");
+      expect(updated?.publicCode).toBe(client.publicCode);
+    });
+
+    it("debería impedir que un admin gestione a otro admin", async () => {
+      const manager = await createAuthUser({
+        email: uniqueEmail("manager-block"),
+        firstName: "Admin",
+        lastName: "Uno",
+        role: "admin",
+      });
+      const targetAdmin = await createAuthUser({
+        email: uniqueEmail("manager-target"),
+        firstName: "Admin",
+        lastName: "Dos",
         role: "admin",
       });
 
       const res = await request
-        .patch(`/api/v1/users/${adminUser.id}`)
+        .patch(`/api/v1/users/${targetAdmin.id}`)
+        .set(authHeader(await loginAs(manager.email)))
+        .send({ firstName: "NoPermitido" });
+
+      expect(res.status).toBe(403);
+      const updated = await getUserByEmail(targetAdmin.email);
+      expect(updated?.firstName).toBe("Admin");
+    });
+
+    it("debería permitir al owner gestionar a otro admin", async () => {
+      const targetAdmin = await createAuthUser({
+        email: uniqueEmail("owner-admin-target"),
+        firstName: "Admin",
+        lastName: "Gestionable",
+        role: "admin",
+      });
+
+      const res = await request
+        .patch(`/api/v1/users/${targetAdmin.id}`)
         .set(authHeader(await loginAs(seededEmails.admin)))
-        .send({ role: "client" });
+        .send({ firstName: "Actualizado", active: false });
 
       expect(res.status).toBe(200);
-      expect(res.body.data.role).toBe("client");
-      expect(res.body.data.publicCode).toMatch(/^CL-\d{5}$/);
+      expect(res.body.data.firstName).toBe("Actualizado");
+      expect(res.body.data.active).toBe(false);
+      expect(res.body.data.publicCode).toMatch(/^AD-\d{5}$/);
     });
 
     it("debería denegar a un cliente actualizar a otro usuario", async () => {

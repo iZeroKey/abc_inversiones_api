@@ -17,3 +17,9 @@ export const investorPublicCodeSeq = pgSequence("investor_public_code_seq", {
   increment: 1,
   maxValue: 99999,
 });
+
+export const adminPublicCodeSeq = pgSequence("admin_public_code_seq", {
+  startWith: 1,
+  increment: 1,
+  maxValue: 99999,
+});

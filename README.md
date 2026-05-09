@@ -90,8 +90,8 @@ El backend usa dos estrategias de upload según el endpoint:
 
 | Rol        | Descripción   | Permisos                            |
 | ---------- | ------------- | ----------------------------------- |
-| `admin`    | Administrador | Acceso total a todos los módulos    |
-| `owner`    | Dueño         | Acceso total (similar a admin)      |
+| `owner`    | Dueño         | Crea cualquier rol y gestiona cualquier usuario |
+| `admin`    | Administrador | Gestiona usuarios no administradores y módulos operativos |
 | `client`   | Cliente       | Ver sus préstamos, subir vouchers   |
 | `investor` | Inversionista | Ver sus préstamos, revisar vouchers |
 
@@ -99,7 +99,10 @@ El backend usa dos estrategias de upload según el endpoint:
 
 1. **Cliente**: Solo ve sus propios préstamos y vouchers
 2. **Inversionista**: Ve préstamos asignados, puede aprobar/rechazar vouchers preliminarmente
-3. **Admin/Owner**: Acceso total, validación final de vouchers
+3. **Admin**: Gestión operativa, sin modificar otros administradores
+4. **Owner**: Acceso total, incluyendo creación y gestión de administradores
+
+Los roles de usuarios son inmutables después de la creación. Todos los usuarios tienen `publicCode`: `AD-00000` para administradores, `CL-00000` para clientes e `IN-00000` para inversionistas.
 
 ---
 
@@ -125,6 +128,7 @@ El backend usa dos estrategias de upload según el endpoint:
 | Campo        | Tipo       | Descripción              |
 | ------------ | ---------- | ------------------------ |
 | `id`         | text(UUID) | ID único (Supabase Auth) |
+| `public_code` | text       | Código público operativo |
 | `first_name` | text       | Nombres                  |
 | `last_name`  | text       | Apellidos                |
 | `email`      | text       | Correo electrónico       |
@@ -281,7 +285,7 @@ Todos los endpoints tienen el prefijo `/api/v1`.
 | PATCH  | /users/:id       | Actualizar usuario | Privado |
 | DELETE | /users/:id       | Eliminar usuario   | Admin   |
 
-En `PATCH /users/:id`, un usuario solo puede actualizar sus campos de perfil (`firstName`, `lastName`, `phone`). Admin/owner puede actualizar campos administrativos como `role` y `active`; `isOwner` queda reservado a owners.
+En `PATCH /users/:id`, un usuario solo puede actualizar sus campos de perfil (`firstName`, `lastName`, `phone`). Owner puede gestionar cualquier usuario. Admin no owner puede gestionar usuarios no administradores. El rol no se puede modificar; `isOwner` queda reservado a owners.
 
 ### Solicitudes de Acceso
 
@@ -380,6 +384,7 @@ Los pagos se aplican a cuotas `pending` y `overdue` por fecha de vencimiento. El
 | `pnpm test`          | Ejecutar pruebas      |
 | `pnpm db:push`       | Aplicar esquema       |
 | `pnpm db:seed`       | Sembrar datos         |
+| `pnpm db:seed:api`   | Sembrar mediante API  |
 | `pnpm setup:storage` | Configurar storage    |
 
 ---

@@ -20,7 +20,7 @@ async function getMaxLoanCodeNumber(): Promise<number> {
 }
 
 async function getMaxUserCodeNumber(kind: Exclude<PublicCodeKind, "loan">): Promise<number> {
-  const role = kind === "client" ? "client" : "investor";
+  const role = kind;
   const userRows = await db
     .select({ publicCode: users.publicCode })
     .from(users)
@@ -33,6 +33,7 @@ async function syncSequencesWithExistingCodes() {
   await setPublicCodeSequenceValue("loan", await getMaxLoanCodeNumber());
   await setPublicCodeSequenceValue("client", await getMaxUserCodeNumber("client"));
   await setPublicCodeSequenceValue("investor", await getMaxUserCodeNumber("investor"));
+  await setPublicCodeSequenceValue("admin", await getMaxUserCodeNumber("admin"));
 }
 
 async function backfillLoans(): Promise<number> {
@@ -53,7 +54,7 @@ async function backfillLoans(): Promise<number> {
 }
 
 async function backfillUsers(kind: Exclude<PublicCodeKind, "loan">): Promise<number> {
-  const role = kind === "client" ? "client" : "investor";
+  const role = kind;
   const rows = await db
     .select({ id: users.id })
     .from(users)
@@ -78,10 +79,12 @@ async function main() {
   const loansCount = await backfillLoans();
   const clientsCount = await backfillUsers("client");
   const investorsCount = await backfillUsers("investor");
+  const adminsCount = await backfillUsers("admin");
 
   console.log(`Préstamos actualizados: ${loansCount}`);
   console.log(`Clientes actualizados: ${clientsCount}`);
   console.log(`Inversionistas actualizados: ${investorsCount}`);
+  console.log(`Administradores actualizados: ${adminsCount}`);
   console.log("Backfill de códigos públicos completado.");
 }
 
