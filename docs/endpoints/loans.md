@@ -61,26 +61,46 @@ Privado (Admin, Owner)
 
 ### Diccionario de Datos
 
-| Campo             | Tipo   | Obligatorio | Descripción          | Restricciones                                       |
-| ----------------- | ------ | ----------- | -------------------- | --------------------------------------------------- |
-| clientId          | uuid   | Sí          | ID del cliente       | UUID válido                                         |
-| investorId        | uuid   | No          | ID del inversionista | UUID válido o null                                  |
-| principal         | string | Sí          | Monto principal      | Número positivo                                     |
-| interestRate      | string | Sí          | Tasa de interés      | Número >= 0                                         |
-| installmentsCount | number | Sí          | Número de cuotas     | Entero positivo                                     |
-| frequency         | enum   | No          | Frecuencia de pago   | daily, weekly, biweekly, monthly (default: monthly) |
-| startDate         | string | Sí          | Fecha de inicio      | ISO8601                                             |
-| observation       | string | No          | Observación          | -                                                   |
+| Campo             | Tipo   | Obligatorio | Descripción                   | Restricciones                                       |
+| ----------------- | ------ | ----------- | ----------------------------- | --------------------------------------------------- |
+| clientId          | uuid   | Sí          | ID del cliente                | UUID válido                                         |
+| investorId        | uuid   | No          | ID del inversionista          | UUID válido o null                                  |
+| principal         | string | Sí          | Monto principal               | Número positivo                                     |
+| interestRate      | string | Sí          | Tasa de interés por periodo   | Número > 0; no se soportan préstamos sin interés    |
+| installmentsCount | number | Sí          | Número de cuotas              | Entero positivo                                     |
+| frequency         | enum   | No          | Frecuencia de pago            | daily, weekly, biweekly, monthly (default: monthly) |
+| startDate         | string | Sí          | Fecha de inicio               | ISO8601                                             |
+| observation       | string | No          | Observación                   | -                                                   |
 
 ### Regla Financiera y Cronograma
 
-- `totalDebt` se calcula con cuota fija: `cuota = (principal * rate) / (1 - (1 + rate) ** -installmentsCount)`.
+- `interestRate` se interpreta como porcentaje por periodo. Por ejemplo, `5` significa `5%`.
+- El sistema solo maneja préstamos con interés; `interestRate` debe ser mayor a `0`.
+- La cuota exacta se calcula con fórmula financiera: `cuota = (principal * rate) / (1 - (1 + rate) ** -installmentsCount)`.
+- La cuota exacta se redondea a 2 decimales y esa cuota redondeada es la cuota oficial.
+- `totalDebt` se calcula desde la cuota oficial redondeada: `cuotaOficial * installmentsCount`.
+- `totalInterest` se calcula como `totalDebt - principal`.
+- Todas las cuotas generadas tienen el mismo monto.
+- La última cuota no se ajusta para cuadrar decimales ocultos de la fórmula financiera.
 - `frequency` no cambia el importe de la cuota; solo cambia las fechas de vencimiento.
 - Mensual: `startDate + i meses`, ajustando al último día válido si el mes no tiene el día original.
 - Quincenal: `startDate + 15 * i días`.
 - Semanal: `startDate + 7 * i días`.
 - Diario: `startDate + (i + 1) días`.
-- Para cuadrar centavos, la última cuota puede ajustarse frente a la cuota mostrada redondeada.
+
+Ejemplo financiero:
+
+```txt
+principal: 10000
+interestRate: 5
+installmentsCount: 12
+
+Cuotas 1 a 12: 1128.25
+totalDebt: 13539.00
+totalInterest: 3539.00
+```
+
+No se soportan préstamos con `interestRate === 0`. Si en el futuro se agregan préstamos sin interés, se deberá definir una política específica para distribuir capital y diferencias de centavos.
 
 ### Respuesta Exitosa
 
@@ -99,7 +119,7 @@ Privado (Admin, Owner)
     "investorName": "Maria Gomez",
     "principal": "10000.00",
     "interestRate": "5.00",
-    "totalDebt": "13539.05",
+    "totalDebt": "13539.00",
     "status": "pending_investor_review"
   },
   "meta": {
@@ -169,7 +189,7 @@ Privado
       "investorCode": "IN-00001",
       "investorName": "Maria Gomez",
       "principal": "10000.00",
-      "totalDebt": "13539.05",
+      "totalDebt": "13539.00",
       "status": "active",
       "installmentsCount": 3,
       "createdAt": "2026-01-01T00:00:00.000Z"
@@ -288,7 +308,7 @@ Privado
     "investorName": "Maria Gomez",
     "principal": "10000.00",
     "interestRate": "5.00",
-    "totalDebt": "13539.05",
+    "totalDebt": "13539.00",
     "status": "active",
     "installmentsCount": 3,
     "frequency": "monthly",
@@ -421,10 +441,10 @@ Privado (Admin, Owner)
       "frequency": "monthly",
       "interestRate": "5.00",
       "paidAmount": "3000.00",
-      "totalInterest": "3539.05",
-      "remainingDebt": "10539.05",
+      "totalInterest": "3539.00",
+      "remainingDebt": "10539.00",
       "remainingInstallments": 7,
-      "totalDebt": "13539.05",
+      "totalDebt": "13539.00",
       "status": "active",
       "createdAt": "2026-05-08T00:00:00.000-05:00"
     }
@@ -499,7 +519,7 @@ Sin cuerpo
       "investorCode": "IN-00001",
       "investorName": "Maria Gomez",
       "status": "active",
-      "totalDebt": "13539.05"
+      "totalDebt": "13539.00"
     },
     "installments": [
       {

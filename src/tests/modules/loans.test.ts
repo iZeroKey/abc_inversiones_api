@@ -30,7 +30,7 @@ describe("Loans Module", () => {
     expect(res.body.data.clientCode).toBe("CL-00001");
     expect(res.body.data.clientName).toBe(`${client!.firstName} ${client!.lastName}`);
     expect(res.body.data.status).toBe("pending_admin_review");
-    expect(res.body.data.totalDebt).toBe("1353.90");
+    expect(res.body.data.totalDebt).toBe("1353.96");
   });
 
   it("debería generar cronograma mensual desde startDate al aprobar finalmente", async () => {
@@ -96,7 +96,7 @@ describe("Loans Module", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data.loan.status).toBe("active");
-    expect(res.body.data.loan.totalDebt).toBe("13539.05");
+    expect(res.body.data.loan.totalDebt).toBe("13539.00");
     expect(res.body.data.loan.publicCode).toMatch(/^PR-\d{5}$/);
     expect(res.body.data.loan.clientCode).toBe("CL-00001");
     expect(res.body.data.loan.investorCode).toBe("IN-00001");
@@ -112,10 +112,10 @@ describe("Loans Module", () => {
       .where(eq(installments.loanId, loan.id))
       .orderBy(installments.installmentNumber);
 
-    expect(updatedLoan.totalDebt).toBe("13539.05");
+    expect(updatedLoan.totalDebt).toBe("13539.00");
     expect(generatedInstallments).toHaveLength(12);
-    expect(generatedInstallments.at(0)?.amount).toBe("1128.25");
-    expect(generatedInstallments.at(-1)?.amount).toBe("1128.30");
+    expect(generatedInstallments.every((installment) => installment.amount === "1128.25"))
+      .toBe(true);
     expect(
       generatedInstallments.map((installment) =>
         DateTime.fromJSDate(installment.dueDate, {

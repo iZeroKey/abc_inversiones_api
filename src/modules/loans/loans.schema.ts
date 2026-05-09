@@ -6,13 +6,13 @@ export const createLoanSchema = z.object({
   principal: z
     .string()
     .refine(
-      (val) => !isNaN(Number(val)) && Number(val) > 0,
+      (val) => Number.isFinite(Number(val)) && Number(val) > 0,
       "El monto debe ser positivo",
     ),
   interestRate: z
     .string()
     .refine(
-      (val) => !isNaN(Number(val)) && Number(val) >= 0,
+      (val) => Number.isFinite(Number(val)) && Number(val) > 0,
       "La tasa de interés debe ser válida",
     ),
   interestType: z.literal("simple").default("simple"),
