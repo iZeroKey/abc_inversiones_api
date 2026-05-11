@@ -4,7 +4,7 @@ import { users } from "./users.js";
 
 export const notifications = pgTable("notifications", {
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id").references(() => users.id).notNull(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
   title: text("title").notNull(),
   body: text("body").notNull(),
   type: text("type").notNull(), // ej: 'LOAN_APPROVED', 'VOUCHER_REJECTED', 'SYSTEM'
@@ -15,16 +15,16 @@ export const notifications = pgTable("notifications", {
   pgPolicy("admin_notifications_all", {
     for: "all",
     to: "authenticated",
-    using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND (users.role = 'admin' OR users.is_owner = true))`,
+    using: sql`EXISTS (SELECT 1 FROM users WHERE users.auth_user_id = auth.uid()::text AND (users.role = 'admin' OR users.is_owner = true))`,
   }),
   pgPolicy("user_notifications_self_select", {
     for: "select",
     to: "authenticated",
-    using: sql`user_id = auth.uid()`,
+    using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = notifications.user_id AND users.auth_user_id = auth.uid()::text)`,
   }),
   pgPolicy("user_notifications_self_update", {
     for: "update",
     to: "authenticated",
-    using: sql`user_id = auth.uid()`,
+    using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = notifications.user_id AND users.auth_user_id = auth.uid()::text)`,
   }),
 ]);

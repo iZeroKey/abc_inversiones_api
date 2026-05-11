@@ -38,7 +38,7 @@ export const accessRequests = pgTable(
     pgPolicy("admin_access_requests_all", {
       for: "all",
       to: "authenticated",
-      using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND (users.role = 'admin' OR users.is_owner = true))`,
+      using: sql`EXISTS (SELECT 1 FROM users WHERE users.auth_user_id = auth.uid()::text AND (users.role = 'admin' OR users.is_owner = true))`,
     }),
     pgPolicy("public_insert_access_requests", {
       for: "insert",

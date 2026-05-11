@@ -95,13 +95,13 @@ async function seed() {
         .insert(users)
         .values({
           ...localData,
-          id: supabaseId,
+          authUserId: supabaseId,
           publicCode,
         })
         .onConflictDoUpdate({
           target: users.email,
           set: {
-            id: supabaseId,
+            authUserId: supabaseId,
             firstName: localData.firstName,
             lastName: localData.lastName,
             phone: localData.phone,

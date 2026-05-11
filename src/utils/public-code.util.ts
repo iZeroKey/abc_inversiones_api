@@ -5,6 +5,8 @@ export type PublicCodeRole = "client" | "investor" | "admin";
 
 type PublicCodeSpec = {
   prefix: "PR" | "CL" | "IN" | "AD";
+  separator: "-";
+  width: number;
   sequenceName: string;
 };
 
@@ -13,18 +15,26 @@ const PUBLIC_CODE_MAX = 99999;
 export const publicCodeSpecs: Record<PublicCodeKind, PublicCodeSpec> = {
   loan: {
     prefix: "PR",
+    separator: "-",
+    width: 5,
     sequenceName: "loan_public_code_seq",
   },
   client: {
     prefix: "CL",
+    separator: "-",
+    width: 5,
     sequenceName: "client_public_code_seq",
   },
   investor: {
     prefix: "IN",
+    separator: "-",
+    width: 5,
     sequenceName: "investor_public_code_seq",
   },
   admin: {
     prefix: "AD",
+    separator: "-",
+    width: 5,
     sequenceName: "admin_public_code_seq",
   },
 };
@@ -45,7 +55,8 @@ export function formatPublicCode(
     throw new Error(`Public code sequence exhausted for ${kind}`);
   }
 
-  return `${publicCodeSpecs[kind].prefix}-${value.toString().padStart(5, "0")}`;
+  const spec = publicCodeSpecs[kind];
+  return `${spec.prefix}${spec.separator}${value.toString().padStart(spec.width, "0")}`;
 }
 
 export function parsePublicCodeNumber(
@@ -54,12 +65,19 @@ export function parsePublicCodeNumber(
 ): number {
   if (!code) return 0;
 
-  if (kind && !code.startsWith(`${publicCodeSpecs[kind].prefix}-`)) {
-    return 0;
+  if (kind) {
+    const spec = publicCodeSpecs[kind];
+    if (!code.startsWith(`${spec.prefix}${spec.separator}`)) {
+      return 0;
+    }
   }
 
   const match = /^[A-Z]{2}-(\d{5})$/.exec(code);
-  return match ? Number(match[1]) : 0;
+  if (!match) {
+    return 0;
+  }
+
+  return Number(match[1]);
 }
 
 export async function generatePublicCode(kind: PublicCodeKind): Promise<string> {

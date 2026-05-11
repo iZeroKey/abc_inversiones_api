@@ -62,6 +62,34 @@ describe("Users Module Integration", () => {
     });
   });
 
+  describe("POST /api/v1/users", () => {
+    it("debería permitir al admin crear un cliente operativo sin cuenta Auth", async () => {
+      const res = await request
+        .post("/api/v1/users")
+        .set(authHeader(await loginAs(seededEmails.admin)))
+        .send({
+          firstName: "Cliente",
+          lastName: "SinCuenta",
+          role: "client",
+          dni: "12345678",
+          address: "Av. Prueba 123",
+          bank: "BCP",
+          bankAccounts: ["191-00000000-0-00", "00219100000000000000"],
+          maritalStatus: "single",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.authUserId).toBeNull();
+      expect(res.body.data.email).toBeNull();
+      expect(res.body.data.publicCode).toMatch(/^CL-\d{5}$/);
+      expect(res.body.data.bankAccounts).toEqual([
+        "191-00000000-0-00",
+        "00219100000000000000",
+      ]);
+      expect(res.body.data.maritalStatus).toBe("single");
+    });
+  });
+
   describe("PATCH /api/v1/users/:id", () => {
     it("debería permitir a un usuario actualizar sus datos de perfil seguros", async () => {
       const client = await createAuthUser({
@@ -162,6 +190,24 @@ describe("Users Module Integration", () => {
       const updated = await getUserByEmail(client.email);
       expect(updated?.role).toBe("client");
       expect(updated?.publicCode).toBe(client.publicCode);
+    });
+
+    it("debería impedir que el owner cambie isOwner por API", async () => {
+      const targetAdmin = await createAuthUser({
+        email: uniqueEmail("owner-flag-block"),
+        firstName: "Owner",
+        lastName: "Flag",
+        role: "admin",
+      });
+
+      const res = await request
+        .patch(`/api/v1/users/${targetAdmin.id}`)
+        .set(authHeader(await loginAs(seededEmails.admin)))
+        .send({ isOwner: true });
+
+      expect(res.status).toBe(400);
+      const updated = await getUserByEmail(targetAdmin.email);
+      expect(updated?.isOwner).toBe(false);
     });
 
     it("debería impedir que un admin gestione a otro admin", async () => {

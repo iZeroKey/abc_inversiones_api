@@ -37,6 +37,13 @@ router.delete("/me/avatar", authenticate, controller.deleteAvatar);
 router.get("/", authenticate, authorize(["admin"]), controller.getAllUsers);
 
 /**
+ * @route   POST /api/v1/users
+ * @desc    Crear un usuario operativo. Puede crear cuenta Auth si se envía createAuthAccount=true.
+ * @access  Private (Admin, Owner)
+ */
+router.post("/", authenticate, authorize(["admin"]), controller.createUser);
+
+/**
  * @route   GET /api/v1/users/:id
  * @desc    Obtener información detallada de un usuario por ID (Solo Admin)
  * @access  Private (Admin, Owner)
@@ -44,10 +51,18 @@ router.get("/", authenticate, authorize(["admin"]), controller.getAllUsers);
 router.get("/:id", authenticate, authorize(["admin"]), controller.getUserById);
 
 /**
+ * @route   POST /api/v1/users/:id/auth-account
+ * @desc    Vincular una cuenta Auth a un cliente/inversionista operativo existente.
+ * @access  Private (Admin, Owner)
+ */
+router.post("/:id/auth-account", authenticate, authorize(["admin"]), controller.linkAuthAccount);
+
+/**
  * @route   PATCH /api/v1/users/:id
  * @desc    Actualizar datos de un usuario. El rol es inmutable.
  * @access  Private
- * @body    Self: { firstName, lastName, phone } | Admin/Owner: { firstName, lastName, phone, active, isOwner }
+ * @body    Self: { firstName, lastName, phone, dni, address, bank, bankAccounts, maritalStatus }
+ *          Admin/Owner: campos de perfil, email y active
  */
 router.patch("/:id", authenticate, controller.updateUser);
 

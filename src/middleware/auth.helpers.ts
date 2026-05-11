@@ -36,7 +36,7 @@ export const resolveAuthenticatedUser = async (
   const [localUser] = await db
     .select()
     .from(users)
-    .where(eq(users.id, authUser.id))
+    .where(eq(users.authUserId, authUser.id))
     .limit(1);
 
   if (!localUser || !localUser.active) {

@@ -124,7 +124,30 @@ describe("Auth Endpoints", () => {
       expect(res.status).toBe(201);
       expect(res.body.data.user.email).toBe(email);
       expect(res.body.data.user.role).toBe("admin");
+      expect(res.body.data.user.isOwner).toBe(false);
       expect(res.body.data.user.publicCode).toMatch(/^AD-\d{5}$/);
+    });
+
+    it("debería impedir asignar isOwner al registrar por API", async () => {
+      const ownerToken = await loginAs(seededEmails.admin);
+      const email = uniqueEmail("register-owner-block");
+
+      const res = await request
+        .post("/api/v1/auth/register")
+        .set(authHeader(ownerToken))
+        .send({
+          email,
+          password: TEST_PASSWORD,
+          firstName: "Owner",
+          lastName: "Bloqueado",
+          role: "admin",
+          isOwner: true,
+        });
+
+      expect(res.status).toBe(400);
+
+      const created = await getUserByEmail(email);
+      expect(created).toBeUndefined();
     });
 
     it("debería impedir que un admin no owner registre administradores", async () => {

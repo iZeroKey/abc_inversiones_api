@@ -120,7 +120,6 @@ async function createUser(token: string, user: SeedUser): Promise<SeededUser> {
       lastName: user.lastName,
       phone: user.phone,
       role: user.role,
-      isOwner: false,
     }),
   });
 

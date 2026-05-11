@@ -40,7 +40,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const [user] = await db
       .select()
       .from(users)
-      .where(eq(users.id, data.user.id))
+      .where(eq(users.authUserId, data.user.id))
       .limit(1);
 
     const session = data.session
@@ -52,7 +52,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       : null;
 
     await logAudit({
-      userId: data.user.id,
+      userId: user?.id,
       action: "LOGIN",
       module: "AUTH",
       req,
@@ -130,17 +130,24 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
       return;
     }
 
-    const { email, password, firstName, lastName, phone, role, isOwner } =
+    const {
+      email,
+      password,
+      firstName,
+      lastName,
+      phone,
+      role,
+      dni,
+      address,
+      bank,
+      bankAccounts,
+      maritalStatus,
+    } =
       validation.data;
     const currentUser = req.user!;
 
     if (!currentUser.isOwner && role === "admin") {
       sendError(res, 403, "Solo un owner puede crear administradores");
-      return;
-    }
-
-    if (!currentUser.isOwner && isOwner) {
-      sendError(res, 403, "Solo un owner puede crear owners");
       return;
     }
 
@@ -161,19 +168,24 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
     const [user] = await db
       .insert(users)
       .values({
-        id: authData.user!.id,
+        authUserId: authData.user!.id,
         email,
         phone,
         firstName,
         lastName,
+        dni,
+        address,
+        bank,
+        bankAccounts,
+        maritalStatus,
         role,
-        isOwner: currentUser.isOwner ? isOwner : false,
+        isOwner: false,
         publicCode: await generatePublicCodeForRole(role),
       })
       .returning();
 
     await logAudit({
-      userId: authData.user!.id,
+      userId: req.user!.id,
       action: "REGISTER_USER",
       module: "AUTH",
       entityId: user.id,
@@ -215,7 +227,12 @@ export const changePassword = async (
       return;
     }
 
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(req.user!.id, {
+    if (!req.user!.authUserId) {
+      sendError(res, 400, "El usuario no tiene cuenta de autenticación vinculada");
+      return;
+    }
+
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(req.user!.authUserId, {
       password: newPassword,
     });
 

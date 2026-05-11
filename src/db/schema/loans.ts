@@ -17,10 +17,10 @@ export const loans = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     publicCode: text("public_code"),
-    clientId: text("client_id")
+    clientId: uuid("client_id")
       .notNull()
       .references(() => users.id),
-    investorId: text("investor_id").references(() => users.id),
+    investorId: uuid("investor_id").references(() => users.id),
     principal: numeric("principal", { precision: 12, scale: 2 }).notNull(),
     interestRate: numeric("interest_rate", {
       precision: 5,
@@ -40,6 +40,9 @@ export const loans = pgTable(
       .default("monthly"),
     paymentDay: integer("payment_day"),
     totalDebt: numeric("total_debt", { precision: 12, scale: 2 }).notNull(),
+    overpaidAmount: numeric("overpaid_amount", { precision: 12, scale: 2 })
+      .notNull()
+      .default("0"),
     status: text("status", {
       enum: [
         "draft",
@@ -49,6 +52,7 @@ export const loans = pgTable(
         "rejected",
         "paid",
         "defaulted",
+        "deleted",
       ],
     })
       .notNull()
@@ -62,6 +66,7 @@ export const loans = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("loans_public_code_unique").on(table.publicCode),
@@ -69,17 +74,17 @@ export const loans = pgTable(
     pgPolicy("admin_loans_all", {
       for: "all",
       to: "authenticated",
-      using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND (users.role = 'admin' OR users.is_owner = true))`,
+      using: sql`EXISTS (SELECT 1 FROM users WHERE users.auth_user_id = auth.uid()::text AND (users.role = 'admin' OR users.is_owner = true))`,
     }),
     pgPolicy("client_loans_select", {
       for: "select",
       to: "authenticated",
-      using: sql`client_id = auth.uid()`,
+      using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = loans.client_id AND users.auth_user_id = auth.uid()::text)`,
     }),
     pgPolicy("investor_loans_select", {
       for: "select",
       to: "authenticated",
-      using: sql`investor_id = auth.uid()`,
+      using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = loans.investor_id AND users.auth_user_id = auth.uid()::text)`,
     }),
   ],
 );

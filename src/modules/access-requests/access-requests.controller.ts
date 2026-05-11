@@ -140,27 +140,27 @@ export const updateStatus = async (
         return;
       }
 
-      await db.insert(users).values({
-        id: authData.user!.id,
+      const [createdUser] = await db.insert(users).values({
+        authUserId: authData.user!.id,
         email: accessRequest.email,
         firstName: accessRequest.firstName,
         lastName: accessRequest.lastName,
         phone: accessRequest.phone,
         role: accessRequest.roleRequested,
         publicCode: await generatePublicCodeForRole(accessRequest.roleRequested),
-      });
+      }).returning();
 
       await logAudit({
         userId: req.user!.id,
         action: "APPROVE_ACCESS_REQUEST_USER_CREATED",
         module: "ACCESS_REQUESTS",
-        entityId: authData.user!.id,
+        entityId: createdUser.id,
         req,
       });
 
       // NOTIFICACIÓN: Bienvenida al usuario
       await sendNotification({
-        userId: authData.user!.id,
+        userId: createdUser.id,
         title: "¡Bienvenido a ABC Inversiones!",
         body: `Tu solicitud de acceso ha sido aprobada. Ya puedes ingresar con tu correo: ${accessRequest.email}`,
         type: "ACCESS_APPROVED",

@@ -1,20 +1,31 @@
 import { Response } from "express";
 import { db } from "../../config/db.js";
+import { supabaseAdmin } from "../../config/supabase.js";
 import { users } from "../../db/schema/users.js";
-import { eq, desc } from "drizzle-orm";
+import { desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import {
   sendSuccess,
   sendError,
   formatZodError,
 } from "../../utils/response.util.js";
-import { adminUpdateUserSchema, selfUpdateUserSchema } from "./users.schema.js";
+import {
+  adminCreateUserSchema,
+  adminUpdateUserSchema,
+  linkAuthAccountSchema,
+  selfUpdateUserSchema,
+} from "./users.schema.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { deleteStorageReference, resolveFileUrl, uploadAvatar } from "../../utils/storage.util.js";
-import { generatePublicCodeForRole } from "../../utils/public-code.util.js";
+import {
+  generatePublicCodeForRole,
+  parsePublicCodeNumber,
+  publicCodeKindForRole,
+} from "../../utils/public-code.util.js";
 
 const selfForbiddenFields = new Set([
   "id",
+  "authUserId",
   "publicCode",
   "email",
   "avatarUrl",
@@ -25,6 +36,25 @@ const selfForbiddenFields = new Set([
   "updatedAt",
   "deletedAt",
 ]);
+
+const normalizeNullableText = (value: string | null | undefined): string | null | undefined => {
+  if (value === undefined || value === null) return value;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const normalizeUserPayload = <T extends Record<string, unknown>>(data: T): T => {
+  const normalized = { ...data };
+  for (const field of ["email", "phone", "dni", "address", "bank"] as const) {
+    if (field in normalized) {
+      (normalized as Record<string, unknown>)[field] = normalizeNullableText(
+        normalized[field] as string | null | undefined,
+      );
+    }
+  }
+
+  return normalized;
+};
 
 const attachSignedAvatarUrl = async <T extends { avatarUrl?: string | null }>(user: T): Promise<T> => {
   if (!user.avatarUrl) {
@@ -77,11 +107,114 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
 
 export const getAllUsers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const results = await db.select().from(users).orderBy(desc(users.createdAt));
+    const searchTerm = typeof req.query.search === "string"
+      ? req.query.search.trim()
+      : typeof req.query.q === "string"
+        ? req.query.q.trim()
+        : "";
+
+    const conditions: SQL[] = [];
+    if (searchTerm) {
+      const pattern = `%${searchTerm}%`;
+      conditions.push(
+        or(
+          ilike(users.publicCode, pattern),
+          ilike(users.firstName, pattern),
+          ilike(users.lastName, pattern),
+          ilike(users.email, pattern),
+          ilike(users.phone, pattern),
+          ilike(users.dni, pattern),
+          ilike(users.bank, pattern),
+        )!,
+      );
+    }
+
+    const results = await db
+      .select()
+      .from(users)
+      .where(conditions.length > 0 ? conditions[0] : undefined)
+      .orderBy(desc(users.createdAt));
     const signedResults = await Promise.all(results.map((user) => attachSignedAvatarUrl(user)));
     sendSuccess(res, 200, "Usuarios obtenidos", signedResults);
   } catch (error) {
     sendError(res, 500, "Error al obtener usuarios", error);
+  }
+};
+
+export const createUser = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const validation = adminCreateUserSchema.safeParse(req.body);
+    if (!validation.success) {
+      sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
+      return;
+    }
+
+    const currentUser = req.user!;
+    const data = normalizeUserPayload(validation.data);
+
+    if (!currentUser.isOwner && data.role === "admin") {
+      sendError(res, 403, "Solo un owner puede crear administradores");
+      return;
+    }
+
+    if (
+      data.publicCode
+      && parsePublicCodeNumber(data.publicCode, publicCodeKindForRole(data.role)) < 1
+    ) {
+      sendError(res, 400, "Código público inválido para el rol indicado");
+      return;
+    }
+
+    let authUserId: string | null = null;
+    if (data.createAuthAccount) {
+      const { data: authData, error: authError } =
+        await supabaseAdmin.auth.admin.createUser({
+          email: data.email!,
+          password: data.password!,
+          email_confirm: true,
+          phone: data.phone || undefined,
+          phone_confirm: !!data.phone,
+        });
+
+      if (authError || !authData.user) {
+        sendError(res, 400, "Error en Supabase Auth", authError?.message);
+        return;
+      }
+
+      authUserId = authData.user.id;
+    }
+
+    const [createdUser] = await db
+      .insert(users)
+      .values({
+        authUserId,
+        publicCode: data.publicCode || await generatePublicCodeForRole(data.role),
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        role: data.role,
+        active: data.active,
+        dni: data.dni,
+        address: data.address,
+        bank: data.bank,
+        bankAccounts: data.bankAccounts,
+        maritalStatus: data.maritalStatus,
+      })
+      .returning();
+
+    await logAudit({
+      userId: currentUser.id,
+      action: "CREATE_USER",
+      module: "USERS",
+      entityId: createdUser.id,
+      newData: createdUser,
+      req,
+    });
+
+    sendSuccess(res, 201, "Usuario creado correctamente", createdUser);
+  } catch (error) {
+    sendError(res, 500, "Error al crear usuario", error);
   }
 };
 
@@ -149,18 +282,14 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    if ("isOwner" in validation.data && !currentUser.isOwner) {
-      sendError(res, 403, "Solo un owner puede modificar isOwner");
-      return;
-    }
-
+    const updateData = normalizeUserPayload(validation.data);
     const publicCode = oldUser.publicCode
       || await generatePublicCodeForRole(oldUser.role);
 
     const [updatedUser] = await db
       .update(users)
       .set({
-        ...validation.data,
+        ...updateData,
         publicCode,
         updatedAt: new Date(),
       })
@@ -181,6 +310,74 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
     sendSuccess(res, 200, "Usuario actualizado correctamente", responseUser);
   } catch (error) {
     sendError(res, 500, "Error al actualizar usuario", error);
+  }
+};
+
+export const linkAuthAccount = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    const currentUser = req.user!;
+    const validation = linkAuthAccountSchema.safeParse(req.body);
+
+    if (!validation.success) {
+      sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
+      return;
+    }
+
+    const [targetUser] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (!targetUser) {
+      sendError(res, 404, "Usuario no encontrado");
+      return;
+    }
+
+    if (!canUseAdministrativeUpdate(currentUser, targetUser)) {
+      sendError(res, 403, "No tienes permiso para vincular cuenta de acceso");
+      return;
+    }
+
+    if (targetUser.authUserId) {
+      sendError(res, 400, "El usuario ya tiene cuenta de acceso vinculada");
+      return;
+    }
+
+    const { email, password } = validation.data;
+    const { data: authData, error: authError } =
+      await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        phone: targetUser.phone || undefined,
+        phone_confirm: !!targetUser.phone,
+      });
+
+    if (authError || !authData.user) {
+      sendError(res, 400, "Error en Supabase Auth", authError?.message);
+      return;
+    }
+
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        authUserId: authData.user.id,
+        email,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, id))
+      .returning();
+
+    await logAudit({
+      userId: currentUser.id,
+      action: "LINK_AUTH_ACCOUNT",
+      module: "USERS",
+      entityId: id,
+      oldData: targetUser,
+      newData: updatedUser,
+      req,
+    });
+
+    sendSuccess(res, 200, "Cuenta de acceso vinculada correctamente", updatedUser);
+  } catch (error) {
+    sendError(res, 500, "Error al vincular cuenta de acceso", error);
   }
 };
 

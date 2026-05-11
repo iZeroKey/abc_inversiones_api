@@ -46,7 +46,7 @@ const STORAGE_POLICY_SQL = [
       AND EXISTS (
         SELECT 1
         FROM users
-        WHERE users.id = auth.uid()::text
+        WHERE users.auth_user_id = auth.uid()::text
           AND (users.role = 'admin' OR users.is_owner = true)
       )
     )
@@ -55,7 +55,7 @@ const STORAGE_POLICY_SQL = [
       AND EXISTS (
         SELECT 1
         FROM users
-        WHERE users.id = auth.uid()::text
+        WHERE users.auth_user_id = auth.uid()::text
           AND (users.role = 'admin' OR users.is_owner = true)
       )
     );
@@ -67,11 +67,21 @@ const STORAGE_POLICY_SQL = [
     TO authenticated
     USING (
       bucket_id = 'avatars'
-      AND split_part(name, '/', 1) = auth.uid()::text
+      AND EXISTS (
+        SELECT 1
+        FROM users
+        WHERE users.id::text = split_part(name, '/', 1)
+          AND users.auth_user_id = auth.uid()::text
+      )
     )
     WITH CHECK (
       bucket_id = 'avatars'
-      AND split_part(name, '/', 1) = auth.uid()::text
+      AND EXISTS (
+        SELECT 1
+        FROM users
+        WHERE users.id::text = split_part(name, '/', 1)
+          AND users.auth_user_id = auth.uid()::text
+      )
     );
   `,
   `
@@ -84,7 +94,7 @@ const STORAGE_POLICY_SQL = [
       AND EXISTS (
         SELECT 1
         FROM users
-        WHERE users.id = auth.uid()::text
+        WHERE users.auth_user_id = auth.uid()::text
           AND (users.role = 'admin' OR users.is_owner = true)
       )
     )
@@ -93,7 +103,7 @@ const STORAGE_POLICY_SQL = [
       AND EXISTS (
         SELECT 1
         FROM users
-        WHERE users.id = auth.uid()::text
+        WHERE users.auth_user_id = auth.uid()::text
           AND (users.role = 'admin' OR users.is_owner = true)
       )
     );
@@ -109,8 +119,9 @@ const STORAGE_POLICY_SQL = [
         SELECT 1
         FROM payment_vouchers pv
         INNER JOIN loans l ON l.id = pv.loan_id
+        INNER JOIN users u ON u.id = l.client_id
         WHERE pv.evidence_url = ('storage://vouchers/' || name)
-          AND l.client_id = auth.uid()::text
+          AND u.auth_user_id = auth.uid()::text
       )
     );
   `,
@@ -125,8 +136,9 @@ const STORAGE_POLICY_SQL = [
         SELECT 1
         FROM payment_vouchers pv
         INNER JOIN loans l ON l.id = pv.loan_id
+        INNER JOIN users u ON u.id = l.investor_id
         WHERE pv.evidence_url = ('storage://vouchers/' || name)
-          AND l.investor_id = auth.uid()::text
+          AND u.auth_user_id = auth.uid()::text
       )
     );
   `,
@@ -141,8 +153,9 @@ const STORAGE_POLICY_SQL = [
         SELECT 1
         FROM payment_vouchers pv
         INNER JOIN loans l ON l.id = pv.loan_id
+        INNER JOIN users u ON u.id = l.client_id
         WHERE pv.evidence_url = ('storage://vouchers/' || name)
-          AND l.client_id = auth.uid()::text
+          AND u.auth_user_id = auth.uid()::text
       )
     )
     WITH CHECK (
@@ -151,8 +164,9 @@ const STORAGE_POLICY_SQL = [
         SELECT 1
         FROM payment_vouchers pv
         INNER JOIN loans l ON l.id = pv.loan_id
+        INNER JOIN users u ON u.id = l.client_id
         WHERE pv.evidence_url = ('storage://vouchers/' || name)
-          AND l.client_id = auth.uid()::text
+          AND u.auth_user_id = auth.uid()::text
       )
     );
   `,

@@ -73,7 +73,7 @@ export const createAuthUser = async (params: {
   }
 
   const [created] = await db.insert(users).values({
-    id: data.user.id,
+    authUserId: data.user.id,
     email: params.email,
     firstName: params.firstName,
     lastName: params.lastName,
@@ -84,7 +84,7 @@ export const createAuthUser = async (params: {
     active: true,
   }).returning();
 
-  return { ...created, password };
+  return { ...created, email: params.email, password };
 };
 
 export const createLoanFixture = async (params: {

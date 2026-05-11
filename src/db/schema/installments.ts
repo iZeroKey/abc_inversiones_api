@@ -38,17 +38,17 @@ export const installments = pgTable(
     pgPolicy("admin_installments_all", {
       for: "all",
       to: "authenticated",
-      using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND (users.role = 'admin' OR users.is_owner = true))`,
+      using: sql`EXISTS (SELECT 1 FROM users WHERE users.auth_user_id = auth.uid()::text AND (users.role = 'admin' OR users.is_owner = true))`,
     }),
     pgPolicy("client_installments_select", {
       for: "select",
       to: "authenticated",
-      using: sql`EXISTS (SELECT 1 FROM loans WHERE loans.id = installments.loan_id AND loans.client_id = auth.uid())`,
+      using: sql`EXISTS (SELECT 1 FROM loans INNER JOIN users ON users.id = loans.client_id WHERE loans.id = installments.loan_id AND users.auth_user_id = auth.uid()::text)`,
     }),
     pgPolicy("investor_installments_select", {
       for: "select",
       to: "authenticated",
-      using: sql`EXISTS (SELECT 1 FROM loans WHERE loans.id = installments.loan_id AND loans.investor_id = auth.uid())`,
+      using: sql`EXISTS (SELECT 1 FROM loans INNER JOIN users ON users.id = loans.investor_id WHERE loans.id = installments.loan_id AND users.auth_user_id = auth.uid()::text)`,
     }),
   ],
 );

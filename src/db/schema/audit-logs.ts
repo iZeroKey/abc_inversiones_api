@@ -4,7 +4,7 @@ import { users } from "./users.js";
 
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id").references(() => users.id),
+  userId: uuid("user_id").references(() => users.id),
   action: text("action").notNull(),
   module: text("module").notNull(),
   entityId: text("entity_id"),
@@ -17,11 +17,11 @@ export const auditLogs = pgTable("audit_logs", {
   pgPolicy("admin_audit_logs_all", {
     for: "all",
     to: "authenticated",
-    using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND (users.role = 'admin' OR users.is_owner = true))`,
+    using: sql`EXISTS (SELECT 1 FROM users WHERE users.auth_user_id = auth.uid()::text AND (users.role = 'admin' OR users.is_owner = true))`,
   }),
   pgPolicy("user_audit_logs_self_select", {
     for: "select",
     to: "authenticated",
-    using: sql`user_id = auth.uid()`,
+    using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = audit_logs.user_id AND users.auth_user_id = auth.uid()::text)`,
   }),
 ]);
