@@ -101,7 +101,7 @@ describe("Loan schedule date calculations", () => {
     });
   });
 
-  it("calcula diario con la regla del Excel: la primera cuota inicia 2 días después", () => {
+  it("calcula diario con la regla operativa: la primera cuota inicia 2 días después", () => {
     expectSchedule("2026-01-31", "daily", {
       1: "2026-02-02",
       2: "2026-02-03",
@@ -109,7 +109,7 @@ describe("Loan schedule date calculations", () => {
     });
   });
 
-  it("calcula las fechas del Excel para inicio 08/05/2026", () => {
+  it("calcula las fechas esperadas para inicio 08/05/2026", () => {
     expectSchedule("2026-05-08", "monthly", {
       1: "2026-06-08",
       2: "2026-07-08",

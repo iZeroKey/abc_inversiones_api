@@ -5,7 +5,17 @@ import { db } from "../../config/db.js";
 import { installments } from "../../db/schema/installments.js";
 import { loans } from "../../db/schema/loans.js";
 import { BUSINESS_TIMEZONE } from "../../modules/loans/loans.schedule.js";
-import { authHeader, createAuthUser, createLoanFixture, getUserByEmail, loginAs, request, seededEmails, uniqueEmail } from "../helpers/integration.js";
+import {
+  authHeader,
+  createAuthUser,
+  createInstallmentFixture,
+  createLoanFixture,
+  getUserByEmail,
+  loginAs,
+  request,
+  seededEmails,
+  uniqueEmail,
+} from "../helpers/integration.js";
 
 describe("Loans Module", () => {
   it("debería permitir a un admin crear un préstamo", async () => {
@@ -228,6 +238,103 @@ describe("Loans Module", () => {
       expect(res.status).toBe(200);
       expect(res.body.data.some((item: { id: string }) => item.id === loan.id)).toBe(true);
     }
+  });
+
+  it("debería permitir editar un préstamo activo y regenerar cronograma", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      status: "active",
+      isCompanyFunded: true,
+      principal: "1000.00",
+      interestRate: "5.00",
+      installmentsCount: 2,
+      totalDebt: "1100.00",
+      startDate: new Date("2026-01-01T00:00:00.000-05:00"),
+    });
+    await createInstallmentFixture({ loanId: loan.id, installmentNumber: 1, amount: "550.00" });
+    await createInstallmentFixture({ loanId: loan.id, installmentNumber: 2, amount: "550.00" });
+
+    const res = await request
+      .patch(`/api/v1/loans/${loan.id}`)
+      .set(authHeader(adminToken))
+      .send({
+        principal: "2000",
+        interestRate: "4",
+        installmentsCount: 3,
+        frequency: "monthly",
+        startDate: "2026-01-01T00:00:00.000-05:00",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.loan.principal).toBe("2000.00");
+
+    const regeneratedInstallments = await db
+      .select()
+      .from(installments)
+      .where(eq(installments.loanId, loan.id));
+    expect(regeneratedInstallments).toHaveLength(3);
+  });
+
+  it("debería permitir sobrepago cuando una edición reduce la deuda bajo lo pagado", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      status: "active",
+      isCompanyFunded: true,
+      principal: "1000.00",
+      interestRate: "5.00",
+      installmentsCount: 2,
+      totalDebt: "1200.00",
+      startDate: new Date("2026-01-01T00:00:00.000-05:00"),
+    });
+    await createInstallmentFixture({ loanId: loan.id, installmentNumber: 1, amount: "600.00" });
+    await createInstallmentFixture({ loanId: loan.id, installmentNumber: 2, amount: "600.00" });
+
+    const paymentRes = await request
+      .post("/api/v1/payments")
+      .set(authHeader(adminToken))
+      .send({ loanId: loan.id, amount: "100.00", method: "cash" });
+    expect(paymentRes.status).toBe(201);
+
+    const res = await request
+      .patch(`/api/v1/loans/${loan.id}`)
+      .set(authHeader(adminToken))
+      .send({
+        principal: "50",
+        interestRate: "5",
+        installmentsCount: 1,
+        startDate: "2026-01-01T00:00:00.000-05:00",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.overpaidAmount).toBe("47.50");
+    expect(res.body.data.loan.status).toBe("paid");
+  });
+
+  it("debería eliminar lógicamente un préstamo y bloquear pagos nuevos", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      status: "active",
+      isCompanyFunded: true,
+    });
+    await createInstallmentFixture({ loanId: loan.id, installmentNumber: 1, amount: "300.00" });
+
+    const deleteRes = await request
+      .delete(`/api/v1/loans/${loan.id}`)
+      .set(authHeader(adminToken));
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.data.status).toBe("deleted");
+
+    const paymentRes = await request
+      .post("/api/v1/payments")
+      .set(authHeader(adminToken))
+      .send({ loanId: loan.id, amount: "100.00", method: "cash" });
+    expect(paymentRes.status).toBe(400);
   });
 
   it("debería rechazar el rechazo de un préstamo pagado", async () => {

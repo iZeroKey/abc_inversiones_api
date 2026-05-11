@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../../config/db.js";
 import { installments } from "../../db/schema/installments.js";
 import { loans } from "../../db/schema/loans.js";
+import { payments } from "../../db/schema/payments.js";
 import {
   authHeader,
   createInstallmentFixture,
@@ -48,10 +49,12 @@ describe("Payments Module", () => {
       clientId: client!.id,
       status: "active",
       isCompanyFunded: true,
+      principal: "185.94",
+      interestRate: "5.00",
       totalDebt: "200.00",
       installmentsCount: 2,
     });
-    const overdue = await createInstallmentFixture({
+    await createInstallmentFixture({
       loanId: loan.id,
       installmentNumber: 1,
       amount: "100.00",
@@ -74,12 +77,105 @@ describe("Payments Module", () => {
     const [updatedOverdue] = await db
       .select()
       .from(installments)
-      .where(eq(installments.id, overdue.id))
+      .where(eq(installments.loanId, loan.id))
+      .orderBy(installments.installmentNumber)
       .limit(1);
 
     expect(res.status).toBe(201);
     expect(updatedOverdue.paidAmount).toBe("100.00");
     expect(updatedOverdue.status).toBe("paid");
+  });
+
+  it("debería permitir editar un pago aplicado y recalcular cuotas", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      status: "active",
+      isCompanyFunded: true,
+      totalDebt: "200.00",
+      principal: "100.00",
+      interestRate: "5.00",
+      installmentsCount: 2,
+    });
+    await createInstallmentFixture({
+      loanId: loan.id,
+      installmentNumber: 1,
+      amount: "100.00",
+      status: "pending",
+    });
+    await createInstallmentFixture({
+      loanId: loan.id,
+      installmentNumber: 2,
+      amount: "100.00",
+      status: "pending",
+    });
+
+    const created = await request
+      .post("/api/v1/payments")
+      .set(authHeader(adminToken))
+      .send({ loanId: loan.id, amount: "50.00", method: "cash" });
+
+    const edited = await request
+      .patch(`/api/v1/payments/${created.body.data.id}`)
+      .set(authHeader(adminToken))
+      .send({ amount: "100.00", method: "transfer" });
+
+    const [updatedFirst] = await db
+      .select()
+      .from(installments)
+      .where(eq(installments.loanId, loan.id))
+      .orderBy(installments.installmentNumber)
+      .limit(1);
+
+    expect(edited.status).toBe(200);
+    expect(edited.body.data.payment.amount).toBe("100.00");
+    expect(updatedFirst.status).toBe("paid");
+  });
+
+  it("debería eliminar lógicamente un pago y recalcular cuotas", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      status: "active",
+      isCompanyFunded: true,
+      totalDebt: "100.00",
+      principal: "100.00",
+      interestRate: "5.00",
+      installmentsCount: 1,
+    });
+    await createInstallmentFixture({
+      loanId: loan.id,
+      installmentNumber: 1,
+      amount: "100.00",
+      status: "pending",
+    });
+
+    const created = await request
+      .post("/api/v1/payments")
+      .set(authHeader(adminToken))
+      .send({ loanId: loan.id, amount: "100.00", method: "cash" });
+
+    const deleted = await request
+      .delete(`/api/v1/payments/${created.body.data.id}`)
+      .set(authHeader(adminToken));
+
+    const [deletedPayment] = await db
+      .select()
+      .from(payments)
+      .where(eq(payments.id, created.body.data.id))
+      .limit(1);
+    const [updatedInstallment] = await db
+      .select()
+      .from(installments)
+      .where(eq(installments.loanId, loan.id))
+      .orderBy(installments.installmentNumber)
+      .limit(1);
+
+    expect(deleted.status).toBe(200);
+    expect(deletedPayment.deletedAt).toBeTruthy();
+    expect(updatedInstallment.paidAmount).toBe("0.00");
   });
 
   it("debería mantener overdue en un pago parcial de cuota vencida", async () => {
@@ -89,10 +185,12 @@ describe("Payments Module", () => {
       clientId: client!.id,
       status: "active",
       isCompanyFunded: true,
+      principal: "95.24",
+      interestRate: "5.00",
       totalDebt: "100.00",
       installmentsCount: 1,
     });
-    const overdue = await createInstallmentFixture({
+    await createInstallmentFixture({
       loanId: loan.id,
       installmentNumber: 1,
       amount: "100.00",
@@ -109,11 +207,12 @@ describe("Payments Module", () => {
     const [updatedOverdue] = await db
       .select()
       .from(installments)
-      .where(eq(installments.id, overdue.id))
+      .where(eq(installments.loanId, loan.id))
+      .orderBy(installments.installmentNumber)
       .limit(1);
 
     expect(res.status).toBe(201);
-    expect(updatedOverdue.paidAmount).toBe("50.00");
+    expect(updatedOverdue.paidAmount).toBe("30.00");
     expect(updatedOverdue.status).toBe("overdue");
   });
 
@@ -124,6 +223,8 @@ describe("Payments Module", () => {
       clientId: client!.id,
       status: "active",
       isCompanyFunded: true,
+      principal: "185.94",
+      interestRate: "5.00",
       totalDebt: "200.00",
       installmentsCount: 2,
     });

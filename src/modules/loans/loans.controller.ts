@@ -14,6 +14,7 @@ import {
     sendError,
     sendSuccess,
 } from "../../utils/response.util.js";
+import { recalculateLoanLedger } from "../payments/payments.service.js";
 import {
   normalizeScheduleStartDate,
   type LoanFrequency,
@@ -22,7 +23,7 @@ import {
   buildInstallmentDrafts,
   calculateLoanFinancials,
 } from "./loans.finance.js";
-import { createLoanSchema, rejectLoanSchema } from "./loans.schema.js";
+import { createLoanSchema, rejectLoanSchema, updateLoanSchema } from "./loans.schema.js";
 
 const canAccessLoan = (user: AuthRequest["user"], loan: typeof loans.$inferSelect): boolean => {
   if (!user) return false;
@@ -122,6 +123,84 @@ export const createLoan = async (
   }
 };
 
+export const updateLoan = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const user = req.user!;
+    if (!isAdminOrOwner(user)) {
+      sendError(res, 403, "No tienes permisos para editar préstamos");
+      return;
+    }
+
+    const id = req.params.id as string;
+    const validation = updateLoanSchema.safeParse(req.body);
+    if (!validation.success) {
+      sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
+      return;
+    }
+
+    const [oldLoan] = await db.select().from(loans).where(eq(loans.id, id)).limit(1);
+    if (!oldLoan || oldLoan.deletedAt || oldLoan.status === "deleted") {
+      sendError(res, 404, "Préstamo no encontrado");
+      return;
+    }
+
+    const data = validation.data;
+    const principal = data.principal !== undefined ? Number(data.principal) : Number(oldLoan.principal);
+    const interestRate = data.interestRate !== undefined ? Number(data.interestRate) : Number(oldLoan.interestRate);
+    const installmentsCount = data.installmentsCount ?? oldLoan.installmentsCount;
+    const financials = calculateLoanFinancials({
+      principal,
+      interestRate,
+      installmentsCount,
+    });
+
+    const hasInvestor = data.investorId !== undefined
+      ? !!data.investorId
+      : !!oldLoan.investorId;
+
+    const [updated] = await db
+      .update(loans)
+      .set({
+        ...data,
+        principal: principal.toFixed(2),
+        interestRate: interestRate.toFixed(2),
+        installmentsCount,
+        totalDebt: financials.totalDebt.toFixed(2),
+        isCompanyFunded: !hasInvestor,
+        startDate: data.startDate ? new Date(data.startDate) : oldLoan.startDate,
+        updatedAt: new Date(),
+      })
+      .where(eq(loans.id, id))
+      .returning();
+
+    const shouldRecalculate = ["active", "paid", "defaulted"].includes(updated.status);
+    const recalculated = shouldRecalculate
+      ? await recalculateLoanLedger(updated.id)
+      : { loan: updated, overpaidAmount: updated.overpaidAmount };
+
+    await logAudit({
+      userId: user.id,
+      action: "UPDATE_LOAN",
+      module: "LOANS",
+      entityId: id,
+      oldData: oldLoan,
+      newData: recalculated.loan,
+      req,
+    });
+
+    const responseLoan = await selectLoanWithParticipantsById(updated.id);
+    sendSuccess(res, 200, "Préstamo actualizado correctamente", {
+      loan: responseLoan || recalculated.loan,
+      overpaidAmount: recalculated.overpaidAmount,
+    });
+  } catch (error) {
+    sendError(res, 500, "Error al actualizar préstamo", error);
+  }
+};
+
 export const getAllLoans = async (
   req: AuthRequest,
   res: Response,
@@ -139,8 +218,11 @@ export const getAllLoans = async (
       conditions.push(eq(loans.investorId, user.id));
     }
 
+    conditions.push(sql`${loans.deletedAt} IS NULL`);
+
     // Filtros opcionales (admin/investor pueden filtrar más)
     if (status) conditions.push(eq(loans.status, status as typeof loans.status.enumValues[number]));
+    else conditions.push(sql`${loans.status} <> 'deleted'`);
     if (clientId && user.role !== "client") conditions.push(eq(loans.clientId, clientId as string));
     if (investorId && user.role !== "investor") conditions.push(eq(loans.investorId, investorId as string));
     if (from) conditions.push(sql`${loans.createdAt} >= ${new Date(from as string)}`);
@@ -189,7 +271,7 @@ export const getLoanById = async (
     const user = req.user!;
     const loan = await selectLoanWithParticipantsById(id);
 
-    if (!loan) {
+    if (!loan || loan.deletedAt || loan.status === "deleted") {
       sendError(res, 404, "Préstamo no encontrado");
       return;
     }
@@ -219,7 +301,7 @@ export const getLoanInstallments = async (
       .where(eq(loans.id, loanId))
       .limit(1);
 
-    if (!loan) {
+    if (!loan || loan.deletedAt || loan.status === "deleted") {
       sendError(res, 404, "Préstamo no encontrado");
       return;
     }
@@ -361,6 +443,7 @@ export const getAdminLoanSummary = async (
       .innerJoin(clientUsers, eq(clientUsers.id, loans.clientId))
       .leftJoin(investorUsers, eq(investorUsers.id, loans.investorId))
       .leftJoin(installments, eq(installments.loanId, loans.id))
+      .where(sql`${loans.deletedAt} IS NULL AND ${loans.status} <> 'deleted'`)
       .groupBy(
         loans.id,
         loans.clientId,
@@ -403,7 +486,7 @@ export const approveLoan = async (
       .where(eq(loans.id, id))
       .limit(1);
 
-    if (!loan) {
+    if (!loan || loan.deletedAt || loan.status === "deleted") {
       sendError(res, 404, "Préstamo no encontrado");
       return;
     }
@@ -550,6 +633,51 @@ export const approveLoan = async (
     sendError(res, 400, "No tienes permisos para aprobar este préstamo");
   } catch (error) {
     sendError(res, 500, "Error al aprobar el préstamo", error);
+  }
+};
+
+export const deleteLoan = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    const user = req.user!;
+
+    if (!isAdminOrOwner(user)) {
+      sendError(res, 403, "No tienes permisos para eliminar préstamos");
+      return;
+    }
+
+    const [loan] = await db.select().from(loans).where(eq(loans.id, id)).limit(1);
+    if (!loan || loan.deletedAt || loan.status === "deleted") {
+      sendError(res, 404, "Préstamo no encontrado");
+      return;
+    }
+
+    const [deletedLoan] = await db
+      .update(loans)
+      .set({
+        status: "deleted",
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(loans.id, id))
+      .returning();
+
+    await logAudit({
+      userId: user.id,
+      action: "DELETE_LOAN",
+      module: "LOANS",
+      entityId: id,
+      oldData: loan,
+      newData: deletedLoan,
+      req,
+    });
+
+    sendSuccess(res, 200, "Préstamo eliminado correctamente", deletedLoan);
+  } catch (error) {
+    sendError(res, 500, "Error al eliminar préstamo", error);
   }
 };
 

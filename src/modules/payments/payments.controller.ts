@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { Response } from "express";
 import { db } from "../../config/db.js";
 import { loans } from "../../db/schema/loans.js";
@@ -10,8 +10,8 @@ import {
   sendError,
   sendSuccess,
 } from "../../utils/response.util.js";
-import { createPaymentSchema } from "./payments.schema.js";
-import { PaymentBusinessError, processPaymentLogic } from "./payments.service.js";
+import { createPaymentSchema, updatePaymentSchema } from "./payments.schema.js";
+import { PaymentBusinessError, processPaymentLogic, recalculateLoanLedger } from "./payments.service.js";
 
 export const registerPayment = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -68,11 +68,109 @@ export const getPaymentsByLoan = async (req: AuthRequest, res: Response): Promis
 
     const results = await db.select()
       .from(payments)
-      .where(eq(payments.loanId, loanId))
+      .where(and(eq(payments.loanId, loanId), isNull(payments.deletedAt)))
       .orderBy(desc(payments.paymentDate));
 
     sendSuccess(res, 200, "Pagos obtenidos", results);
   } catch (error) {
     sendError(res, 500, "Error al obtener pagos", error);
+  }
+};
+
+export const updatePayment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    const validation = updatePaymentSchema.safeParse(req.body);
+    if (!validation.success) {
+      sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
+      return;
+    }
+
+    const [oldPayment] = await db.select().from(payments).where(eq(payments.id, id)).limit(1);
+    if (!oldPayment || oldPayment.deletedAt) {
+      sendError(res, 404, "Pago no encontrado");
+      return;
+    }
+
+    const [loan] = await db.select().from(loans).where(eq(loans.id, oldPayment.loanId)).limit(1);
+    if (!loan || loan.deletedAt || loan.status === "deleted") {
+      sendError(res, 400, "No se puede modificar un pago de un préstamo eliminado");
+      return;
+    }
+
+    const [updatedPayment] = await db.update(payments)
+      .set({
+        ...validation.data,
+        paymentDate: validation.data.paymentDate ? new Date(validation.data.paymentDate) : undefined,
+        updatedAt: new Date(),
+      })
+      .where(eq(payments.id, id))
+      .returning();
+
+    const recalculated = await recalculateLoanLedger(oldPayment.loanId);
+
+    await logAudit({
+      userId: req.user!.id,
+      action: "UPDATE_PAYMENT",
+      module: "PAYMENTS",
+      entityId: id,
+      oldData: oldPayment,
+      newData: updatedPayment,
+      req,
+    });
+
+    sendSuccess(res, 200, "Pago actualizado correctamente", {
+      payment: updatedPayment,
+      loan: recalculated.loan,
+      overpaidAmount: recalculated.overpaidAmount,
+    });
+  } catch (error) {
+    sendError(res, 500, "Error al actualizar pago", error);
+  }
+};
+
+export const deletePayment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    const [oldPayment] = await db.select().from(payments).where(eq(payments.id, id)).limit(1);
+    if (!oldPayment || oldPayment.deletedAt) {
+      sendError(res, 404, "Pago no encontrado");
+      return;
+    }
+
+    const [loan] = await db.select().from(loans).where(eq(loans.id, oldPayment.loanId)).limit(1);
+    if (!loan || loan.deletedAt || loan.status === "deleted") {
+      sendError(res, 400, "No se puede eliminar un pago de un préstamo eliminado");
+      return;
+    }
+
+    const [deletedPayment] = await db.update(payments)
+      .set({
+        deletedAt: new Date(),
+        status: "reversed",
+        updatedAt: new Date(),
+      })
+      .where(eq(payments.id, id))
+      .returning();
+
+    const recalculated = await recalculateLoanLedger(oldPayment.loanId);
+
+    await logAudit({
+      userId: req.user!.id,
+      action: "DELETE_PAYMENT",
+      module: "PAYMENTS",
+      entityId: id,
+      oldData: oldPayment,
+      newData: deletedPayment,
+      req,
+    });
+
+    sendSuccess(res, 200, "Pago eliminado correctamente", {
+      payment: deletedPayment,
+      loan: recalculated.loan,
+      overpaidAmount: recalculated.overpaidAmount,
+    });
+  } catch (error) {
+    sendError(res, 500, "Error al eliminar pago", error);
   }
 };

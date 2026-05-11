@@ -49,6 +49,13 @@ router.get("/:id", authenticate, controller.getLoanById);
 router.get("/:id/installments", authenticate, controller.getLoanInstallments);
 
 /**
+ * @route   PATCH /api/v1/loans/:id
+ * @desc    Editar datos financieros de un préstamo y recalcular cronograma/pagos si aplica.
+ * @access  Private (Admin, Owner)
+ */
+router.patch("/:id", authenticate, authorize(["admin"]), controller.updateLoan);
+
+/**
  * @route   PATCH /api/v1/loans/:id/approve
  * @desc    Aprobar un préstamo. Si es Inversionista, pasa a revisión de Admin. Si es Admin, activa el préstamo y genera cuotas.
  * @access  Private
@@ -62,5 +69,12 @@ router.patch("/:id/approve", authenticate, controller.approveLoan);
  * @body    { observation? }
  */
 router.patch("/:id/reject", authenticate, controller.rejectLoan);
+
+/**
+ * @route   DELETE /api/v1/loans/:id
+ * @desc    Eliminar lógicamente un préstamo sin borrar pagos ni auditoría.
+ * @access  Private (Admin, Owner)
+ */
+router.delete("/:id", authenticate, authorize(["admin"]), controller.deleteLoan);
 
 export { router as loansRoutes };

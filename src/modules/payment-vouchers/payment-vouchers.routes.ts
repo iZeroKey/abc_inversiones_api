@@ -48,4 +48,18 @@ router.get("/operation-id/exists", authenticate, authorize(["client"]), controll
  */
 router.patch("/:id/process", authenticate, authorize(["admin", "investor"]), controller.processVoucher);
 
+/**
+ * @route   PATCH /api/v1/payment-vouchers/:id
+ * @desc    Editar un voucher pendiente o uno aplicado por admin, recalculando el préstamo si aplica.
+ * @access  Private (Client owner, Admin, Owner)
+ */
+router.patch("/:id", authenticate, controller.updateVoucher);
+
+/**
+ * @route   DELETE /api/v1/payment-vouchers/:id
+ * @desc    Eliminar lógicamente un voucher. Si ya aplicó pago, revierte ese pago y recalcula.
+ * @access  Private (Client owner, Admin, Owner)
+ */
+router.delete("/:id", authenticate, controller.deleteVoucher);
+
 export { router as paymentVouchersRoutes };

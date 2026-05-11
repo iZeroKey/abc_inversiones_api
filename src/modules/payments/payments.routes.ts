@@ -20,4 +20,18 @@ router.post("/", authenticate, authorize(["admin"]), controller.registerPayment)
  */
 router.get("/loan/:loanId", authenticate, controller.getPaymentsByLoan);
 
+/**
+ * @route   PATCH /api/v1/payments/:id
+ * @desc    Editar un pago manual/aplicado y recalcular el préstamo.
+ * @access  Private (Admin, Owner)
+ */
+router.patch("/:id", authenticate, authorize(["admin"]), controller.updatePayment);
+
+/**
+ * @route   DELETE /api/v1/payments/:id
+ * @desc    Eliminar lógicamente un pago y recalcular el préstamo.
+ * @access  Private (Admin, Owner)
+ */
+router.delete("/:id", authenticate, authorize(["admin"]), controller.deletePayment);
+
 export { router as paymentsRoutes };

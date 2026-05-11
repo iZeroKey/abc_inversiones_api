@@ -3,6 +3,7 @@ import { Response } from "express";
 import { db } from "../../config/db.js";
 import { loans } from "../../db/schema/loans.js";
 import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
+import { payments } from "../../db/schema/payments.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { sendNotification } from "../../utils/notification.util.js";
@@ -12,8 +13,8 @@ import {
   sendSuccess,
 } from "../../utils/response.util.js";
 import { resolveFileUrl, uploadFileStream } from "../../utils/storage.util.js";
-import { processPaymentLogic } from "../payments/payments.service.js";
-import { createVoucherSchema, operationIdLookupSchema, processVoucherSchema } from "./payment-vouchers.schema.js";
+import { processPaymentLogic, recalculateLoanLedger } from "../payments/payments.service.js";
+import { createVoucherSchema, operationIdLookupSchema, processVoucherSchema, updateVoucherSchema } from "./payment-vouchers.schema.js";
 
 const isUniqueViolation = (error: unknown): boolean => {
   return !!error && typeof error === "object" && "code" in error && error.code === "23505";
@@ -91,6 +92,11 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     // 3. Verificar que el préstamo esté activo
+    if (loan.deletedAt || loan.status === "deleted") {
+      sendError(res, 400, "No se pueden subir vouchers a préstamos eliminados");
+      return;
+    }
+
     if (loan.status !== "active") {
       sendError(res, 400, "Solo se pueden subir vouchers a préstamos activos");
       return;
@@ -199,6 +205,8 @@ export const getVouchers = async (req: AuthRequest, res: Response): Promise<void
       conditions.push(sql`EXISTS (SELECT 1 FROM loans WHERE loans.id = ${paymentVouchers.loanId} AND loans.investor_id = ${user.id})`);
     }
 
+    conditions.push(sql`${paymentVouchers.deletedAt} IS NULL`);
+
     // Filtros opcionales
     if (status) conditions.push(eq(paymentVouchers.status, status as typeof paymentVouchers.status.enumValues[number]));
     if (loanId) conditions.push(eq(paymentVouchers.loanId, loanId as string));
@@ -236,13 +244,17 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
     const { action, observation } = validation.data;
 
     const [voucher] = await db.select().from(paymentVouchers).where(eq(paymentVouchers.id, id)).limit(1);
-    if (!voucher) {
+    if (!voucher || voucher.deletedAt || voucher.status === "deleted") {
       sendError(res, 404, "Voucher no encontrado");
       return;
     }
 
     // Obtener el préstamo para verificar si tiene inversionista
     const [loan] = await db.select().from(loans).where(eq(loans.id, voucher.loanId)).limit(1);
+    if (!loan || loan.deletedAt || loan.status === "deleted") {
+      sendError(res, 400, "No se puede procesar un voucher de un préstamo eliminado");
+      return;
+    }
 
     let nextStatus: "draft" | "pending_investor_review" | "investor_approved" | "investor_rejected" | "owner_approved" | "owner_rejected";
 
@@ -289,6 +301,7 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
         amount: voucher.amount,
         method: "transfer",
         registeredById: user.id,
+        voucherId: voucher.id,
         observation: `Voucher aprobado: ${observation || ""}`,
         reference: voucher.operationId,
         paymentDate: voucher.operationDate || undefined,
@@ -349,5 +362,159 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Error al procesar el voucher";
     sendError(res, 500, message, error);
+  }
+};
+
+export const updateVoucher = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    const user = req.user!;
+    const validation = updateVoucherSchema.safeParse(req.body);
+
+    if (!validation.success) {
+      sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
+      return;
+    }
+
+    const [voucher] = await db.select().from(paymentVouchers).where(eq(paymentVouchers.id, id)).limit(1);
+    if (!voucher || voucher.deletedAt || voucher.status === "deleted") {
+      sendError(res, 404, "Voucher no encontrado");
+      return;
+    }
+
+    const [loan] = await db.select().from(loans).where(eq(loans.id, voucher.loanId)).limit(1);
+    if (!loan || loan.deletedAt || loan.status === "deleted") {
+      sendError(res, 400, "No se puede editar un voucher de un préstamo eliminado");
+      return;
+    }
+
+    const canEditPending = user.role === "client"
+      && voucher.clientId === user.id
+      && ["draft", "pending_investor_review"].includes(voucher.status);
+    const canEditApplied = (user.role === "admin" || user.isOwner)
+      && voucher.status === "owner_approved";
+
+    if (!canEditPending && !canEditApplied) {
+      sendError(res, 403, "No tienes permiso para editar este voucher en su estado actual");
+      return;
+    }
+
+    const [updatedVoucher] = await db.update(paymentVouchers)
+      .set({
+        ...validation.data,
+        operationDate: validation.data.operationDate || undefined,
+        updatedAt: new Date(),
+      })
+      .where(eq(paymentVouchers.id, id))
+      .returning();
+
+    let recalculated = null;
+    if (canEditApplied) {
+      const [payment] = await db
+        .select()
+        .from(payments)
+        .where(eq(payments.voucherId, voucher.id))
+        .limit(1);
+
+      if (payment && !payment.deletedAt) {
+        await db.update(payments)
+          .set({
+            amount: updatedVoucher.amount,
+            paymentDate: updatedVoucher.operationDate || payment.paymentDate,
+            reference: updatedVoucher.operationId,
+            observation: updatedVoucher.observation,
+            updatedAt: new Date(),
+          })
+          .where(eq(payments.id, payment.id));
+        recalculated = await recalculateLoanLedger(voucher.loanId);
+      }
+    }
+
+    await logAudit({
+      userId: user.id,
+      action: "UPDATE_VOUCHER",
+      module: "VOUCHERS",
+      entityId: id,
+      oldData: voucher,
+      newData: updatedVoucher,
+      req,
+    });
+
+    const responseVoucher = await attachSignedEvidenceUrl(updatedVoucher);
+    sendSuccess(res, 200, "Voucher actualizado correctamente", {
+      voucher: responseVoucher,
+      recalculation: recalculated,
+    });
+  } catch (error) {
+    sendError(res, 500, "Error al actualizar voucher", error);
+  }
+};
+
+export const deleteVoucher = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    const user = req.user!;
+
+    const [voucher] = await db.select().from(paymentVouchers).where(eq(paymentVouchers.id, id)).limit(1);
+    if (!voucher || voucher.deletedAt || voucher.status === "deleted") {
+      sendError(res, 404, "Voucher no encontrado");
+      return;
+    }
+
+    const canDeletePending = user.role === "client"
+      && voucher.clientId === user.id
+      && ["draft", "pending_investor_review"].includes(voucher.status);
+    const canDeleteAny = user.role === "admin" || user.isOwner;
+
+    if (!canDeletePending && !canDeleteAny) {
+      sendError(res, 403, "No tienes permiso para eliminar este voucher");
+      return;
+    }
+
+    const [deletedVoucher] = await db.update(paymentVouchers)
+      .set({
+        status: "deleted",
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(paymentVouchers.id, id))
+      .returning();
+
+    let recalculated = null;
+    if (voucher.status === "owner_approved") {
+      const [payment] = await db
+        .select()
+        .from(payments)
+        .where(eq(payments.voucherId, voucher.id))
+        .limit(1);
+
+      if (payment && !payment.deletedAt) {
+        await db.update(payments)
+          .set({
+            status: "reversed",
+            deletedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(payments.id, payment.id));
+        recalculated = await recalculateLoanLedger(voucher.loanId);
+      }
+    }
+
+    await logAudit({
+      userId: user.id,
+      action: "DELETE_VOUCHER",
+      module: "VOUCHERS",
+      entityId: id,
+      oldData: voucher,
+      newData: deletedVoucher,
+      req,
+    });
+
+    sendSuccess(res, 200, "Voucher eliminado correctamente", {
+      voucher: deletedVoucher,
+      recalculation: recalculated,
+    });
+  } catch (error) {
+    sendError(res, 500, "Error al eliminar voucher", error);
   }
 };

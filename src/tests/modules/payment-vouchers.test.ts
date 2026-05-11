@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authHeader, createLoanFixture, createVoucherFixture, getUserByEmail, loginAs, request, seededEmails } from "../helpers/integration.js";
+import { authHeader, createInstallmentFixture, createLoanFixture, createVoucherFixture, getUserByEmail, loginAs, request, seededEmails } from "../helpers/integration.js";
 
 describe("Payment Vouchers Module", () => {
   it("debería permitir al cliente subir un voucher a un préstamo activo", async () => {
@@ -172,6 +172,76 @@ describe("Payment Vouchers Module", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.message).toContain("activos");
+  });
+
+  it("debería permitir al cliente editar y eliminar un voucher pendiente", async () => {
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: null,
+      status: "active",
+      isCompanyFunded: true,
+    });
+    const voucher = await createVoucherFixture({
+      loanId: loan.id,
+      clientId: client!.id,
+      operationId: `OP-PENDING-${Date.now()}`,
+      status: "pending_investor_review",
+    });
+    const token = await loginAs(seededEmails.client);
+
+    const edited = await request
+      .patch(`/api/v1/payment-vouchers/${voucher.id}`)
+      .set(authHeader(token))
+      .send({ amount: "250.00", observation: "Corrección" });
+    expect(edited.status).toBe(200);
+    expect(edited.body.data.voucher.amount).toBe("250.00");
+
+    const deleted = await request
+      .delete(`/api/v1/payment-vouchers/${voucher.id}`)
+      .set(authHeader(token));
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.data.voucher.status).toBe("deleted");
+  });
+
+  it("debería eliminar un voucher aprobado y recalcular el pago aplicado", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: null,
+      status: "active",
+      isCompanyFunded: true,
+      principal: "100.00",
+      interestRate: "5.00",
+      installmentsCount: 1,
+      totalDebt: "105.00",
+    });
+    await createInstallmentFixture({
+      loanId: loan.id,
+      installmentNumber: 1,
+      amount: "105.00",
+    });
+    const voucher = await createVoucherFixture({
+      loanId: loan.id,
+      clientId: client!.id,
+      amount: "50.00",
+      operationId: `OP-APP-${Date.now()}`,
+      status: "pending_investor_review",
+    });
+
+    const approved = await request
+      .patch(`/api/v1/payment-vouchers/${voucher.id}/process`)
+      .set(authHeader(adminToken))
+      .send({ action: "approve" });
+    expect(approved.status).toBe(200);
+    expect(approved.body.data.status).toBe("owner_approved");
+
+    const deleted = await request
+      .delete(`/api/v1/payment-vouchers/${voucher.id}`)
+      .set(authHeader(adminToken));
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.data.recalculation.loan.status).toBe("active");
   });
 
   it("debería permitir aprobación del inversionista", async () => {

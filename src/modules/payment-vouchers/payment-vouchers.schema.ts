@@ -48,5 +48,14 @@ export const processVoucherSchema = z.object({
   observation: z.string().optional(),
 });
 
+export const updateVoucherSchema = z.strictObject({
+  amount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, "El monto debe ser positivo").optional(),
+  operationId: operationIdSchema.optional(),
+  operationDate: operationDateSchema,
+  evidenceUrl: z.string().url("URL de evidencia inválida").optional().nullable(),
+  observation: z.string().optional().nullable(),
+});
+
 export type CreateVoucherDto = z.infer<typeof createVoucherSchema>;
 export type ProcessVoucherDto = z.infer<typeof processVoucherSchema>;
+export type UpdateVoucherDto = z.infer<typeof updateVoucherSchema>;
