@@ -20,6 +20,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/scripts/seed.ts",
     "db:seed:api": "tsx src/scripts/seed-api.ts",
+    "db:seed:demo-api": "tsx src/scripts/seed-demo-api.ts",
     "public-codes:backfill": "tsx src/scripts/backfill-public-codes.ts",
     "db:timezone": "tsx src/scripts/db-timezone.ts",
     "setup:storage": "tsx src/scripts/setup-storage.ts",
