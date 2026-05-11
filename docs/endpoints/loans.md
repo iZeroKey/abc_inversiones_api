@@ -8,8 +8,10 @@
 4. [Get Loan By ID](#get-loan-by-id)
 5. [Get Loan Installments](#get-loan-installments)
 6. [Get Admin Loan Summary](#get-admin-loan-summary)
-7. [Approve Loan](#approve-loan)
-8. [Reject Loan](#reject-loan)
+7. [Update Loan](#update-loan)
+8. [Approve Loan](#approve-loan)
+9. [Delete Loan](#delete-loan)
+10. [Reject Loan](#reject-loan)
 
 ---
 
@@ -466,6 +468,64 @@ Privado (Admin, Owner)
 
 ---
 
+## Update Loan
+
+Editar un préstamo por corrección operativa. Si el préstamo ya tiene cronograma, se recalculan deuda y cuotas con la regla financiera vigente y se reaplican los pagos confirmados no eliminados en orden cronológico. Si los pagos superan la nueva deuda, el exceso queda expuesto en `overpaidAmount`.
+
+### Endpoint
+
+```
+PATCH /api/v1/loans/:id
+```
+
+### Acceso
+
+Privado (Admin, Owner)
+
+### Cuerpo de Solicitud
+
+```json
+{
+  "clientId": "uuid",
+  "investorId": "uuid",
+  "principal": "12000.00",
+  "interestRate": "4.50",
+  "installmentsCount": 10,
+  "frequency": "monthly",
+  "startDate": "2026-02-01T00:00:00.000Z",
+  "observation": "Corrección de monto"
+}
+```
+
+### Respuesta Exitosa
+
+```json
+{
+  "success": true,
+  "message": "Préstamo actualizado",
+  "data": {
+    "id": "uuid",
+    "publicCode": "PR-00001",
+    "principal": "12000.00",
+    "totalDebt": "14955.30",
+    "overpaidAmount": "0.00",
+    "status": "active"
+  }
+}
+```
+
+### Códigos de Estado HTTP
+
+| Código | Descripción            |
+| ------ | ---------------------- |
+| 200    | Préstamo actualizado   |
+| 400    | Datos inválidos        |
+| 401    | No autorizado          |
+| 403    | No tiene permisos      |
+| 404    | Préstamo no encontrado |
+
+---
+
 ## Approve Loan
 
 Aprobar un préstamo.
@@ -546,6 +606,45 @@ Sin cuerpo
 | 403    | No tiene permisos      |
 | 404    | Préstamo no encontrado |
 | 500    | Error interno          |
+
+---
+
+## Delete Loan
+
+Eliminar lógicamente un préstamo creado por error. No borra cuotas, pagos ni auditoría; el préstamo queda en estado `deleted`, se oculta de listados normales y bloquea nuevos pagos o vouchers.
+
+### Endpoint
+
+```
+DELETE /api/v1/loans/:id
+```
+
+### Acceso
+
+Privado (Admin, Owner)
+
+### Respuesta Exitosa
+
+```json
+{
+  "success": true,
+  "message": "Préstamo eliminado",
+  "data": {
+    "id": "uuid",
+    "status": "deleted",
+    "deletedAt": "2026-01-01T00:00:00.000Z"
+  }
+}
+```
+
+### Códigos de Estado HTTP
+
+| Código | Descripción            |
+| ------ | ---------------------- |
+| 200    | Préstamo eliminado     |
+| 401    | No autorizado          |
+| 403    | No tiene permisos      |
+| 404    | Préstamo no encontrado |
 
 ---
 

@@ -3,17 +3,20 @@
 ## Tabla de Contenidos
 
 1. [Register Payment](#register-payment)
-2. [Get Payments By Loan](#get-payments-by-loan)
+2. [Update Payment](#update-payment)
+3. [Delete Payment](#delete-payment)
+4. [Get Payments By Loan](#get-payments-by-loan)
 
 ---
 
 ## Register Payment
 
-Registrar un nuevo pago de un cliente. El pago se aplica dentro de una transacción a cuotas `pending` y `overdue`, ordenadas por `dueDate`.
+Registrar un nuevo pago manual de un cliente. El pago creado por admin queda `confirmed` directamente y se aplica a cuotas `pending` y `overdue`, ordenadas por `dueDate`.
 
 Reglas de aplicación:
 
 - El préstamo debe existir y estar `active`.
+- No se aceptan pagos para préstamos eliminados.
 - La deuda pendiente real se calcula como suma de `amount - paidAmount` de cuotas `pending` y `overdue`.
 - Los pagos excedentes se rechazan con 400; no se registra monto excedente ni saldo a favor.
 - Una cuota `overdue` completada pasa a `paid`.
@@ -92,6 +95,81 @@ Privado (Admin, Owner)
 | 401    | No autorizado          |
 | 404    | Préstamo no encontrado |
 | 500    | Error interno          |
+
+---
+
+## Update Payment
+
+Editar un pago ya registrado. El sistema actualiza el pago, reconstruye el cronograma vigente del préstamo y reaplica todos los pagos confirmados no eliminados en orden cronológico.
+
+### Endpoint
+
+```
+PATCH /api/v1/payments/:id
+```
+
+### Acceso
+
+Privado (Admin, Owner)
+
+### Cuerpo de Solicitud
+
+```json
+{
+  "amount": "4500.00",
+  "paymentDate": "2026-01-02T00:00:00.000Z",
+  "method": "transfer",
+  "reference": "OP123456",
+  "observation": "Corrección operativa"
+}
+```
+
+### Respuesta Exitosa
+
+```json
+{
+  "success": true,
+  "message": "Pago actualizado",
+  "data": {
+    "payment": {
+      "id": "uuid",
+      "amount": "4500.00",
+      "status": "confirmed"
+    },
+    "overpaidAmount": "0.00"
+  }
+}
+```
+
+---
+
+## Delete Payment
+
+Eliminar lógicamente un pago manual/aplicado y recalcular el préstamo desde los pagos confirmados restantes. Esto no equivale a rechazo de voucher.
+
+### Endpoint
+
+```
+DELETE /api/v1/payments/:id
+```
+
+### Acceso
+
+Privado (Admin, Owner)
+
+### Respuesta Exitosa
+
+```json
+{
+  "success": true,
+  "message": "Pago eliminado",
+  "data": {
+    "id": "uuid",
+    "deletedAt": "2026-01-01T00:00:00.000Z",
+    "overpaidAmount": "0.00"
+  }
+}
+```
 
 ---
 

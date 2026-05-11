@@ -7,6 +7,8 @@
 3. [Get Vouchers](#get-vouchers)
 4. [Check Operation ID](#check-operation-id)
 5. [Process Voucher](#process-voucher)
+6. [Update Voucher](#update-voucher)
+7. [Delete Voucher](#delete-voucher)
 
 ---
 
@@ -70,7 +72,7 @@ Privado (Client)
 
 ## Submit Voucher
 
-Subir un nuevo comprobante de pago (Voucher) con la imagen y los datos finales confirmados por el cliente.
+Subir un nuevo comprobante de pago (Voucher) con la imagen y los datos finales confirmados por el cliente. No se aceptan vouchers sobre préstamos eliminados.
 
 Usa modo **stream** (busboy): los bytes de la imagen fluyen directamente a Supabase Storage sin acumularse en RAM del backend, reduciendo el uso de memoria y el riesgo de timeout del proxy Cloudflare.
 
@@ -330,6 +332,77 @@ Privado (Admin, Investor)
 | 404    | Voucher no encontrado |
 | 500    | Error interno         |
 
+---
+
+## Update Voucher
+
+Editar un voucher pendiente antes de aprobación final. Si el voucher ya fue aprobado y generó un pago aplicado, solo admin/owner puede editarlo; el pago vinculado se actualiza y el préstamo se recalcula.
+
+### Endpoint
+
+```
+PATCH /api/v1/payment-vouchers/:id
+```
+
+### Acceso
+
+Privado (cliente dueño del voucher pendiente, Admin, Owner)
+
+### Cuerpo de Solicitud
+
+```json
+{
+  "amount": "4500.00",
+  "operationId": "ABC123456",
+  "operationDate": "2026-01-02T00:00:00.000Z",
+  "observation": "Corrección del voucher"
+}
+```
+
+### Respuesta Exitosa
+
+```json
+{
+  "success": true,
+  "message": "Voucher actualizado",
+  "data": {
+    "id": "uuid",
+    "amount": "4500.00",
+    "status": "pending_investor_review"
+  }
+}
+```
+
+---
+
+## Delete Voucher
+
+Eliminar lógicamente un voucher. Un cliente puede eliminar su voucher pendiente; admin/owner puede eliminar vouchers aprobados y, si ya generaron pago, ese pago se elimina lógicamente y el préstamo se recalcula. Rechazo y eliminación se mantienen como eventos distintos.
+
+### Endpoint
+
+```
+DELETE /api/v1/payment-vouchers/:id
+```
+
+### Acceso
+
+Privado (cliente dueño del voucher pendiente, Admin, Owner)
+
+### Respuesta Exitosa
+
+```json
+{
+  "success": true,
+  "message": "Voucher eliminado",
+  "data": {
+    "id": "uuid",
+    "status": "deleted",
+    "deletedAt": "2026-01-01T00:00:00.000Z"
+  }
+}
+```
+
 ### Estados de Voucher
 
 | Estado                  | Descripción                             |
@@ -340,3 +413,4 @@ Privado (Admin, Investor)
 | investor_rejected       | Rechazado por inversionista             |
 | owner_approved          | Aprobado por owner/admin                |
 | owner_rejected          | Rechazado por owner/admin               |
+| deleted                 | Eliminado lógicamente                   |

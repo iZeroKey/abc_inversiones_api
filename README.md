@@ -102,7 +102,7 @@ El backend usa dos estrategias de upload según el endpoint:
 3. **Admin**: Gestión operativa, sin modificar otros administradores
 4. **Owner**: Acceso total, incluyendo creación y gestión de administradores
 
-Los roles de usuarios son inmutables después de la creación. Todos los usuarios tienen `publicCode`: `AD-00000` para administradores, `CL-00000` para clientes e `IN-00000` para inversionistas.
+Los roles de usuarios son inmutables después de la creación. Todos los usuarios tienen `publicCode`: `AD-00001` para administradores, `CL-00001` para clientes, `IN-00001` para inversionistas y `PR-00001` para préstamos. Clientes e inversionistas pueden existir como registros operativos sin cuenta Auth; cuando se vinculan a Auth se guarda `authUserId`.
 
 ---
 
@@ -127,12 +127,18 @@ Los roles de usuarios son inmutables después de la creación. Todos los usuario
 
 | Campo        | Tipo       | Descripción              |
 | ------------ | ---------- | ------------------------ |
-| `id`         | text(UUID) | ID único (Supabase Auth) |
+| `id`         | uuid       | ID interno de la API     |
+| `auth_user_id` | text    | ID nullable de Supabase Auth |
 | `public_code` | text       | Código público operativo |
 | `first_name` | text       | Nombres                  |
 | `last_name`  | text       | Apellidos                |
-| `email`      | text       | Correo electrónico       |
+| `email`      | text       | Correo electrónico nullable |
 | `phone`      | text       | Teléfono                 |
+| `dni`        | text       | Documento nullable       |
+| `address`    | text       | Domicilio nullable       |
+| `bank`       | text       | Banco nullable           |
+| `bank_accounts` | text[]  | Números de cuenta        |
+| `marital_status` | enum   | single, married, unspecified |
 | `avatar_url` | text       | URL del avatar           |
 | `role`       | enum       | admin, client, investor  |
 | `is_owner`   | boolean    | Es propietario           |
@@ -162,8 +168,8 @@ Los roles de usuarios son inmutables después de la creación. Todos los usuario
 | Campo                | Tipo      | Descripción                                                                             |
 | -------------------- | --------- | --------------------------------------------------------------------------------------- |
 | `id`                 | uuid      | ID único                                                                                |
-| `client_id`          | text      | ID del cliente                                                                          |
-| `investor_id`        | text      | ID del inversionista                                                                    |
+| `client_id`          | uuid      | ID interno del cliente                                                                  |
+| `investor_id`        | uuid      | ID interno del inversionista                                                            |
 | `principal`          | numeric   | Monto principal                                                                         |
 | `interest_rate`      | numeric   | Tasa de interés                                                                         |
 | `interest_type`      | enum      | simple, compound                                                                        |
@@ -172,12 +178,14 @@ Los roles de usuarios son inmutables después de la creación. Todos los usuario
 | `frequency`          | enum      | daily, weekly, biweekly, monthly                                                        |
 | `payment_day`        | integer   | Día de pago                                                                             |
 | `total_debt`         | numeric   | Deuda total                                                                             |
-| `status`             | enum      | draft, pending_investor_review, pending_admin_review, active, rejected, paid, defaulted |
+| `status`             | enum      | draft, pending_investor_review, pending_admin_review, active, rejected, paid, defaulted, deleted |
+| `overpaid_amount`    | numeric   | Monto pagado por encima de la deuda vigente                                             |
 | `is_company_funded`  | boolean   | financiado por empresa                                                                  |
 | `start_date`         | timestamp | Fecha de inicio                                                                         |
 | `observation`        | text      | Observación                                                                             |
 | `created_at`         | timestamp | Fecha de creación                                                                       |
 | `updated_at`         | timestamp | Fecha de actualización                                                                  |
+| `deleted_at`         | timestamp | Fecha de eliminación lógica                                                             |
 
 #### installments
 
@@ -200,15 +208,17 @@ Los roles de usuarios son inmutables después de la creación. Todos los usuario
 | `id`               | uuid      | ID único                       |
 | `loan_id`          | uuid      | ID del préstamo                |
 | `installment_id`   | uuid      | ID de la cuota                 |
+| `voucher_id`       | uuid      | Voucher asociado, si aplica   |
 | `amount`           | numeric   | Monto del pago                 |
 | `payment_date`     | timestamp | Fecha del pago                 |
 | `method`           | enum      | cash, transfer, deposit, other |
 | `reference`        | text      | Referencia                     |
 | `observation`      | text      | Observación                    |
-| `registered_by_id` | text      | ID de quien registra           |
+| `registered_by_id` | uuid      | ID de quien registra           |
 | `status`           | enum      | confirmed, reversed            |
 | `created_at`       | timestamp | Fecha de creación              |
 | `updated_at`       | timestamp | Fecha de actualización         |
+| `deleted_at`       | timestamp | Fecha de eliminación lógica    |
 
 #### payment_vouchers
 
@@ -216,23 +226,24 @@ Los roles de usuarios son inmutables después de la creación. Todos los usuario
 | ----------------- | --------- | ---------------------------------------------------------------------------------------------------- |
 | `id`              | uuid      | ID único                                                                                             |
 | `loan_id`         | uuid      | ID del préstamo                                                                                      |
-| `client_id`       | text      | ID del cliente                                                                                       |
+| `client_id`       | uuid      | ID interno del cliente                                                                               |
 | `amount`          | numeric   | Monto del voucher                                                                                    |
 | `operation_id`    | text      | ID de operación bancaria                                                                             |
 | `operation_date`  | timestamp | Fecha de operación                                                                                   |
 | `evidence_url`    | text      | URL de la evidencia                                                                                  |
-| `status`          | enum      | draft, pending_investor_review, investor_approved, investor_rejected, owner_approved, owner_rejected |
+| `status`          | enum      | draft, pending_investor_review, investor_approved, investor_rejected, owner_approved, owner_rejected, deleted |
 | `observation`     | text      | Observación                                                                                          |
-| `processed_by_id` | text      | ID de quien procesó                                                                                  |
+| `processed_by_id` | uuid      | ID interno de quien procesó                                                                          |
 | `created_at`      | timestamp | Fecha de creación                                                                                    |
 | `updated_at`      | timestamp | Fecha de actualización                                                                               |
+| `deleted_at`      | timestamp | Fecha de eliminación lógica                                                                          |
 
 #### audit_logs
 
 | Campo        | Tipo      | Descripción       |
 | ------------ | --------- | ----------------- |
 | `id`         | uuid      | ID único          |
-| `user_id`    | text      | ID del usuario    |
+| `user_id`    | uuid      | ID del usuario    |
 | `action`     | text      | Acción realizada  |
 | `module`     | text      | Módulo            |
 | `entity_id`  | text      | ID de la entidad  |
@@ -247,7 +258,7 @@ Los roles de usuarios son inmutables después de la creación. Todos los usuario
 | Campo        | Tipo      | Descripción       |
 | ------------ | --------- | ----------------- |
 | `id`         | uuid      | ID único          |
-| `user_id`    | text      | ID del usuario    |
+| `user_id`    | uuid      | ID del usuario    |
 | `title`      | text      | Título            |
 | `body`       | text      | Cuerpo            |
 | `type`       | text      | Tipo              |
@@ -281,11 +292,13 @@ Todos los endpoints tienen el prefijo `/api/v1`.
 | PATCH  | /users/me/avatar | Actualizar avatar  | Privado |
 | DELETE | /users/me/avatar | Eliminar avatar    | Privado |
 | GET    | /users           | Listar usuarios    | Admin   |
+| POST   | /users           | Crear usuario operativo o con Auth | Admin |
 | GET    | /users/:id       | Usuario por ID     | Admin   |
+| POST   | /users/:id/auth-account | Vincular cuenta Auth | Admin |
 | PATCH  | /users/:id       | Actualizar usuario | Privado |
 | DELETE | /users/:id       | Eliminar usuario   | Admin   |
 
-En `PATCH /users/:id`, un usuario solo puede actualizar sus campos de perfil (`firstName`, `lastName`, `phone`). Owner puede gestionar cualquier usuario. Admin no owner puede gestionar usuarios no administradores. El rol no se puede modificar; `isOwner` queda reservado a owners.
+En `PATCH /users/:id`, un usuario solo puede actualizar sus campos de perfil (`firstName`, `lastName`, `phone`, `dni`, `address`, `bank`, `bankAccounts`, `maritalStatus`). Owner puede gestionar cualquier usuario. Admin no owner puede gestionar usuarios no administradores y también puede actualizar `email` y `active` donde aplique. El rol no se puede modificar y `isOwner` no se asigna ni modifica por endpoints.
 
 ### Solicitudes de Acceso
 

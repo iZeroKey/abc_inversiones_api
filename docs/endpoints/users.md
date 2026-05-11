@@ -6,9 +6,11 @@
 2. [Update Avatar](#update-avatar)
 3. [Delete Avatar](#delete-avatar)
 4. [Get All Users](#get-all-users)
-5. [Get User By ID](#get-user-by-id)
-6. [Update User](#update-user)
-7. [Delete User](#delete-user)
+5. [Create User](#create-user)
+6. [Get User By ID](#get-user-by-id)
+7. [Link Auth Account](#link-auth-account)
+8. [Update User](#update-user)
+9. [Delete User](#delete-user)
 
 ---
 
@@ -25,6 +27,8 @@ Formato de códigos públicos:
 | Cliente       | `CL-00000` | `CL-00001` |
 | Inversionista | `IN-00000` | `IN-00001` |
 | Admin/Owner   | `AD-00000` | `AD-00001` |
+
+`email` puede ser `null` para clientes e inversionistas operativos sin cuenta Auth. Cuando el usuario tiene cuenta Auth, `authUserId` queda vinculado internamente y el login resuelve el usuario local por ese campo.
 
 ### Endpoint
 
@@ -55,6 +59,11 @@ Privado
     "firstName": "Juan",
     "lastName": "Pérez",
     "phone": "+51 999 999 999",
+    "dni": "12345678",
+    "address": "Av. Principal 123",
+    "bank": "BCP",
+    "bankAccounts": ["191-1234567890"],
+    "maritalStatus": "single",
     "avatarUrl": "https://...",
     "role": "client",
     "isOwner": false,
@@ -215,6 +224,8 @@ Los owners pueden consultar cualquier usuario. Un administrador no owner no pued
 | ----- | ------ | ------------------------------- |
 | page  | number | Número de página (default: 1)   |
 | limit | number | Límite por página (default: 20) |
+| search | string | Busca por código público, nombre, DNI, email, teléfono, banco o cuentas |
+| q     | string | Alias de `search`               |
 
 ### Respuesta Exitosa
 
@@ -229,6 +240,11 @@ Los owners pueden consultar cualquier usuario. Un administrador no owner no pued
       "email": "email@example.com",
       "firstName": "Juan",
       "lastName": "Pérez",
+      "phone": "+51 999 999 999",
+      "dni": "12345678",
+      "bank": "BCP",
+      "bankAccounts": ["191-1234567890"],
+      "maritalStatus": "single",
       "role": "client",
       "active": true
     }
@@ -252,6 +268,76 @@ Los owners pueden consultar cualquier usuario. Un administrador no owner no pued
 | 200    | Usuarios obtenidos |
 | 401    | No autorizado      |
 | 500    | Error interno      |
+
+---
+
+## Create User
+
+Crear un cliente, inversionista o administrador desde el panel administrativo. Para clientes e inversionistas se puede crear solo el registro operativo sin cuenta Auth; si se envía `createAuthAccount: true`, `email` y `password` son obligatorios y se crea/vincula la cuenta Auth.
+
+### Endpoint
+
+```
+POST /api/v1/users
+```
+
+### Acceso
+
+Privado (Admin, Owner)
+
+### Cuerpo de Solicitud
+
+```json
+{
+  "firstName": "Juan",
+  "lastName": "Pérez",
+  "email": "juan@example.com",
+  "phone": "+51 999 999 999",
+  "role": "client",
+  "dni": "12345678",
+  "address": "Av. Principal 123",
+  "bank": "BCP",
+  "bankAccounts": ["191-1234567890", "002-987654321"],
+  "maritalStatus": "single",
+  "createAuthAccount": true,
+  "password": "password123"
+}
+```
+
+### Diccionario de Datos
+
+| Campo             | Tipo      | Obligatorio | Descripción |
+| ----------------- | --------- | ----------- | ----------- |
+| firstName         | string    | Sí          | Nombres |
+| lastName          | string    | Sí          | Apellidos |
+| role              | enum      | Sí          | client, investor, admin |
+| email             | string    | Solo con Auth/admin | Nullable para clientes/inversionistas sin cuenta |
+| phone             | string    | No          | Teléfono |
+| dni               | string    | No          | Documento |
+| address           | string    | No          | Domicilio |
+| bank              | string    | No          | Banco |
+| bankAccounts      | string[]  | No          | Números de cuenta |
+| maritalStatus     | enum      | No          | single, married, unspecified |
+| createAuthAccount | boolean   | No          | Crea/vincula cuenta Auth |
+| password          | string    | Solo con Auth | Contraseña temporal |
+
+### Respuesta Exitosa
+
+```json
+{
+  "success": true,
+  "message": "Usuario creado",
+  "data": {
+    "id": "uuid",
+    "publicCode": "CL-00001",
+    "email": "juan@example.com",
+    "firstName": "Juan",
+    "lastName": "Pérez",
+    "role": "client",
+    "bankAccounts": ["191-1234567890"]
+  }
+}
+```
 
 ---
 
@@ -296,6 +382,11 @@ Los owners pueden consultar cualquier usuario. Un administrador no owner no pued
     "firstName": "Juan",
     "lastName": "Pérez",
     "phone": "+51 999 999 999",
+    "dni": "12345678",
+    "address": "Av. Principal 123",
+    "bank": "BCP",
+    "bankAccounts": ["191-1234567890"],
+    "maritalStatus": "single",
     "role": "client",
     "isOwner": false,
     "active": true,
@@ -319,17 +410,57 @@ Los owners pueden consultar cualquier usuario. Un administrador no owner no pued
 
 ---
 
+## Link Auth Account
+
+Vincular una cuenta Supabase Auth a un cliente o inversionista operativo existente. El usuario debe tener o recibir un `email` válido.
+
+### Endpoint
+
+```
+POST /api/v1/users/:id/auth-account
+```
+
+### Acceso
+
+Privado (Admin, Owner)
+
+### Cuerpo de Solicitud
+
+```json
+{
+  "email": "cliente@example.com",
+  "password": "password123"
+}
+```
+
+### Respuesta Exitosa
+
+```json
+{
+  "success": true,
+  "message": "Cuenta Auth vinculada",
+  "data": {
+    "id": "uuid",
+    "publicCode": "CL-00001",
+    "email": "cliente@example.com",
+    "role": "client"
+  }
+}
+```
+
+---
+
 ## Update User
 
 Actualizar datos de un usuario. El endpoint valida campos distintos según quien actualiza:
 
-- El usuario autenticado solo puede actualizar sus campos de perfil: `firstName`, `lastName`, `phone`.
-- Owner puede actualizar cualquier usuario, excepto contraseña y rol.
-- Admin no owner puede actualizar usuarios no administradores, pero no puede gestionar a otro admin; sobre sí mismo solo actualiza campos de perfil.
+- El usuario autenticado solo puede actualizar sus campos de perfil: `firstName`, `lastName`, `phone`, `dni`, `address`, `bank`, `bankAccounts`, `maritalStatus`.
+- Owner puede actualizar cualquier usuario, excepto contraseña, rol y `authUserId`.
+- Admin no owner puede actualizar usuarios no administradores, incluyendo `email` y `active`; sobre sí mismo solo actualiza campos de perfil.
 - Cliente e inversionista solo pueden actualizar su propio perfil.
 - El rol es inmutable: no se acepta `role` en actualizaciones.
-- `isOwner` solo puede ser modificado por un owner.
-- Campos sensibles como `id`, `email`, `avatarUrl`, `deletedAt`, `createdAt` y `updatedAt` no se aceptan por este endpoint.
+- `isOwner` es interno y no se acepta en actualizaciones por API.
+- Campos sensibles como `id`, `authUserId`, `avatarUrl`, `deletedAt`, `createdAt` y `updatedAt` no se aceptan por este endpoint.
 
 ### Endpoint
 
@@ -362,7 +493,12 @@ Usuario actualizando su propio perfil:
 {
   "firstName": "string",
   "lastName": "string",
-  "phone": "string"
+  "phone": "string",
+  "dni": "string",
+  "address": "string",
+  "bank": "string",
+  "bankAccounts": ["string"],
+  "maritalStatus": "single"
 }
 ```
 
@@ -373,20 +509,30 @@ Admin/owner actualizando otro usuario:
   "firstName": "string",
   "lastName": "string",
   "phone": "string",
-  "active": true,
-  "isOwner": false
+  "email": "string",
+  "dni": "string",
+  "address": "string",
+  "bank": "string",
+  "bankAccounts": ["string"],
+  "maritalStatus": "unspecified",
+  "active": true
 }
 ```
 
 ### Diccionario de Datos
 
-| Campo     | Tipo    | Obligatorio | Descripción                  |
-| --------- | ------- | ----------- | ---------------------------- |
-| firstName | string  | No          | Nombres (min 2 caracteres)   |
-| lastName  | string  | No          | Apellidos (min 2 caracteres) |
-| phone     | string  | No          | Número de teléfono           |
-| active    | boolean | No          | Solo admin/owner             |
-| isOwner   | boolean | No          | Solo owner                   |
+| Campo         | Tipo     | Obligatorio | Descripción                  |
+| ------------- | -------- | ----------- | ---------------------------- |
+| firstName     | string   | No          | Nombres (min 2 caracteres)   |
+| lastName      | string   | No          | Apellidos (min 2 caracteres) |
+| phone         | string   | No          | Número de teléfono           |
+| email         | string   | No          | Solo admin/owner             |
+| dni           | string   | No          | Documento                    |
+| address       | string   | No          | Domicilio                    |
+| bank          | string   | No          | Banco                        |
+| bankAccounts  | string[] | No          | Números de cuenta            |
+| maritalStatus | enum     | No          | single, married, unspecified |
+| active        | boolean  | No          | Solo admin/owner             |
 
 ### Respuesta Exitosa
 
