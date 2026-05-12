@@ -60,10 +60,5 @@ export const users = pgTable(
       to: "authenticated",
       using: sql`auth_user_id = auth.uid()::text`,
     }),
-    pgPolicy("user_self_update", {
-      for: "update",
-      to: "authenticated",
-      using: sql`auth_user_id = auth.uid()::text`,
-    }),
   ],
 );

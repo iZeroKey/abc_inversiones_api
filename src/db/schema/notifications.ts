@@ -22,9 +22,4 @@ export const notifications = pgTable("notifications", {
     to: "authenticated",
     using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = notifications.user_id AND users.auth_user_id = auth.uid()::text)`,
   }),
-  pgPolicy("user_notifications_self_update", {
-    for: "update",
-    to: "authenticated",
-    using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = notifications.user_id AND users.auth_user_id = auth.uid()::text)`,
-  }),
 ]);

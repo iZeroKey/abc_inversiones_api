@@ -43,6 +43,26 @@ describe("Loans Module", () => {
     expect(res.body.data.totalDebt).toBe("1353.96");
   });
 
+  it("debería rechazar préstamos cuyo cliente no tenga rol client", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+    const investor = await getUserByEmail(seededEmails.investor);
+
+    const res = await request
+      .post("/api/v1/loans")
+      .set(authHeader(adminToken))
+      .send({
+        clientId: investor!.id,
+        principal: "1000",
+        interestRate: "5",
+        installmentsCount: 12,
+        frequency: "monthly",
+        startDate: "2026-01-31T00:00:00.000-05:00",
+      });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toBe("Cliente no encontrado");
+  });
+
   it("debería generar cronograma mensual desde startDate al aprobar finalmente", async () => {
     const adminToken = await loginAs(seededEmails.admin);
     const client = await getUserByEmail(seededEmails.client);

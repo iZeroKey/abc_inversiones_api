@@ -37,8 +37,8 @@ export const paymentVouchers = pgTable("payment_vouchers", {
     to: "authenticated",
     using: sql`EXISTS (SELECT 1 FROM users WHERE users.auth_user_id = auth.uid()::text AND (users.role = 'admin' OR users.is_owner = true))`,
   }),
-  pgPolicy("client_vouchers_self", {
-    for: "all",
+  pgPolicy("client_vouchers_select", {
+    for: "select",
     to: "authenticated",
     using: sql`EXISTS (SELECT 1 FROM users WHERE users.id = payment_vouchers.client_id AND users.auth_user_id = auth.uid()::text)`,
   }),

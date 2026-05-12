@@ -36,6 +36,24 @@ const canAccessLoan = (user: AuthRequest["user"], loan: typeof loans.$inferSelec
 const isAdminOrOwner = (user: AuthRequest["user"]): boolean =>
   !!user && (user.role === "admin" || user.isOwner);
 
+const getActiveUserByRole = async (
+  id: string,
+  role: "client" | "investor",
+) => {
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(and(
+      eq(users.id, id),
+      eq(users.role, role),
+      eq(users.active, true),
+      sql`${users.deletedAt} IS NULL`,
+    ))
+    .limit(1);
+
+  return user;
+};
+
 const clientUsers = alias(users, "client_users");
 const investorUsers = alias(users, "investor_users");
 const loanColumns = getTableColumns(loans);
@@ -72,6 +90,20 @@ export const createLoan = async (
     }
 
     const data = validation.data;
+    const client = await getActiveUserByRole(data.clientId, "client");
+    if (!client) {
+      sendError(res, 404, "Cliente no encontrado");
+      return;
+    }
+
+    if (data.investorId) {
+      const investor = await getActiveUserByRole(data.investorId, "investor");
+      if (!investor) {
+        sendError(res, 404, "Inversionista no encontrado");
+        return;
+      }
+    }
+
     const principal = Number(data.principal);
     const rate = Number(data.interestRate);
     const { totalDebt } = calculateLoanFinancials({
@@ -148,6 +180,22 @@ export const updateLoan = async (
     }
 
     const data = validation.data;
+    if (data.clientId) {
+      const client = await getActiveUserByRole(data.clientId, "client");
+      if (!client) {
+        sendError(res, 404, "Cliente no encontrado");
+        return;
+      }
+    }
+
+    if (data.investorId) {
+      const investor = await getActiveUserByRole(data.investorId, "investor");
+      if (!investor) {
+        sendError(res, 404, "Inversionista no encontrado");
+        return;
+      }
+    }
+
     const principal = data.principal !== undefined ? Number(data.principal) : Number(oldLoan.principal);
     const interestRate = data.interestRate !== undefined ? Number(data.interestRate) : Number(oldLoan.interestRate);
     const installmentsCount = data.installmentsCount ?? oldLoan.installmentsCount;

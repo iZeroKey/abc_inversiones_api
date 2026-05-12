@@ -184,24 +184,32 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
       authUserId = authData.user.id;
     }
 
-    const [createdUser] = await db
-      .insert(users)
-      .values({
-        authUserId,
-        publicCode: data.publicCode || await generatePublicCodeForRole(data.role),
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        phone: data.phone,
-        role: data.role,
-        active: data.active,
-        dni: data.dni,
-        address: data.address,
-        bank: data.bank,
-        bankAccounts: data.bankAccounts,
-        maritalStatus: data.maritalStatus,
-      })
-      .returning();
+    let createdUser: typeof users.$inferSelect;
+    try {
+      [createdUser] = await db
+        .insert(users)
+        .values({
+          authUserId,
+          publicCode: data.publicCode || await generatePublicCodeForRole(data.role),
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          phone: data.phone,
+          role: data.role,
+          active: data.active,
+          dni: data.dni,
+          address: data.address,
+          bank: data.bank,
+          bankAccounts: data.bankAccounts,
+          maritalStatus: data.maritalStatus,
+        })
+        .returning();
+    } catch (error) {
+      if (authUserId) {
+        await supabaseAdmin.auth.admin.deleteUser(authUserId);
+      }
+      throw error;
+    }
 
     await logAudit({
       userId: currentUser.id,
