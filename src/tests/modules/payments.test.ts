@@ -42,6 +42,51 @@ describe("Payments Module", () => {
     expect(res.body.data.amount).toBe("100.00");
   });
 
+  it("debería permitir al admin registrar un pago manual con evidencia", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      status: "active",
+      isCompanyFunded: true,
+      totalDebt: "1200.00",
+      installmentsCount: 4,
+    });
+
+    await createInstallmentFixture({
+      loanId: loan.id,
+      installmentNumber: 1,
+      amount: "300.00",
+      status: "pending",
+    });
+
+    const res = await request
+      .post("/api/v1/payments")
+      .set(authHeader(adminToken))
+      .field("loanId", loan.id)
+      .field("amount", "100.00")
+      .field("method", "transfer")
+      .field("reference", "OP-MANUAL-EVIDENCE")
+      .attach("evidence", Buffer.from("fake-image-content"), "manual-payment.png");
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.amount).toBe("100.00");
+    expect(res.body.data.evidenceUrl).toContain("token=");
+
+    const [storedPayment] = await db
+      .select()
+      .from(payments)
+      .where(eq(payments.id, res.body.data.id))
+      .limit(1);
+    expect(storedPayment.evidenceUrl).toContain("storage://vouchers/");
+
+    const history = await request
+      .get(`/api/v1/payments/loan/${loan.id}`)
+      .set(authHeader(adminToken));
+    expect(history.status).toBe(200);
+    expect(history.body.data[0].evidenceUrl).toContain("token=");
+  });
+
   it("debería aplicar un pago a una cuota overdue", async () => {
     const adminToken = await loginAs(seededEmails.admin);
     const client = await getUserByEmail(seededEmails.client);

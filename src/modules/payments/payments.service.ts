@@ -17,6 +17,7 @@ export interface ProcessPaymentParams {
   voucherId?: string | null;
   reference?: string;
   observation?: string;
+  evidenceUrl?: string | null;
   paymentDate?: Date;
   installmentId?: string | null;
   allowOverpayment?: boolean;
@@ -192,6 +193,7 @@ export const processPaymentLogic = async (params: ProcessPaymentParams) => {
       registeredById,
       paymentDate,
       voucherId,
+      evidenceUrl,
       allowOverpayment = false,
     } = params;
     const amountToApply = toCents(amount);
@@ -231,6 +233,7 @@ export const processPaymentLogic = async (params: ProcessPaymentParams) => {
       method,
       reference,
       observation,
+      evidenceUrl,
       registeredById,
       paymentDate: effectivePaymentDate,
     }).returning();

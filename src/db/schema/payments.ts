@@ -15,6 +15,7 @@ export const payments = pgTable("payments", {
   method: text("method", { enum: ["cash", "transfer", "deposit", "other"] }).notNull().default("cash"),
   reference: text("reference"), // Número de operación, etc.
   observation: text("observation"),
+  evidenceUrl: text("evidence_url"),
   registeredById: uuid("registered_by_id").notNull().references(() => users.id),
   status: text("status", { enum: ["confirmed", "reversed"] }).notNull().default("confirmed"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

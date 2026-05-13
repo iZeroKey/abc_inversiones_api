@@ -13,6 +13,8 @@
 
 Registrar un nuevo pago manual de un cliente. El pago creado por admin queda `confirmed` directamente y se aplica a cuotas `pending` y `overdue`, ordenadas por `dueDate`.
 
+El endpoint acepta JSON puro cuando no hay evidencia, o `multipart/form-data` cuando el admin necesita adjuntar una imagen en el campo `evidence`. La evidencia se guarda en Storage privado y la API responde con una URL firmada temporal.
+
 Reglas de aplicación:
 
 - El préstamo debe existir y estar `active`.
@@ -35,10 +37,10 @@ Privado (Admin, Owner)
 
 ### Encabezados
 
-| Encabezado    | Valor            | Obligatorio |
-| ------------- | ---------------- | ----------- |
-| Authorization | Bearer {token}   | Sí          |
-| Content-Type  | application/json | Sí          |
+| Encabezado    | Valor                                  | Obligatorio |
+| ------------- | -------------------------------------- | ----------- |
+| Authorization | Bearer {token}                         | Sí          |
+| Content-Type  | application/json o multipart/form-data | Sí          |
 
 ### Cuerpo de Solicitud
 
@@ -65,6 +67,7 @@ Privado (Admin, Owner)
 | method        | enum   | No          | Método de pago  | cash, transfer, deposit, other (default: cash) |
 | reference     | string | No          | Referencia      | -                                              |
 | observation   | string | No          | Observación     | -                                              |
+| evidence      | file   | No          | Imagen de evidencia en multipart/form-data | JPEG, PNG o WebP, max 5MB |
 
 ### Respuesta Exitosa
 
@@ -78,6 +81,7 @@ Privado (Admin, Owner)
     "amount": "5000.00",
     "paymentDate": "2026-01-01T00:00:00.000Z",
     "method": "transfer",
+    "evidenceUrl": "https://...",
     "status": "confirmed"
   },
   "meta": {
@@ -212,6 +216,7 @@ Privado
       "paymentDate": "2026-01-01T00:00:00.000Z",
       "method": "transfer",
       "reference": "OP123456",
+      "evidenceUrl": "https://...",
       "status": "confirmed",
       "registeredById": "uuid",
       "createdAt": "2026-01-01T00:00:00.000Z"

@@ -5,6 +5,7 @@ import { loans } from "../../db/schema/loans.js";
 import { payments } from "../../db/schema/payments.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
+import { deleteStorageReference, resolveFileUrl, uploadFileStream } from "../../utils/storage.util.js";
 import {
   formatZodError,
   sendError,
@@ -13,19 +14,47 @@ import {
 import { createPaymentSchema, updatePaymentSchema } from "./payments.schema.js";
 import { PaymentBusinessError, processPaymentLogic, recalculateLoanLedger } from "./payments.service.js";
 
+const attachSignedEvidenceUrl = async <T extends { evidenceUrl?: string | null }>(payment: T): Promise<T> => {
+  if (!payment.evidenceUrl) {
+    return payment;
+  }
+
+  return {
+    ...payment,
+    evidenceUrl: await resolveFileUrl(payment.evidenceUrl),
+  };
+};
+
 export const registerPayment = async (req: AuthRequest, res: Response): Promise<void> => {
+  let evidenceUrl: string | null = null;
+
   try {
-    const validation = createPaymentSchema.safeParse(req.body);
+    const streamParsed = req.streamParsed;
+    const hasStreamFields = streamParsed && Object.keys(streamParsed.fields).length > 0;
+    const bodySource = hasStreamFields ? streamParsed.fields : req.body;
+    const validation = createPaymentSchema.safeParse(bodySource);
     if (!validation.success) {
       sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
       return;
+    }
+
+    if (streamParsed?.fileStream) {
+      evidenceUrl = await uploadFileStream(
+        "vouchers",
+        validation.data.loanId,
+        streamParsed.fileStream.stream,
+        streamParsed.fileStream.generatedName,
+        streamParsed.fileStream.mimetype,
+      );
     }
 
     const result = await processPaymentLogic({
       ...validation.data,
       registeredById: req.user!.id,
       paymentDate: validation.data.paymentDate ? new Date(validation.data.paymentDate) : new Date(),
+      evidenceUrl,
     });
+    const responsePayment = await attachSignedEvidenceUrl(result);
 
     await logAudit({
       userId: req.user!.id,
@@ -36,8 +65,12 @@ export const registerPayment = async (req: AuthRequest, res: Response): Promise<
       req,
     });
 
-    sendSuccess(res, 201, "Pago registrado y aplicado correctamente", result);
+    sendSuccess(res, 201, "Pago registrado y aplicado correctamente", responsePayment);
   } catch (error: unknown) {
+    if (evidenceUrl) {
+      await deleteStorageReference(evidenceUrl).catch(() => {});
+    }
+
     const message = error instanceof Error ? error.message : "Error al registrar el pago";
     const status = error instanceof PaymentBusinessError ? error.statusCode : 500;
     sendError(res, status, message, error);
@@ -70,8 +103,9 @@ export const getPaymentsByLoan = async (req: AuthRequest, res: Response): Promis
       .from(payments)
       .where(and(eq(payments.loanId, loanId), isNull(payments.deletedAt)))
       .orderBy(desc(payments.paymentDate));
+    const signedResults = await Promise.all(results.map((payment) => attachSignedEvidenceUrl(payment)));
 
-    sendSuccess(res, 200, "Pagos obtenidos", results);
+    sendSuccess(res, 200, "Pagos obtenidos", signedResults);
   } catch (error) {
     sendError(res, 500, "Error al obtener pagos", error);
   }
