@@ -74,6 +74,8 @@ Privado (Client)
 
 Subir un nuevo comprobante de pago (Voucher) con la imagen y los datos finales confirmados por el cliente. No se aceptan vouchers sobre préstamos eliminados.
 
+El cliente no envía ni escoge método de pago en vouchers. Si el préstamo tiene un inversionista con cuenta de acceso activa, el voucher queda en `pending_investor_review`; si no tiene inversionista con acceso, queda directamente en `pending_admin_review`.
+
 Usa modo **stream** (busboy): los bytes de la imagen fluyen directamente a Supabase Storage sin acumularse en RAM del backend, reduciendo el uso de memoria y el riesgo de timeout del proxy Cloudflare.
 
 ### Endpoint
@@ -264,7 +266,7 @@ Privado (Client)
 
 ## Process Voucher
 
-Aprobar o rechazar un voucher. Si se aprueba, se aplica el pago al préstamo.
+Aprobar o rechazar un voucher. Si se aprueba en revisión final administrativa, se aplica el pago al préstamo con `method = transfer`.
 
 ### Endpoint
 
@@ -409,6 +411,7 @@ Privado (cliente dueño del voucher pendiente, Admin, Owner)
 | ----------------------- | --------------------------------------- |
 | draft                   | Borrador                                |
 | pending_investor_review | Pendiente de revisión del inversionista |
+| pending_admin_review    | Pendiente de revisión administrativa    |
 | investor_approved       | Aprobado por inversionista              |
 | investor_rejected       | Rechazado por inversionista             |
 | owner_approved          | Aprobado por owner/admin                |

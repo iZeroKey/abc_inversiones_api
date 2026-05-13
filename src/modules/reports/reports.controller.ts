@@ -182,7 +182,7 @@ export const getAdminDashboard = async (_req: AuthRequest, res: Response): Promi
     // Vouchers pendientes de procesamiento
     const [voucherStats] = await db.select({
       pendingInvestor: sql<number>`count(*) FILTER (WHERE ${paymentVouchers.status} = 'pending_investor_review')`,
-      pendingAdmin: sql<number>`count(*) FILTER (WHERE ${paymentVouchers.status} = 'investor_approved')`,
+      pendingAdmin: sql<number>`count(*) FILTER (WHERE ${paymentVouchers.status} IN ('pending_admin_review', 'investor_approved'))`,
     }).from(paymentVouchers);
 
     // Usuarios activos

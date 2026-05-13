@@ -30,7 +30,7 @@ const operationIdSchema = z.preprocess(
   z.string().min(1, "El ID de operación es obligatorio"),
 );
 
-export const createVoucherSchema = z.object({
+export const createVoucherSchema = z.strictObject({
   loanId: z.uuid("ID de préstamo inválido"),
   amount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, "El monto debe ser positivo"),
   operationId: operationIdSchema,

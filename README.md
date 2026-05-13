@@ -214,6 +214,7 @@ Los roles de usuarios son inmutables después de la creación. Todos los usuario
 | `method`           | enum      | cash, transfer, deposit, other |
 | `reference`        | text      | Referencia                     |
 | `observation`      | text      | Observación                    |
+| `evidence_url`     | text      | Evidencia opcional del pago    |
 | `registered_by_id` | uuid      | ID de quien registra           |
 | `status`           | enum      | confirmed, reversed            |
 | `created_at`       | timestamp | Fecha de creación              |
@@ -231,7 +232,7 @@ Los roles de usuarios son inmutables después de la creación. Todos los usuario
 | `operation_id`    | text      | ID de operación bancaria                                                                             |
 | `operation_date`  | timestamp | Fecha de operación                                                                                   |
 | `evidence_url`    | text      | URL de la evidencia                                                                                  |
-| `status`          | enum      | draft, pending_investor_review, investor_approved, investor_rejected, owner_approved, owner_rejected, deleted |
+| `status`          | enum      | draft, pending_investor_review, pending_admin_review, investor_approved, investor_rejected, owner_approved, owner_rejected, deleted |
 | `observation`     | text      | Observación                                                                                          |
 | `processed_by_id` | uuid      | ID interno de quien procesó                                                                          |
 | `created_at`      | timestamp | Fecha de creación                                                                                    |
@@ -328,9 +329,11 @@ En `PATCH /users/:id`, un usuario solo puede actualizar sus campos de perfil (`f
 | POST   | /payments              | Registrar pago     | Admin   |
 | GET    | /payments/loan/:loanId | Pagos por préstamo | Privado |
 
-Los pagos se aplican a cuotas `pending` y `overdue` por fecha de vencimiento. El backend rechaza pagos excedentes con 400 y marca el préstamo como `paid` cuando todas sus cuotas quedan pagadas.
+Los pagos se aplican a cuotas `pending` y `overdue` por fecha de vencimiento. El backend rechaza pagos excedentes con 400 y marca el préstamo como `paid` cuando todas sus cuotas quedan pagadas. `POST /payments` acepta JSON o `multipart/form-data` con imagen opcional en el campo `evidence`.
 
 ### Vouchers
+
+Si el préstamo no tiene inversionista con cuenta de acceso activa, el voucher entra directamente en `pending_admin_review`. Si el inversionista sí puede autenticarse, entra en `pending_investor_review` y luego pasa a validación administrativa. El cliente no escoge método de pago en vouchers; cuando administración aprueba, el pago se registra internamente con `method = transfer`.
 
 | Método | Endpoint                              | Descripción           | Acceso          |
 | ------ | ------------------------------------- | --------------------- | --------------- |

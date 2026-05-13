@@ -1,8 +1,10 @@
 import { Response } from "express";
 import { db } from "../../config/db.js";
 import { supabaseAdmin } from "../../config/supabase.js";
+import { loans } from "../../db/schema/loans.js";
+import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
 import { users } from "../../db/schema/users.js";
-import { desc, eq, ilike, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import {
   sendSuccess,
   sendError,
@@ -93,6 +95,29 @@ const canUseAdministrativeUpdate = (
   return currentUser.role === "admin"
     && currentUser.id !== targetUser.id
     && targetUser.role !== "admin";
+};
+
+const movePendingInvestorVouchersToAdminReview = async (
+  investorId: string,
+): Promise<number> => {
+  const updated = await db
+    .update(paymentVouchers)
+    .set({
+      status: "pending_admin_review",
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(paymentVouchers.status, "pending_investor_review"),
+      sql`EXISTS (
+        SELECT 1
+        FROM ${loans}
+        WHERE ${loans.id} = ${paymentVouchers.loanId}
+          AND ${loans.investorId} = ${investorId}
+      )`,
+    ))
+    .returning({ id: paymentVouchers.id });
+
+  return updated.length;
 };
 
 export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -293,6 +318,10 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
     const updateData = normalizeUserPayload(validation.data);
     const publicCode = oldUser.publicCode
       || await generatePublicCodeForRole(oldUser.role);
+    const isRemovingInvestorAccess = oldUser.role === "investor"
+      && oldUser.active
+      && "active" in updateData
+      && updateData.active === false;
 
     const [updatedUser] = await db
       .update(users)
@@ -304,13 +333,17 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
       .where(eq(users.id, id))
       .returning();
 
+    const movedVouchers = isRemovingInvestorAccess
+      ? await movePendingInvestorVouchersToAdminReview(id)
+      : 0;
+
     await logAudit({
       userId: currentUser.id,
       action: "UPDATE_USER",
       module: "USERS",
       entityId: id,
       oldData: oldUser,
-      newData: updatedUser,
+      newData: { ...updatedUser, movedPendingVouchersToAdminReview: movedVouchers },
       req,
     });
 
@@ -517,11 +550,16 @@ export const deleteUser = async (req: AuthRequest, res: Response): Promise<void>
       .where(eq(users.id, id))
       .returning();
 
+    const movedVouchers = targetUser.role === "investor"
+      ? await movePendingInvestorVouchersToAdminReview(id)
+      : 0;
+
     await logAudit({
       userId: req.user!.id,
       action: "DELETE_USER",
       module: "USERS",
       entityId: id,
+      newData: { movedPendingVouchersToAdminReview: movedVouchers },
       req,
     });
 

@@ -196,7 +196,7 @@ export const createVoucherFixture = async (params: {
   clientId: string;
   amount?: string;
   operationId: string;
-  status?: "draft" | "pending_investor_review" | "investor_approved" | "investor_rejected" | "owner_approved" | "owner_rejected";
+  status?: "draft" | "pending_investor_review" | "pending_admin_review" | "investor_approved" | "investor_rejected" | "owner_approved" | "owner_rejected";
 }) => {
   const [voucher] = await db.insert(paymentVouchers).values({
     loanId: params.loanId,

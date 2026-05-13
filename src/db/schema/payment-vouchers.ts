@@ -15,6 +15,7 @@ export const paymentVouchers = pgTable("payment_vouchers", {
     enum: [
       "draft",
       "pending_investor_review", 
+      "pending_admin_review",
       "investor_approved", 
       "investor_rejected", 
       "owner_approved", 

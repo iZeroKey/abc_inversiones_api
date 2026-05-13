@@ -4,6 +4,7 @@ import { db } from "../../config/db.js";
 import { loans } from "../../db/schema/loans.js";
 import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
 import { payments } from "../../db/schema/payments.js";
+import { users } from "../../db/schema/users.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { sendNotification } from "../../utils/notification.util.js";
@@ -33,6 +34,28 @@ const attachSignedEvidenceUrl = async <T extends { evidenceUrl?: string | null }
 
 const normalizedOperationIdCondition = (operationId: string): SQL => {
   return sql`regexp_replace(upper(${paymentVouchers.operationId}), '[^A-Z0-9]', '', 'g') = ${operationId}`;
+};
+
+const voucherPendingStatuses = ["draft", "pending_investor_review", "pending_admin_review"];
+
+const voucherNeedsInvestorReview = async (investorId?: string | null): Promise<boolean> => {
+  if (!investorId) {
+    return false;
+  }
+
+  const [investor] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(
+      eq(users.id, investorId),
+      eq(users.role, "investor"),
+      eq(users.active, true),
+      sql`${users.authUserId} IS NOT NULL`,
+      sql`${users.deletedAt} IS NULL`,
+    ))
+    .limit(1);
+
+  return !!investor;
 };
 
 /**
@@ -117,8 +140,10 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
       );
     }
 
-    // 5. Determinar estado inicial
-    const initialStatus = "pending_investor_review" as const;
+    // 5. Determinar estado inicial según si el inversionista puede revisar.
+    const initialStatus = await voucherNeedsInvestorReview(loan.investorId)
+      ? "pending_investor_review"
+      : "pending_admin_review";
 
     const [newVoucher] = await db.insert(paymentVouchers).values({
       ...validation.data,
@@ -138,8 +163,8 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
       req,
     });
 
-    // 6. Notificar al inversionista si existe
-    if (loan.investorId) {
+    // 6. Notificar al inversionista solo si tiene acceso operativo.
+    if (initialStatus === "pending_investor_review" && loan.investorId) {
       await sendNotification({
         userId: loan.investorId,
         title: "Nuevo voucher para revisar",
@@ -256,7 +281,8 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    let nextStatus: "draft" | "pending_investor_review" | "investor_approved" | "investor_rejected" | "owner_approved" | "owner_rejected";
+    const needsInvestorReview = await voucherNeedsInvestorReview(loan.investorId);
+    let nextStatus: typeof paymentVouchers.status.enumValues[number];
 
     if (user.role === "investor") {
       // Inversionista: solo puede procesar vouchers en pending_investor_review
@@ -271,18 +297,16 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
       nextStatus = action === "approve" ? "investor_approved" : "investor_rejected";
 
     } else if (user.role === "admin" || user.isOwner) {
-      // Admin/Dueño: la lógica depende de si el préstamo tiene inversionista
-      const hasInvestor = loan && loan.investorId;
-
-      if (hasInvestor) {
+      // Admin/Dueño: la lógica depende de si el inversionista puede revisar.
+      if (needsInvestorReview) {
         // CON inversionista: el Admin solo puede actuar después de que el inversionista aprobó
         if (voucher.status !== "investor_approved") {
           sendError(res, 400, "El inversionista debe aprobar este voucher antes de la validación administrativa");
           return;
         }
       } else {
-        // SIN inversionista (empresa): el Admin puede procesar directamente
-        if (voucher.status !== "pending_investor_review" && voucher.status !== "investor_approved") {
+        // SIN inversionista con acceso: el Admin puede procesar directamente
+        if (!["pending_admin_review", "pending_investor_review", "investor_approved"].includes(voucher.status)) {
           sendError(res, 400, "Estado no apto para validación administrativa");
           return;
         }
@@ -390,7 +414,7 @@ export const updateVoucher = async (req: AuthRequest, res: Response): Promise<vo
 
     const canEditPending = user.role === "client"
       && voucher.clientId === user.id
-      && ["draft", "pending_investor_review"].includes(voucher.status);
+      && voucherPendingStatuses.includes(voucher.status);
     const canEditApplied = (user.role === "admin" || user.isOwner)
       && voucher.status === "owner_approved";
 
@@ -463,7 +487,7 @@ export const deleteVoucher = async (req: AuthRequest, res: Response): Promise<vo
 
     const canDeletePending = user.role === "client"
       && voucher.clientId === user.id
-      && ["draft", "pending_investor_review"].includes(voucher.status);
+      && voucherPendingStatuses.includes(voucher.status);
     const canDeleteAny = user.role === "admin" || user.isOwner;
 
     if (!canDeletePending && !canDeleteAny) {

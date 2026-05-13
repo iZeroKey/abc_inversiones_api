@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { authHeader, createInstallmentFixture, createLoanFixture, createVoucherFixture, getUserByEmail, loginAs, request, seededEmails } from "../helpers/integration.js";
+import { eq } from "drizzle-orm";
+import { db } from "../../config/db.js";
+import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
+import { users } from "../../db/schema/users.js";
+import { generatePublicCodeForRole } from "../../utils/public-code.util.js";
+import { authHeader, createAuthUser, createInstallmentFixture, createLoanFixture, createVoucherFixture, getUserByEmail, loginAs, request, seededEmails, uniqueEmail } from "../helpers/integration.js";
 
 describe("Payment Vouchers Module", () => {
   it("debería permitir al cliente subir un voucher a un préstamo activo", async () => {
@@ -19,6 +24,91 @@ describe("Payment Vouchers Module", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.data.loanId).toBe(loan.id);
+    expect(res.body.data.status).toBe("pending_investor_review");
+  });
+
+  it("debería enviar el voucher directo a revisión admin si el inversionista no tiene cuenta de acceso", async () => {
+    const client = await getUserByEmail(seededEmails.client);
+    const [investorWithoutAccess] = await db.insert(users).values({
+      firstName: "Inversionista",
+      lastName: "Sin Acceso",
+      role: "investor",
+      publicCode: await generatePublicCodeForRole("investor"),
+      active: true,
+    }).returning();
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: investorWithoutAccess.id,
+      status: "active",
+      isCompanyFunded: false,
+    });
+
+    const res = await request
+      .post("/api/v1/payment-vouchers")
+      .set(authHeader(await loginAs(seededEmails.client)))
+      .send({ loanId: loan.id, amount: "500", operationId: `OP-NO-ACCESS-${Date.now()}` });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.status).toBe("pending_admin_review");
+  });
+
+  it("debería mover vouchers pendientes a revisión admin cuando se quita acceso al inversionista", async () => {
+    const client = await getUserByEmail(seededEmails.client);
+    const investor = await createAuthUser({
+      email: uniqueEmail("voucher-access-investor"),
+      firstName: "Investor",
+      lastName: "Access",
+      role: "investor",
+    });
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: investor.id,
+      status: "active",
+      isCompanyFunded: false,
+    });
+    const voucher = await createVoucherFixture({
+      loanId: loan.id,
+      clientId: client!.id,
+      operationId: `OP-MOVE-ADMIN-${Date.now()}`,
+      status: "pending_investor_review",
+    });
+
+    const res = await request
+      .patch(`/api/v1/users/${investor.id}`)
+      .set(authHeader(await loginAs(seededEmails.admin)))
+      .send({ active: false });
+
+    expect(res.status).toBe(200);
+
+    const [updatedVoucher] = await db
+      .select()
+      .from(paymentVouchers)
+      .where(eq(paymentVouchers.id, voucher.id))
+      .limit(1);
+
+    expect(updatedVoucher.status).toBe("pending_admin_review");
+  });
+
+  it("debería rechazar método de pago enviado por el cliente en vouchers", async () => {
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: null,
+      status: "active",
+      isCompanyFunded: true,
+    });
+
+    const res = await request
+      .post("/api/v1/payment-vouchers")
+      .set(authHeader(await loginAs(seededEmails.client)))
+      .send({
+        loanId: loan.id,
+        amount: "500",
+        operationId: `OP-METHOD-${Date.now()}`,
+        method: "cash",
+      });
+
+    expect(res.status).toBe(400);
   });
 
   it("debería validar rápidamente si un operationId ya existe", async () => {
@@ -227,7 +317,7 @@ describe("Payment Vouchers Module", () => {
       clientId: client!.id,
       amount: "50.00",
       operationId: `OP-APP-${Date.now()}`,
-      status: "pending_investor_review",
+      status: "pending_admin_review",
     });
 
     const approved = await request
