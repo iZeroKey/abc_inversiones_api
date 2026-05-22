@@ -30,11 +30,11 @@ Privado
 
 ### Parámetros de Consulta
 
-| Campo  | Tipo    | Descripción                                      |
-| ------ | ------- | ------------------------------------------------ |
+| Campo  | Tipo    | Descripción                                          |
+| ------ | ------- | ---------------------------------------------------- |
 | isRead | boolean | Opcional. `true` para leídas, `false` para no leídas |
-| page   | number  | Opcional. Número de página, default 1            |
-| limit  | number  | Opcional. Límite por página, default 20, max 50  |
+| page   | number  | Opcional. Número de página, default 1                |
+| limit  | number  | Opcional. Límite por página, default 20, max 50      |
 
 ### Respuesta Exitosa
 

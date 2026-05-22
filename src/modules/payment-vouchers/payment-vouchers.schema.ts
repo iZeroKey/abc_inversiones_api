@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 export const normalizeOperationId = (value: string): string => {
-  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
 };
 
 const operationDateSchema = z
@@ -32,10 +35,19 @@ const operationIdSchema = z.preprocess(
 
 export const createVoucherSchema = z.strictObject({
   loanId: z.uuid("ID de préstamo inválido"),
-  amount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, "El monto debe ser positivo"),
+  amount: z
+    .string()
+    .refine(
+      (val) => !isNaN(Number(val)) && Number(val) > 0,
+      "El monto debe ser positivo",
+    ),
   operationId: operationIdSchema,
   operationDate: operationDateSchema,
-  evidenceUrl: z.string().url("URL de evidencia inválida").optional().nullable(),
+  evidenceUrl: z
+    .string()
+    .url("URL de evidencia inválida")
+    .optional()
+    .nullable(),
   observation: z.string().optional(),
 });
 
@@ -49,10 +61,20 @@ export const processVoucherSchema = z.object({
 });
 
 export const updateVoucherSchema = z.strictObject({
-  amount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, "El monto debe ser positivo").optional(),
+  amount: z
+    .string()
+    .refine(
+      (val) => !isNaN(Number(val)) && Number(val) > 0,
+      "El monto debe ser positivo",
+    )
+    .optional(),
   operationId: operationIdSchema.optional(),
   operationDate: operationDateSchema,
-  evidenceUrl: z.string().url("URL de evidencia inválida").optional().nullable(),
+  evidenceUrl: z
+    .string()
+    .url("URL de evidencia inválida")
+    .optional()
+    .nullable(),
   observation: z.string().optional().nullable(),
 });
 

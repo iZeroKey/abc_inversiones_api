@@ -67,13 +67,13 @@ export const updateLoanSchema = z.strictObject({
     .min(1, "El número de cuotas debe ser positivo")
     .max(120, "El número de cuotas no puede superar 120")
     .optional(),
-  frequency: z
-    .enum(["daily", "weekly", "biweekly", "monthly"])
+  frequency: z.enum(["daily", "weekly", "biweekly", "monthly"]).optional(),
+  startDate: z.iso
+    .datetime({
+      message: "La fecha de inicio debe ser ISO8601",
+      offset: true,
+    })
     .optional(),
-  startDate: z.iso.datetime({
-    message: "La fecha de inicio debe ser ISO8601",
-    offset: true,
-  }).optional(),
   observation: z.string().optional().nullable(),
 });
 

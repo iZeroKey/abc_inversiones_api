@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as controller from "./auth.controller.js";
 import { authenticate } from "../../middleware/auth.middleware.js";
+import { authRateLimit } from "../../middleware/rate-limit.middleware.js";
 import { authorize } from "../../middleware/role.middleware.js";
 
 const router = Router();
@@ -11,7 +12,7 @@ const router = Router();
  * @access  Public
  * @body    { email, password }
  */
-router.post("/login", controller.login);
+router.post("/login", authRateLimit, controller.login);
 
 /**
  * @route   POST /api/v1/auth/refresh
@@ -19,7 +20,7 @@ router.post("/login", controller.login);
  * @access  Public
  * @body    { refresh_token }
  */
-router.post("/refresh", controller.refresh);
+router.post("/refresh", authRateLimit, controller.refresh);
 
 /**
  * @route   POST /api/v1/auth/logout

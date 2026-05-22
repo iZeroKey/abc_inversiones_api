@@ -59,7 +59,11 @@ describe("Notifications Module", () => {
 
     await createNotificationFixture({ userId: user.id, title: "Unread 1" });
     await createNotificationFixture({ userId: user.id, title: "Unread 2" });
-    await createNotificationFixture({ userId: user.id, title: "Read", isRead: true });
+    await createNotificationFixture({
+      userId: user.id,
+      title: "Read",
+      isRead: true,
+    });
 
     const res = await request
       .get("/api/v1/notifications?isRead=false&page=1&limit=10")
@@ -68,7 +72,9 @@ describe("Notifications Module", () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(2);
     expect(
-      (res.body.data as Array<{ isRead: boolean }>).every((notification) => !notification.isRead),
+      (res.body.data as Array<{ isRead: boolean }>).every(
+        (notification) => !notification.isRead,
+      ),
     ).toBe(true);
     expect(res.body.meta).toMatchObject({
       page: 1,
@@ -83,8 +89,16 @@ describe("Notifications Module", () => {
     const { user, token } = await createNotificationsUser();
 
     await createNotificationFixture({ userId: user.id, title: "Unread" });
-    await createNotificationFixture({ userId: user.id, title: "Read 1", isRead: true });
-    await createNotificationFixture({ userId: user.id, title: "Read 2", isRead: true });
+    await createNotificationFixture({
+      userId: user.id,
+      title: "Read 1",
+      isRead: true,
+    });
+    await createNotificationFixture({
+      userId: user.id,
+      title: "Read 2",
+      isRead: true,
+    });
 
     const res = await request
       .get("/api/v1/notifications?isRead=true&page=1&limit=10")
@@ -93,7 +107,9 @@ describe("Notifications Module", () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(2);
     expect(
-      (res.body.data as Array<{ isRead: boolean }>).every((notification) => notification.isRead),
+      (res.body.data as Array<{ isRead: boolean }>).every(
+        (notification) => notification.isRead,
+      ),
     ).toBe(true);
     expect(res.body.meta).toMatchObject({
       page: 1,
@@ -145,7 +161,10 @@ describe("Notifications Module", () => {
   it("debería sanitizar page y limitar limit al máximo permitido", async () => {
     const { user, token } = await createNotificationsUser();
 
-    await createNotificationFixture({ userId: user.id, title: "Only notification" });
+    await createNotificationFixture({
+      userId: user.id,
+      title: "Only notification",
+    });
 
     const res = await request
       .get("/api/v1/notifications?page=0&limit=999")

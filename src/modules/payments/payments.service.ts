@@ -1,8 +1,8 @@
+import { and, asc, eq, isNull, or } from "drizzle-orm";
 import { db } from "../../config/db.js";
-import { payments } from "../../db/schema/payments.js";
 import { installments } from "../../db/schema/installments.js";
 import { loans } from "../../db/schema/loans.js";
-import { eq, and, asc, isNull, or } from "drizzle-orm";
+import { payments } from "../../db/schema/payments.js";
 import { buildInstallmentDrafts } from "../loans/loans.finance.js";
 import {
   normalizeScheduleStartDate,
@@ -47,7 +47,11 @@ const recalculateLoanLedgerInTransaction = async (
   tx: DbTransaction,
   loanId: string,
 ) => {
-  const [loan] = await tx.select().from(loans).where(eq(loans.id, loanId)).limit(1);
+  const [loan] = await tx
+    .select()
+    .from(loans)
+    .where(eq(loans.id, loanId))
+    .limit(1);
   if (!loan) throw new PaymentBusinessError("Préstamo no encontrado", 404);
   if (loan.deletedAt || loan.status === "deleted") {
     throw new PaymentBusinessError("El préstamo fue eliminado");
@@ -80,11 +84,13 @@ const recalculateLoanLedgerInTransaction = async (
   const confirmedPayments = await tx
     .select()
     .from(payments)
-    .where(and(
-      eq(payments.loanId, loanId),
-      eq(payments.status, "confirmed"),
-      isNull(payments.deletedAt),
-    ))
+    .where(
+      and(
+        eq(payments.loanId, loanId),
+        eq(payments.status, "confirmed"),
+        isNull(payments.deletedAt),
+      ),
+    )
     .orderBy(asc(payments.paymentDate), asc(payments.createdAt));
 
   let overpaidCents = 0;
@@ -92,16 +98,24 @@ const recalculateLoanLedgerInTransaction = async (
   for (const payment of confirmedPayments) {
     let remainingBalance = toCents(payment.amount);
 
-    const pendingInstallments = await tx.select()
+    const pendingInstallments = await tx
+      .select()
       .from(installments)
-      .where(and(
-        eq(installments.loanId, loanId),
-        or(eq(installments.status, "pending"), eq(installments.status, "overdue")),
-      ))
+      .where(
+        and(
+          eq(installments.loanId, loanId),
+          or(
+            eq(installments.status, "pending"),
+            eq(installments.status, "overdue"),
+          ),
+        ),
+      )
       .orderBy(asc(installments.dueDate));
 
     const outstandingDebt = pendingInstallments.reduce((total, inst) => {
-      return total + Math.max(toCents(inst.amount) - toCents(inst.paidAmount), 0);
+      return (
+        total + Math.max(toCents(inst.amount) - toCents(inst.paidAmount), 0)
+      );
     }, 0);
 
     if (remainingBalance > outstandingDebt) {
@@ -117,15 +131,17 @@ const recalculateLoanLedgerInTransaction = async (
       const currentDebt = Math.max(installmentAmount - currentPaidAmount, 0);
       const paymentForThisInst = Math.min(remainingBalance, currentDebt);
       const newPaidAmount = currentPaidAmount + paymentForThisInst;
-      const nextStatus = newPaidAmount >= installmentAmount
-        ? "paid"
-        : inst.dueDate < new Date()
-          ? "overdue"
-          : "pending";
+      const nextStatus =
+        newPaidAmount >= installmentAmount
+          ? "paid"
+          : inst.dueDate < new Date()
+            ? "overdue"
+            : "pending";
 
       remainingBalance -= paymentForThisInst;
 
-      await tx.update(installments)
+      await tx
+        .update(installments)
         .set({
           paidAmount: fromCents(newPaidAmount),
           status: nextStatus,
@@ -135,31 +151,35 @@ const recalculateLoanLedgerInTransaction = async (
     }
   }
 
-  const finalInstallments = await tx.select()
+  const finalInstallments = await tx
+    .select()
     .from(installments)
     .where(eq(installments.loanId, loanId));
 
   for (const inst of finalInstallments) {
     const paidCents = toCents(inst.paidAmount);
     const amountCents = toCents(inst.amount);
-    const nextStatus = paidCents >= amountCents
-      ? "paid"
-      : inst.dueDate < new Date()
-        ? "overdue"
-        : "pending";
+    const nextStatus =
+      paidCents >= amountCents
+        ? "paid"
+        : inst.dueDate < new Date()
+          ? "overdue"
+          : "pending";
 
     if (inst.status !== nextStatus) {
-      await tx.update(installments)
+      await tx
+        .update(installments)
         .set({ status: nextStatus, updatedAt: new Date() })
         .where(eq(installments.id, inst.id));
     }
   }
 
-  const hasUnpaidInstallments = finalInstallments.some((inst) =>
-    toCents(inst.paidAmount) < toCents(inst.amount),
+  const hasUnpaidInstallments = finalInstallments.some(
+    (inst) => toCents(inst.paidAmount) < toCents(inst.amount),
   );
 
-  const [updatedLoan] = await tx.update(loans)
+  const [updatedLoan] = await tx
+    .update(loans)
     .set({
       totalDebt: schedule.totalDebt.toFixed(2),
       overpaidAmount: fromCents(overpaidCents),
@@ -176,7 +196,9 @@ const recalculateLoanLedgerInTransaction = async (
 };
 
 export const recalculateLoanLedger = async (loanId: string) => {
-  return await db.transaction((tx) => recalculateLoanLedgerInTransaction(tx, loanId));
+  return await db.transaction((tx) =>
+    recalculateLoanLedgerInTransaction(tx, loanId),
+  );
 };
 
 /**
@@ -199,23 +221,36 @@ export const processPaymentLogic = async (params: ProcessPaymentParams) => {
     const amountToApply = toCents(amount);
     const effectivePaymentDate = paymentDate || new Date();
 
-    const [loan] = await tx.select().from(loans).where(eq(loans.id, loanId)).limit(1);
+    const [loan] = await tx
+      .select()
+      .from(loans)
+      .where(eq(loans.id, loanId))
+      .limit(1);
     if (!loan) throw new PaymentBusinessError("Préstamo no encontrado", 404);
     if (loan.deletedAt || loan.status === "deleted") {
       throw new PaymentBusinessError("El préstamo fue eliminado");
     }
-    if (loan.status !== "active") throw new PaymentBusinessError("El préstamo no está activo");
+    if (loan.status !== "active")
+      throw new PaymentBusinessError("El préstamo no está activo");
 
-    const pendingInstallments = await tx.select()
+    const pendingInstallments = await tx
+      .select()
       .from(installments)
-      .where(and(
-        eq(installments.loanId, loanId),
-        or(eq(installments.status, "pending"), eq(installments.status, "overdue")),
-      ))
+      .where(
+        and(
+          eq(installments.loanId, loanId),
+          or(
+            eq(installments.status, "pending"),
+            eq(installments.status, "overdue"),
+          ),
+        ),
+      )
       .orderBy(asc(installments.dueDate));
 
     const outstandingDebt = pendingInstallments.reduce((total, inst) => {
-      return total + Math.max(toCents(inst.amount) - toCents(inst.paidAmount), 0);
+      return (
+        total + Math.max(toCents(inst.amount) - toCents(inst.paidAmount), 0)
+      );
     }, 0);
 
     if (outstandingDebt <= 0) {
@@ -226,17 +261,20 @@ export const processPaymentLogic = async (params: ProcessPaymentParams) => {
       throw new PaymentBusinessError("El pago excede la deuda pendiente");
     }
 
-    const [newPayment] = await tx.insert(payments).values({
-      loanId,
-      voucherId,
-      amount: fromCents(amountToApply),
-      method,
-      reference,
-      observation,
-      evidenceUrl,
-      registeredById,
-      paymentDate: effectivePaymentDate,
-    }).returning();
+    const [newPayment] = await tx
+      .insert(payments)
+      .values({
+        loanId,
+        voucherId,
+        amount: fromCents(amountToApply),
+        method,
+        reference,
+        observation,
+        evidenceUrl,
+        registeredById,
+        paymentDate: effectivePaymentDate,
+      })
+      .returning();
 
     await recalculateLoanLedgerInTransaction(tx, loanId);
 

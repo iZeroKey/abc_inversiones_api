@@ -5,16 +5,29 @@ import { loans } from "../../db/schema/loans.js";
 import { payments } from "../../db/schema/payments.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
-import { deleteStorageReference, resolveFileUrl, uploadFileStream } from "../../utils/storage.util.js";
+import { emitLoanDomainEvent } from "../../utils/realtime.util.js";
 import {
   formatZodError,
   sendError,
   sendSuccess,
 } from "../../utils/response.util.js";
+import {
+  deleteStorageReference,
+  resolveFileUrl,
+  uploadFileStream,
+} from "../../utils/storage.util.js";
 import { createPaymentSchema, updatePaymentSchema } from "./payments.schema.js";
-import { PaymentBusinessError, processPaymentLogic, recalculateLoanLedger } from "./payments.service.js";
+import {
+  PaymentBusinessError,
+  processPaymentLogic,
+  recalculateLoanLedger,
+} from "./payments.service.js";
 
-const attachSignedEvidenceUrl = async <T extends { evidenceUrl?: string | null }>(payment: T): Promise<T> => {
+const attachSignedEvidenceUrl = async <
+  T extends { evidenceUrl?: string | null },
+>(
+  payment: T,
+): Promise<T> => {
   if (!payment.evidenceUrl) {
     return payment;
   }
@@ -25,12 +38,16 @@ const attachSignedEvidenceUrl = async <T extends { evidenceUrl?: string | null }
   };
 };
 
-export const registerPayment = async (req: AuthRequest, res: Response): Promise<void> => {
+export const registerPayment = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   let evidenceUrl: string | null = null;
 
   try {
     const streamParsed = req.streamParsed;
-    const hasStreamFields = streamParsed && Object.keys(streamParsed.fields).length > 0;
+    const hasStreamFields =
+      streamParsed && Object.keys(streamParsed.fields).length > 0;
     const bodySource = hasStreamFields ? streamParsed.fields : req.body;
     const validation = createPaymentSchema.safeParse(bodySource);
     if (!validation.success) {
@@ -51,7 +68,9 @@ export const registerPayment = async (req: AuthRequest, res: Response): Promise<
     const result = await processPaymentLogic({
       ...validation.data,
       registeredById: req.user!.id,
-      paymentDate: validation.data.paymentDate ? new Date(validation.data.paymentDate) : new Date(),
+      paymentDate: validation.data.paymentDate
+        ? new Date(validation.data.paymentDate)
+        : new Date(),
       evidenceUrl,
     });
     const responsePayment = await attachSignedEvidenceUrl(result);
@@ -65,24 +84,50 @@ export const registerPayment = async (req: AuthRequest, res: Response): Promise<
       req,
     });
 
-    sendSuccess(res, 201, "Pago registrado y aplicado correctamente", responsePayment);
+    const [loan] = await db
+      .select({ clientId: loans.clientId, investorId: loans.investorId })
+      .from(loans)
+      .where(eq(loans.id, result.loanId))
+      .limit(1);
+
+    emitLoanDomainEvent("payment.created", {
+      loanId: result.loanId,
+      paymentId: result.id,
+      clientId: loan?.clientId,
+      investorId: loan?.investorId,
+    });
+    sendSuccess(
+      res,
+      201,
+      "Pago registrado y aplicado correctamente",
+      responsePayment,
+    );
   } catch (error: unknown) {
     if (evidenceUrl) {
       await deleteStorageReference(evidenceUrl).catch(() => {});
     }
 
-    const message = error instanceof Error ? error.message : "Error al registrar el pago";
-    const status = error instanceof PaymentBusinessError ? error.statusCode : 500;
+    const message =
+      error instanceof Error ? error.message : "Error al registrar el pago";
+    const status =
+      error instanceof PaymentBusinessError ? error.statusCode : 500;
     sendError(res, status, message, error);
   }
 };
 
-export const getPaymentsByLoan = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getPaymentsByLoan = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const loanId = req.params.loanId as string;
     const user = req.user!;
 
-    const [loan] = await db.select().from(loans).where(eq(loans.id, loanId)).limit(1);
+    const [loan] = await db
+      .select()
+      .from(loans)
+      .where(eq(loans.id, loanId))
+      .limit(1);
     if (!loan) {
       sendError(res, 404, "Préstamo no encontrado");
       return;
@@ -99,11 +144,14 @@ export const getPaymentsByLoan = async (req: AuthRequest, res: Response): Promis
       return;
     }
 
-    const results = await db.select()
+    const results = await db
+      .select()
       .from(payments)
       .where(and(eq(payments.loanId, loanId), isNull(payments.deletedAt)))
       .orderBy(desc(payments.paymentDate));
-    const signedResults = await Promise.all(results.map((payment) => attachSignedEvidenceUrl(payment)));
+    const signedResults = await Promise.all(
+      results.map((payment) => attachSignedEvidenceUrl(payment)),
+    );
 
     sendSuccess(res, 200, "Pagos obtenidos", signedResults);
   } catch (error) {
@@ -111,7 +159,10 @@ export const getPaymentsByLoan = async (req: AuthRequest, res: Response): Promis
   }
 };
 
-export const updatePayment = async (req: AuthRequest, res: Response): Promise<void> => {
+export const updatePayment = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     const validation = updatePaymentSchema.safeParse(req.body);
@@ -120,22 +171,37 @@ export const updatePayment = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const [oldPayment] = await db.select().from(payments).where(eq(payments.id, id)).limit(1);
+    const [oldPayment] = await db
+      .select()
+      .from(payments)
+      .where(eq(payments.id, id))
+      .limit(1);
     if (!oldPayment || oldPayment.deletedAt) {
       sendError(res, 404, "Pago no encontrado");
       return;
     }
 
-    const [loan] = await db.select().from(loans).where(eq(loans.id, oldPayment.loanId)).limit(1);
+    const [loan] = await db
+      .select()
+      .from(loans)
+      .where(eq(loans.id, oldPayment.loanId))
+      .limit(1);
     if (!loan || loan.deletedAt || loan.status === "deleted") {
-      sendError(res, 400, "No se puede modificar un pago de un préstamo eliminado");
+      sendError(
+        res,
+        400,
+        "No se puede modificar un pago de un préstamo eliminado",
+      );
       return;
     }
 
-    const [updatedPayment] = await db.update(payments)
+    const [updatedPayment] = await db
+      .update(payments)
       .set({
         ...validation.data,
-        paymentDate: validation.data.paymentDate ? new Date(validation.data.paymentDate) : undefined,
+        paymentDate: validation.data.paymentDate
+          ? new Date(validation.data.paymentDate)
+          : undefined,
         updatedAt: new Date(),
       })
       .where(eq(payments.id, id))
@@ -153,6 +219,12 @@ export const updatePayment = async (req: AuthRequest, res: Response): Promise<vo
       req,
     });
 
+    emitLoanDomainEvent("payment.updated", {
+      loanId: updatedPayment.loanId,
+      paymentId: updatedPayment.id,
+      clientId: loan.clientId,
+      investorId: loan.investorId,
+    });
     sendSuccess(res, 200, "Pago actualizado correctamente", {
       payment: updatedPayment,
       loan: recalculated.loan,
@@ -163,22 +235,38 @@ export const updatePayment = async (req: AuthRequest, res: Response): Promise<vo
   }
 };
 
-export const deletePayment = async (req: AuthRequest, res: Response): Promise<void> => {
+export const deletePayment = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
-    const [oldPayment] = await db.select().from(payments).where(eq(payments.id, id)).limit(1);
+    const [oldPayment] = await db
+      .select()
+      .from(payments)
+      .where(eq(payments.id, id))
+      .limit(1);
     if (!oldPayment || oldPayment.deletedAt) {
       sendError(res, 404, "Pago no encontrado");
       return;
     }
 
-    const [loan] = await db.select().from(loans).where(eq(loans.id, oldPayment.loanId)).limit(1);
+    const [loan] = await db
+      .select()
+      .from(loans)
+      .where(eq(loans.id, oldPayment.loanId))
+      .limit(1);
     if (!loan || loan.deletedAt || loan.status === "deleted") {
-      sendError(res, 400, "No se puede eliminar un pago de un préstamo eliminado");
+      sendError(
+        res,
+        400,
+        "No se puede eliminar un pago de un préstamo eliminado",
+      );
       return;
     }
 
-    const [deletedPayment] = await db.update(payments)
+    const [deletedPayment] = await db
+      .update(payments)
       .set({
         deletedAt: new Date(),
         status: "reversed",
@@ -199,6 +287,12 @@ export const deletePayment = async (req: AuthRequest, res: Response): Promise<vo
       req,
     });
 
+    emitLoanDomainEvent("payment.deleted", {
+      loanId: deletedPayment.loanId,
+      paymentId: deletedPayment.id,
+      clientId: loan.clientId,
+      investorId: loan.investorId,
+    });
     sendSuccess(res, 200, "Pago eliminado correctamente", {
       payment: deletedPayment,
       loan: recalculated.loan,

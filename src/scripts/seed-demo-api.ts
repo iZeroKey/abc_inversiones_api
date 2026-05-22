@@ -53,7 +53,8 @@ type DemoLoan = {
   }>;
 };
 
-const API_BASE_URL = process.env.SEED_API_BASE_URL || "http://localhost:3000/api/v1";
+const API_BASE_URL =
+  process.env.SEED_API_BASE_URL || "http://localhost:3000/api/v1";
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || "admin@abc.com";
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || "password123";
 const TEMP_PASSWORD = process.env.SEED_TEMP_PASSWORD || "ABC123password";
@@ -212,7 +213,10 @@ const demoLoans: DemoLoan[] = [
   },
 ];
 
-async function api<T>(path: string, options: RequestInit & { token?: string } = {}): Promise<T> {
+async function api<T>(
+  path: string,
+  options: RequestInit & { token?: string } = {},
+): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
   if (options.token) headers.set("Authorization", `Bearer ${options.token}`);
@@ -222,9 +226,11 @@ async function api<T>(path: string, options: RequestInit & { token?: string } = 
     headers,
   });
 
-  const body = await response.json() as ApiResponse<T>;
+  const body = (await response.json()) as ApiResponse<T>;
   if (!response.ok) {
-    throw new Error(`${response.status} ${body.message || response.statusText}: ${JSON.stringify(body.data)}`);
+    throw new Error(
+      `${response.status} ${body.message || response.statusText}: ${JSON.stringify(body.data)}`,
+    );
   }
 
   return body.data;
@@ -239,7 +245,10 @@ async function login(): Promise<string> {
   return data.session.access_token;
 }
 
-async function createUser(token: string, user: DemoUser): Promise<UserResponse> {
+async function createUser(
+  token: string,
+  user: DemoUser,
+): Promise<UserResponse> {
   return api<UserResponse>("/users", {
     method: "POST",
     token,
@@ -261,9 +270,10 @@ async function createAndApproveLoan(
     token,
     body: JSON.stringify({
       clientId: createdClients[loan.clientIndex].id,
-      investorId: loan.investorIndex === undefined
-        ? null
-        : createdInvestors[loan.investorIndex].id,
+      investorId:
+        loan.investorIndex === undefined
+          ? null
+          : createdInvestors[loan.investorIndex].id,
       principal: loan.principal,
       interestRate: loan.interestRate,
       installmentsCount: loan.installmentsCount,
@@ -273,10 +283,13 @@ async function createAndApproveLoan(
     }),
   });
 
-  const activated = await api<{ loan: LoanResponse }>(`/loans/${created.id}/approve`, {
-    method: "PATCH",
-    token,
-  });
+  const activated = await api<{ loan: LoanResponse }>(
+    `/loans/${created.id}/approve`,
+    {
+      method: "PATCH",
+      token,
+    },
+  );
 
   for (const payment of loan.payments || []) {
     await api("/payments", {
@@ -307,14 +320,18 @@ async function main() {
   }
 
   for (const loan of demoLoans) {
-    createdLoans.push(await createAndApproveLoan(token, loan, createdClients, createdInvestors));
+    createdLoans.push(
+      await createAndApproveLoan(token, loan, createdClients, createdInvestors),
+    );
   }
 
   console.log("Seed demo API finalizado");
   console.log(`Clientes creados: ${createdClients.length}`);
   console.log(`Inversionistas creados: ${createdInvestors.length}`);
   console.log(`Prestamos creados: ${createdLoans.length}`);
-  console.log(`Pagos registrados: ${demoLoans.reduce((total, loan) => total + (loan.payments?.length || 0), 0)}`);
+  console.log(
+    `Pagos registrados: ${demoLoans.reduce((total, loan) => total + (loan.payments?.length || 0), 0)}`,
+  );
 }
 
 main().catch((error) => {

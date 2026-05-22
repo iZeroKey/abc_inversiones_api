@@ -162,17 +162,17 @@ pnpm dev
 
 ### Scripts Disponibles
 
-| Comando               | Descripción                    |
-| --------------------- | ------------------------------ |
-| `pnpm dev`            | Iniciar servidor en desarrollo |
-| `pnpm build`          | Compilar TypeScript            |
-| `pnpm start`          | Iniciar producción             |
-| `pnpm typecheck`      | Verificar tipos                |
-| `pnpm test`           | Ejecutar pruebas               |
-| `pnpm lint`           | Verificar código               |
-| `pnpm db:push`        | Aplicar esquema a DB           |
-| `pnpm db:seed`        | Sembrar datos iniciales        |
+| Comando               | Descripción                     |
+| --------------------- | ------------------------------- |
+| `pnpm dev`            | Iniciar servidor en desarrollo  |
+| `pnpm build`          | Compilar TypeScript             |
+| `pnpm start`          | Iniciar producción              |
+| `pnpm typecheck`      | Verificar tipos                 |
+| `pnpm test`           | Ejecutar pruebas                |
+| `pnpm lint`           | Verificar código                |
+| `pnpm db:push`        | Aplicar esquema a DB            |
+| `pnpm db:seed`        | Sembrar datos iniciales         |
 | `pnpm db:seed:api`    | Sembrar datos mediante API HTTP |
-| `pnpm setup:storage`  | Configurar buckets             |
-| `pnpm check:overdue`  | Verificar cuotas vencidas      |
-| `pnpm send:reminders` | Enviar recordatorios           |
+| `pnpm setup:storage`  | Configurar buckets              |
+| `pnpm check:overdue`  | Verificar cuotas vencidas       |
+| `pnpm send:reminders` | Enviar recordatorios            |

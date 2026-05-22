@@ -58,16 +58,16 @@ Privado (Admin, Owner)
 
 ### Diccionario de Datos
 
-| Campo         | Tipo   | Obligatorio | Descripción     | Restricciones                                  |
-| ------------- | ------ | ----------- | --------------- | ---------------------------------------------- |
-| loanId        | uuid   | Sí          | ID del préstamo | UUID válido                                    |
-| installmentId | uuid   | No          | ID de la cuota  | UUID válido                                    |
-| amount        | string | Sí          | Monto del pago  | Número positivo                                |
-| paymentDate   | string | No          | Fecha del pago  | ISO8601                                        |
-| method        | enum   | No          | Método de pago  | cash, transfer, deposit, other (default: cash) |
-| reference     | string | No          | Referencia      | -                                              |
-| observation   | string | No          | Observación     | -                                              |
-| evidence      | file   | No          | Imagen de evidencia en multipart/form-data | JPEG, PNG o WebP, max 5MB |
+| Campo         | Tipo   | Obligatorio | Descripción                                | Restricciones                                  |
+| ------------- | ------ | ----------- | ------------------------------------------ | ---------------------------------------------- |
+| loanId        | uuid   | Sí          | ID del préstamo                            | UUID válido                                    |
+| installmentId | uuid   | No          | ID de la cuota                             | UUID válido                                    |
+| amount        | string | Sí          | Monto del pago                             | Número positivo                                |
+| paymentDate   | string | No          | Fecha del pago                             | ISO8601                                        |
+| method        | enum   | No          | Método de pago                             | cash, transfer, deposit, other (default: cash) |
+| reference     | string | No          | Referencia                                 | -                                              |
+| observation   | string | No          | Observación                                | -                                              |
+| evidence      | file   | No          | Imagen de evidencia en multipart/form-data | JPEG, PNG o WebP, max 5MB                      |
 
 ### Respuesta Exitosa
 
@@ -92,13 +92,13 @@ Privado (Admin, Owner)
 
 ### Códigos de Estado HTTP
 
-| Código | Descripción            |
-| ------ | ---------------------- |
-| 201    | Pago registrado        |
+| Código | Descripción                                          |
+| ------ | ---------------------------------------------------- |
+| 201    | Pago registrado                                      |
 | 400    | Datos inválidos, préstamo no activo o pago excedente |
-| 401    | No autorizado          |
-| 404    | Préstamo no encontrado |
-| 500    | Error interno          |
+| 401    | No autorizado                                        |
+| 404    | Préstamo no encontrado                               |
+| 500    | Error interno                                        |
 
 ---
 

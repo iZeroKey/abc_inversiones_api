@@ -9,14 +9,20 @@ export const createAccessRequestSchema = z.object({
   additionalData: z.record(z.string(), z.any()).optional().default({}),
 });
 
-export const updateRequestStatusSchema = z.object({
-  status: z.enum(["pending", "in_review", "approved", "rejected"]),
-  observation: z.string().optional(),
-  initialPassword: z
-    .string()
-    .min(6, "La contraseña inicial debe tener al menos 6 caracteres")
-    .optional(),
-});
+export const updateRequestStatusSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("approved"),
+    observation: z.string().optional(),
+    initialPassword: z
+      .string()
+      .min(6, "La contraseña inicial debe tener al menos 6 caracteres"),
+  }),
+  z.object({
+    status: z.enum(["pending", "in_review", "rejected"]),
+    observation: z.string().optional(),
+    initialPassword: z.string().optional(),
+  }),
+]);
 
 export type CreateAccessRequestDto = z.infer<typeof createAccessRequestSchema>;
 export type UpdateRequestStatusDto = z.infer<typeof updateRequestStatusSchema>;

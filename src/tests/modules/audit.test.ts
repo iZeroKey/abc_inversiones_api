@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { authHeader, createAuditLogFixture, getUserByEmail, loginAs, request, seededEmails } from "../helpers/integration.js";
+import {
+  authHeader,
+  createAuditLogFixture,
+  getUserByEmail,
+  loginAs,
+  request,
+  seededEmails,
+} from "../helpers/integration.js";
 
 describe("Audit Logs Module", () => {
   it("debería permitir al admin listar logs de auditoría", async () => {
@@ -12,9 +19,7 @@ describe("Audit Logs Module", () => {
       module: "AUTH",
     });
 
-    const res = await request
-      .get("/api/v1/audit-logs")
-      .set(authHeader(token));
+    const res = await request.get("/api/v1/audit-logs").set(authHeader(token));
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);

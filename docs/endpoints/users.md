@@ -187,12 +187,12 @@ Privado
 
 ### Códigos de Estado HTTP
 
-| Código | Descripción      |
-| ------ | ---------------- |
-| 200    | Avatar eliminado |
-| 401    | No autenticado   |
+| Código | Descripción           |
+| ------ | --------------------- |
+| 200    | Avatar eliminado      |
+| 401    | No autenticado        |
 | 404    | Usuario no encontrado |
-| 500    | Error interno    |
+| 500    | Error interno         |
 
 ---
 
@@ -220,12 +220,12 @@ Los owners pueden consultar cualquier usuario. Un administrador no owner no pued
 
 ### Parámetros de Consulta
 
-| Campo | Tipo   | Descripción                     |
-| ----- | ------ | ------------------------------- |
-| page  | number | Número de página (default: 1)   |
-| limit | number | Límite por página (default: 20) |
+| Campo  | Tipo   | Descripción                                                             |
+| ------ | ------ | ----------------------------------------------------------------------- |
+| page   | number | Número de página (default: 1)                                           |
+| limit  | number | Límite por página (default: 20)                                         |
 | search | string | Busca por código público, nombre, DNI, email, teléfono, banco o cuentas |
-| q     | string | Alias de `search`               |
+| q      | string | Alias de `search`                                                       |
 
 ### Respuesta Exitosa
 
@@ -306,20 +306,20 @@ Privado (Admin, Owner)
 
 ### Diccionario de Datos
 
-| Campo             | Tipo      | Obligatorio | Descripción |
-| ----------------- | --------- | ----------- | ----------- |
-| firstName         | string    | Sí          | Nombres |
-| lastName          | string    | Sí          | Apellidos |
-| role              | enum      | Sí          | client, investor, admin |
-| email             | string    | Solo con Auth/admin | Nullable para clientes/inversionistas sin cuenta |
-| phone             | string    | No          | Teléfono |
-| dni               | string    | No          | Documento |
-| address           | string    | No          | Domicilio |
-| bank              | string    | No          | Banco |
-| bankAccounts      | string[]  | No          | Números de cuenta |
-| maritalStatus     | enum      | No          | single, married, unspecified |
-| createAuthAccount | boolean   | No          | Crea/vincula cuenta Auth |
-| password          | string    | Solo con Auth | Contraseña temporal |
+| Campo             | Tipo     | Obligatorio         | Descripción                                      |
+| ----------------- | -------- | ------------------- | ------------------------------------------------ |
+| firstName         | string   | Sí                  | Nombres                                          |
+| lastName          | string   | Sí                  | Apellidos                                        |
+| role              | enum     | Sí                  | client, investor, admin                          |
+| email             | string   | Solo con Auth/admin | Nullable para clientes/inversionistas sin cuenta |
+| phone             | string   | No                  | Teléfono                                         |
+| dni               | string   | No                  | Documento                                        |
+| address           | string   | No                  | Domicilio                                        |
+| bank              | string   | No                  | Banco                                            |
+| bankAccounts      | string[] | No                  | Números de cuenta                                |
+| maritalStatus     | enum     | No                  | single, married, unspecified                     |
+| createAuthAccount | boolean  | No                  | Crea/vincula cuenta Auth                         |
+| password          | string   | Solo con Auth       | Contraseña temporal                              |
 
 ### Respuesta Exitosa
 
@@ -353,8 +353,8 @@ GET /api/v1/users/:id
 
 ### Parámetros de Ruta
 
-| Parámetro | Tipo | Descripción    |
-| --------- | ---- | -------------- |
+| Parámetro | Tipo | Descripción              |
+| --------- | ---- | ------------------------ |
 | id        | uuid | UUID interno del usuario |
 
 ### Acceso

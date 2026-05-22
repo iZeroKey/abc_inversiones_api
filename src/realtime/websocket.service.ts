@@ -24,6 +24,12 @@ type NotificationRecord = {
   createdAt: Date;
 };
 
+type SocketUser = {
+  userId: string;
+  role: "admin" | "client" | "investor";
+  isOwner: boolean;
+};
+
 const parseMessage = (data: RawData): ClientMessage | null => {
   const raw = typeof data === "string" ? data : data.toString("utf8");
 
@@ -61,6 +67,7 @@ class RealtimeService {
   private wss: WebSocketServer | null = null;
   private readonly socketsByUser = new Map<string, Set<WebSocket>>();
   private readonly userBySocket = new Map<WebSocket, string>();
+  private readonly socketUsers = new Map<WebSocket, SocketUser>();
 
   attach(server: Server): void {
     if (this.wss) {
@@ -109,6 +116,46 @@ class RealtimeService {
     const message = this.createMessage(type, data);
     for (const socket of this.userBySocket.keys()) {
       this.safeSend(socket, message);
+    }
+  }
+
+  emitToAudience(
+    audience: {
+      userIds?: Array<string | null | undefined>;
+      includeAdmins?: boolean;
+    },
+    type: string,
+    data?: unknown,
+  ): void {
+    const message = this.createMessage(type, data);
+    const sentSockets = new Set<WebSocket>();
+
+    const sendOnce = (socket: WebSocket) => {
+      if (sentSockets.has(socket)) {
+        return;
+      }
+
+      sentSockets.add(socket);
+      this.safeSend(socket, message);
+    };
+
+    if (audience.includeAdmins) {
+      for (const [socket, socketUser] of this.socketUsers.entries()) {
+        if (socketUser.role === "admin" || socketUser.isOwner) {
+          sendOnce(socket);
+        }
+      }
+    }
+
+    for (const userId of audience.userIds ?? []) {
+      if (!userId) {
+        continue;
+      }
+
+      const sockets = this.socketsByUser.get(userId);
+      for (const socket of sockets ?? []) {
+        sendOnce(socket);
+      }
     }
   }
 
@@ -216,7 +263,14 @@ class RealtimeService {
     this.detachSocket(socket);
 
     this.userBySocket.set(socket, authResult.user.id);
-    const sockets = this.socketsByUser.get(authResult.user.id) ?? new Set<WebSocket>();
+    this.socketUsers.set(socket, {
+      userId: authResult.user.id,
+      role: authResult.user.role,
+      isOwner: authResult.user.isOwner,
+    });
+
+    const sockets =
+      this.socketsByUser.get(authResult.user.id) ?? new Set<WebSocket>();
     sockets.add(socket);
     this.socketsByUser.set(authResult.user.id, sockets);
 
@@ -225,7 +279,7 @@ class RealtimeService {
       data: {
         userId: authResult.user.id,
         role: authResult.user.role,
-        channels: ["notifications"],
+        channels: ["notifications", "loans", "payments", "vouchers"],
       },
       timestamp: new Date().toISOString(),
     });
@@ -245,6 +299,7 @@ class RealtimeService {
     }
 
     this.userBySocket.delete(socket);
+    this.socketUsers.delete(socket);
   }
 
   private createMessage(type: string, data?: unknown): RealtimeMessage {

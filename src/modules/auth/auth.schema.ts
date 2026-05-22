@@ -20,7 +20,10 @@ export const registerSchema = z.strictObject({
   address: z.string().optional().nullable(),
   bank: z.string().optional().nullable(),
   bankAccounts: z.array(z.string().min(1)).optional().default([]),
-  maritalStatus: z.enum(["single", "married", "unspecified"]).optional().nullable(),
+  maritalStatus: z
+    .enum(["single", "married", "unspecified"])
+    .optional()
+    .nullable(),
 });
 
 export const changePasswordSchema = z.object({

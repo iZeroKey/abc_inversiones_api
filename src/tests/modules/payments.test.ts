@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
 import { db } from "../../config/db.js";
 import { installments } from "../../db/schema/installments.js";
 import { loans } from "../../db/schema/loans.js";
@@ -67,7 +67,11 @@ describe("Payments Module", () => {
       .field("amount", "100.00")
       .field("method", "transfer")
       .field("reference", "OP-MANUAL-EVIDENCE")
-      .attach("evidence", Buffer.from("fake-image-content"), "manual-payment.png");
+      .attach(
+        "evidence",
+        Buffer.from("fake-image-content"),
+        "manual-payment.png",
+      );
 
     expect(res.status).toBe(201);
     expect(res.body.data.amount).toBe("100.00");
@@ -302,7 +306,9 @@ describe("Payments Module", () => {
       .limit(1);
 
     expect(res.status).toBe(201);
-    expect(updatedInstallments.every((installment) => installment.status === "paid")).toBe(true);
+    expect(
+      updatedInstallments.every((installment) => installment.status === "paid"),
+    ).toBe(true);
     expect(updatedLoan.status).toBe("paid");
   });
 

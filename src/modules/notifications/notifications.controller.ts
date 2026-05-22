@@ -30,7 +30,10 @@ const parsePositiveInt = (
   return max ? Math.min(parsed, max) : parsed;
 };
 
-export const getMyNotifications = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getMyNotifications = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const userId = req.user!.id;
     const page = parsePositiveInt(req.query.page, DEFAULT_PAGE);
@@ -49,14 +52,16 @@ export const getMyNotifications = async (req: AuthRequest, res: Response): Promi
     const countExpression = sql<number>`count(*)`.mapWith(Number);
 
     const [[totalRow], [unreadRow], results] = await Promise.all([
-      db
-        .select({ total: countExpression })
-        .from(notifications)
-        .where(where),
+      db.select({ total: countExpression }).from(notifications).where(where),
       db
         .select({ unreadCount: countExpression })
         .from(notifications)
-        .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false))),
+        .where(
+          and(
+            eq(notifications.userId, userId),
+            eq(notifications.isRead, false),
+          ),
+        ),
       db
         .select()
         .from(notifications)
@@ -82,7 +87,10 @@ export const getMyNotifications = async (req: AuthRequest, res: Response): Promi
   }
 };
 
-export const markAsRead = async (req: AuthRequest, res: Response): Promise<void> => {
+export const markAsRead = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     const userId = req.user!.id;
@@ -106,7 +114,10 @@ export const markAsRead = async (req: AuthRequest, res: Response): Promise<void>
   }
 };
 
-export const markAllAsRead = async (req: AuthRequest, res: Response): Promise<void> => {
+export const markAllAsRead = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const userId = req.user!.id;
 

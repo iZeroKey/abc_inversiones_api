@@ -1,13 +1,3 @@
-/**
- * Script de configuración de Supabase Storage.
- * Crea/actualiza buckets de forma idempotente.
- *
- * Nota:
- * En esta arquitectura el frontend no accede directo a Storage para vouchers.
- * El backend usa service_role para subir archivos y genera signed URLs al leerlos,
- * pero mantenemos políticas RLS sobre storage.objects como defensa en profundidad.
- * Uso: npx tsx src/scripts/setup-storage.ts
- */
 import "dotenv/config";
 import { queryClient } from "../config/db.js";
 import { supabaseAdmin } from "../config/supabase.js";
@@ -179,39 +169,55 @@ const applyStoragePolicies = async (): Promise<void> => {
 };
 
 async function setupStorage() {
-  console.log(`Configurando Supabase Storage${isDryRun ? " (dry-run)" : ""}...\n`);
+  console.log(
+    `Configurando Supabase Storage${isDryRun ? " (dry-run)" : ""}...\n`,
+  );
 
   for (const bucket of BUCKETS) {
     if (isDryRun) {
-      console.log(`  Bucket "${bucket.name}": public=${bucket.public}, fileSizeLimit=${bucket.fileSizeLimit}`);
+      console.log(
+        `  Bucket "${bucket.name}": public=${bucket.public}, fileSizeLimit=${bucket.fileSizeLimit}`,
+      );
       continue;
     }
 
     // Verificar si ya existe
-    const { data: existing } = await supabaseAdmin.storage.getBucket(bucket.name);
-    
+    const { data: existing } = await supabaseAdmin.storage.getBucket(
+      bucket.name,
+    );
+
     if (existing) {
       console.log(`  Bucket "${bucket.name}" ya existe.`);
       // Actualizar configuración
-      const { error: updateError } = await supabaseAdmin.storage.updateBucket(bucket.name, {
-        public: bucket.public,
-        allowedMimeTypes: bucket.allowedMimeTypes,
-        fileSizeLimit: bucket.fileSizeLimit,
-      });
+      const { error: updateError } = await supabaseAdmin.storage.updateBucket(
+        bucket.name,
+        {
+          public: bucket.public,
+          allowedMimeTypes: bucket.allowedMimeTypes,
+          fileSizeLimit: bucket.fileSizeLimit,
+        },
+      );
       if (updateError) {
-        console.error(`  Error actualizando "${bucket.name}": ${updateError.message}`);
+        console.error(
+          `  Error actualizando "${bucket.name}": ${updateError.message}`,
+        );
       } else {
         console.log(`  Configuración de "${bucket.name}" actualizada.`);
       }
     } else {
       // Crear bucket
-      const { error: createError } = await supabaseAdmin.storage.createBucket(bucket.name, {
-        public: bucket.public,
-        allowedMimeTypes: bucket.allowedMimeTypes,
-        fileSizeLimit: bucket.fileSizeLimit,
-      });
+      const { error: createError } = await supabaseAdmin.storage.createBucket(
+        bucket.name,
+        {
+          public: bucket.public,
+          allowedMimeTypes: bucket.allowedMimeTypes,
+          fileSizeLimit: bucket.fileSizeLimit,
+        },
+      );
       if (createError) {
-        console.error(`  Error creando "${bucket.name}": ${createError.message}`);
+        console.error(
+          `  Error creando "${bucket.name}": ${createError.message}`,
+        );
       } else {
         console.log(`  Bucket "${bucket.name}" creado correctamente.`);
       }
@@ -219,9 +225,15 @@ async function setupStorage() {
   }
 
   if (isDryRun) {
-    console.log("  Vouchers usa bucket privado + signed URLs emitidas por backend.");
-    console.log("  Avatars usa bucket privado + signed URLs emitidas por backend.");
-    console.log("  Políticas RLS de storage.objects se mantienen como defensa en profundidad.");
+    console.log(
+      "  Vouchers usa bucket privado + signed URLs emitidas por backend.",
+    );
+    console.log(
+      "  Avatars usa bucket privado + signed URLs emitidas por backend.",
+    );
+    console.log(
+      "  Políticas RLS de storage.objects se mantienen como defensa en profundidad.",
+    );
     console.log("\nDry-run completado.");
     await queryClient.end();
     process.exit(0);
@@ -229,7 +241,9 @@ async function setupStorage() {
 
   console.log("\nModelo aplicado:");
   console.log("  - vouchers: bucket privado");
-  console.log("  - acceso a vouchers mediante backend + signed URLs temporales");
+  console.log(
+    "  - acceso a vouchers mediante backend + signed URLs temporales",
+  );
   console.log("  - avatars: bucket privado");
   console.log("  - acceso a avatars mediante backend + signed URLs temporales");
   await applyStoragePolicies();

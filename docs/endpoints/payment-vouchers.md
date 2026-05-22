@@ -139,15 +139,15 @@ Privado (Client)
 
 ### Códigos de Estado HTTP
 
-| Código | Descripción                        |
-| ------ | ---------------------------------- |
-| 201    | Voucher registrado                 |
-| 400    | Datos inválidos                    |
-| 401    | No autorizado                      |
-| 403    | No tiene acceso al préstamo        |
-| 409    | Operation ID duplicado             |
-| 413    | Archivo excede el límite de 5MB    |
-| 500    | Error interno                      |
+| Código | Descripción                     |
+| ------ | ------------------------------- |
+| 201    | Voucher registrado              |
+| 400    | Datos inválidos                 |
+| 401    | No autorizado                   |
+| 403    | No tiene acceso al préstamo     |
+| 409    | Operation ID duplicado          |
+| 413    | Archivo excede el límite de 5MB |
+| 500    | Error interno                   |
 
 ---
 

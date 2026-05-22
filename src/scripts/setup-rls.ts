@@ -79,8 +79,12 @@ AS $$
 $$`,
   "REVOKE ALL ON FUNCTION private.is_admin() FROM PUBLIC",
   "GRANT EXECUTE ON FUNCTION private.is_admin() TO authenticated",
-  ...TABLES.map((table) => `ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY`),
-  ...POLICIES.map(([table, policy]) => `DROP POLICY IF EXISTS "${policy}" ON public.${table}`),
+  ...TABLES.map(
+    (table) => `ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY`,
+  ),
+  ...POLICIES.map(
+    ([table, policy]) => `DROP POLICY IF EXISTS "${policy}" ON public.${table}`,
+  ),
   `CREATE POLICY "admin_all_access" ON public.users
 FOR ALL TO authenticated
 USING (${adminPredicate})

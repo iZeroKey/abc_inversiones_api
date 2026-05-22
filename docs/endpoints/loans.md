@@ -23,11 +23,11 @@ Crear un nuevo préstamo.
 
 Formato de códigos públicos:
 
-| Entidad        | Formato    | Ejemplo    |
-| -------------- | ---------- | ---------- |
-| Préstamo       | `PR-00000` | `PR-00001` |
-| Cliente        | `CL-00000` | `CL-00001` |
-| Inversionista  | `IN-00000` | `IN-00001` |
+| Entidad       | Formato    | Ejemplo    |
+| ------------- | ---------- | ---------- |
+| Préstamo      | `PR-00000` | `PR-00001` |
+| Cliente       | `CL-00000` | `CL-00001` |
+| Inversionista | `IN-00000` | `IN-00001` |
 
 ### Endpoint
 
@@ -63,16 +63,16 @@ Privado (Admin, Owner)
 
 ### Diccionario de Datos
 
-| Campo             | Tipo   | Obligatorio | Descripción                   | Restricciones                                       |
-| ----------------- | ------ | ----------- | ----------------------------- | --------------------------------------------------- |
-| clientId          | uuid   | Sí          | ID del cliente                | UUID válido                                         |
-| investorId        | uuid   | No          | ID del inversionista          | UUID válido o null                                  |
-| principal         | string | Sí          | Monto principal               | Número positivo                                     |
-| interestRate      | string | Sí          | Tasa de interés por periodo   | Número > 0; no se soportan préstamos sin interés    |
-| installmentsCount | number | Sí          | Número de cuotas              | Entero positivo                                     |
-| frequency         | enum   | No          | Frecuencia de pago            | daily, weekly, biweekly, monthly (default: monthly) |
-| startDate         | string | Sí          | Fecha de inicio               | ISO8601                                             |
-| observation       | string | No          | Observación                   | -                                                   |
+| Campo             | Tipo   | Obligatorio | Descripción                 | Restricciones                                       |
+| ----------------- | ------ | ----------- | --------------------------- | --------------------------------------------------- |
+| clientId          | uuid   | Sí          | ID del cliente              | UUID válido                                         |
+| investorId        | uuid   | No          | ID del inversionista        | UUID válido o null                                  |
+| principal         | string | Sí          | Monto principal             | Número positivo                                     |
+| interestRate      | string | Sí          | Tasa de interés por periodo | Número > 0; no se soportan préstamos sin interés    |
+| installmentsCount | number | Sí          | Número de cuotas            | Entero positivo                                     |
+| frequency         | enum   | No          | Frecuencia de pago          | daily, weekly, biweekly, monthly (default: monthly) |
+| startDate         | string | Sí          | Fecha de inicio             | ISO8601                                             |
+| observation       | string | No          | Observación                 | -                                                   |
 
 ### Regla Financiera y Cronograma
 
@@ -164,15 +164,15 @@ Privado
 
 ### Parámetros de Consulta
 
-| Campo      | Tipo   | Descripción                                                                 |
-| ---------- | ------ | --------------------------------------------------------------------------- |
-| status     | string | Filtrar por estado                                                          |
-| clientId   | uuid   | Filtrar por UUID interno de cliente                                         |
-| investorId | uuid   | Filtrar por UUID interno de inversionista                                   |
+| Campo      | Tipo   | Descripción                                                                  |
+| ---------- | ------ | ---------------------------------------------------------------------------- |
+| status     | string | Filtrar por estado                                                           |
+| clientId   | uuid   | Filtrar por UUID interno de cliente                                          |
+| investorId | uuid   | Filtrar por UUID interno de inversionista                                    |
 | search     | string | Buscar por `publicCode`, `clientCode`, `investorCode` o nombres relacionados |
-| q          | string | Alias de `search`                                                           |
-| page       | number | Número de página                                                            |
-| limit      | number | Límite por página                                                           |
+| q          | string | Alias de `search`                                                            |
+| page       | number | Número de página                                                             |
+| limit      | number | Límite por página                                                            |
 
 ### Respuesta Exitosa
 
@@ -279,8 +279,8 @@ GET /api/v1/loans/:id
 
 ### Parámetros de Ruta
 
-| Parámetro | Tipo | Descripción     |
-| --------- | ---- | --------------- |
+| Parámetro | Tipo | Descripción               |
+| --------- | ---- | ------------------------- |
 | id        | uuid | UUID interno del préstamo |
 
 ### Acceso
@@ -459,12 +459,12 @@ Privado (Admin, Owner)
 
 ### Códigos de Estado HTTP
 
-| Código | Descripción                         |
-| ------ | ----------------------------------- |
-| 200    | Resumen administrativo obtenido     |
-| 401    | No autorizado                       |
-| 403    | No tiene permisos administrativos   |
-| 500    | Error interno                       |
+| Código | Descripción                       |
+| ------ | --------------------------------- |
+| 200    | Resumen administrativo obtenido   |
+| 401    | No autorizado                     |
+| 403    | No tiene permisos administrativos |
+| 500    | Error interno                     |
 
 ---
 

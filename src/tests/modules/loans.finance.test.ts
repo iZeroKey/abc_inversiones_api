@@ -158,7 +158,8 @@ describe("Loan financial calculations", () => {
     expect(Object.is(roundMoney(-0.001), -0)).toBe(false);
     expect(Object.is(financials.totalDebt, -0)).toBe(false);
     expect(Object.is(financials.totalInterest, -0)).toBe(false);
-    expect(schedule.installments.some((item) => item.amount === "-0.00"))
-      .toBe(false);
+    expect(schedule.installments.some((item) => item.amount === "-0.00")).toBe(
+      false,
+    );
   });
 });

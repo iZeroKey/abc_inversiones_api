@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/auth.middleware.js";
+import { uploadRateLimit } from "../../middleware/rate-limit.middleware.js";
 import { authorize } from "../../middleware/role.middleware.js";
 import { bufferOcrUpload, streamVoucherUpload } from "../../middleware/stream-upload.middleware.js";
 import * as controller from "./payment-vouchers.controller.js";
@@ -14,7 +15,7 @@ const router = Router();
  *          Usa modo "buffer" (máx 1.5MB) porque Vision API requiere imagen completa.
  * @access  Private (Client)
  */
-router.post("/analyze", authenticate, authorize(["client"]), bufferOcrUpload, ocrController.analyzeVoucherEvidence);
+router.post("/analyze", authenticate, authorize(["client"]), uploadRateLimit, bufferOcrUpload, ocrController.analyzeVoucherEvidence);
 
 /**
  * @route   POST /api/v1/payment-vouchers
@@ -25,7 +26,7 @@ router.post("/analyze", authenticate, authorize(["client"]), bufferOcrUpload, oc
  * @access  Private (Client)
  * @body    { loanId, amount, operationId, operationDate?, observation? } + campo "evidence" (imagen)
  */
-router.post("/", authenticate, authorize(["client"]), streamVoucherUpload, controller.submitVoucher);
+router.post("/", authenticate, authorize(["client"]), uploadRateLimit, streamVoucherUpload, controller.submitVoucher);
 
 /**
  * @route   GET /api/v1/payment-vouchers

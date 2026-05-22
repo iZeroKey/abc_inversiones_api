@@ -38,7 +38,9 @@ describe("Loans Module", () => {
     expect(res.body.data.clientId).toBe(client!.id);
     expect(res.body.data.publicCode).toMatch(/^PR-\d{5}$/);
     expect(res.body.data.clientCode).toBe("CL-00001");
-    expect(res.body.data.clientName).toBe(`${client!.firstName} ${client!.lastName}`);
+    expect(res.body.data.clientName).toBe(
+      `${client!.firstName} ${client!.lastName}`,
+    );
     expect(res.body.data.status).toBe("pending_admin_review");
     expect(res.body.data.totalDebt).toBe("1353.96");
   });
@@ -95,12 +97,7 @@ describe("Loans Module", () => {
           zone: BUSINESS_TIMEZONE,
         }).toISODate(),
       ),
-    ).toEqual([
-      "2026-02-28",
-      "2026-03-31",
-      "2026-04-30",
-      "2026-05-31",
-    ]);
+    ).toEqual(["2026-02-28", "2026-03-31", "2026-04-30", "2026-05-31"]);
   });
 
   it("debería permitir que un admin active directamente un préstamo pendiente de inversionista", async () => {
@@ -144,8 +141,11 @@ describe("Loans Module", () => {
 
     expect(updatedLoan.totalDebt).toBe("13539.00");
     expect(generatedInstallments).toHaveLength(12);
-    expect(generatedInstallments.every((installment) => installment.amount === "1128.25"))
-      .toBe(true);
+    expect(
+      generatedInstallments.every(
+        (installment) => installment.amount === "1128.25",
+      ),
+    ).toBe(true);
     expect(
       generatedInstallments.map((installment) =>
         DateTime.fromJSDate(installment.dueDate, {
@@ -224,7 +224,9 @@ describe("Loans Module", () => {
       .set(authHeader(adminToken));
 
     expect(res.status).toBe(200);
-    const row = res.body.data.find((item: { id: string }) => item.id === loan.id);
+    const row = res.body.data.find(
+      (item: { id: string }) => item.id === loan.id,
+    );
     expect(row).toMatchObject({
       id: loan.id,
       publicCode: loan.publicCode,
@@ -249,14 +251,20 @@ describe("Loans Module", () => {
       isCompanyFunded: false,
     });
 
-    for (const term of [loan.publicCode, client!.publicCode, investor!.publicCode]) {
+    for (const term of [
+      loan.publicCode,
+      client!.publicCode,
+      investor!.publicCode,
+    ]) {
       const res = await request
         .get("/api/v1/loans")
         .query({ search: term })
         .set(authHeader(adminToken));
 
       expect(res.status).toBe(200);
-      expect(res.body.data.some((item: { id: string }) => item.id === loan.id)).toBe(true);
+      expect(
+        res.body.data.some((item: { id: string }) => item.id === loan.id),
+      ).toBe(true);
     }
   });
 
@@ -273,8 +281,16 @@ describe("Loans Module", () => {
       totalDebt: "1100.00",
       startDate: new Date("2026-01-01T00:00:00.000-05:00"),
     });
-    await createInstallmentFixture({ loanId: loan.id, installmentNumber: 1, amount: "550.00" });
-    await createInstallmentFixture({ loanId: loan.id, installmentNumber: 2, amount: "550.00" });
+    await createInstallmentFixture({
+      loanId: loan.id,
+      installmentNumber: 1,
+      amount: "550.00",
+    });
+    await createInstallmentFixture({
+      loanId: loan.id,
+      installmentNumber: 2,
+      amount: "550.00",
+    });
 
     const res = await request
       .patch(`/api/v1/loans/${loan.id}`)
@@ -310,8 +326,16 @@ describe("Loans Module", () => {
       totalDebt: "1200.00",
       startDate: new Date("2026-01-01T00:00:00.000-05:00"),
     });
-    await createInstallmentFixture({ loanId: loan.id, installmentNumber: 1, amount: "600.00" });
-    await createInstallmentFixture({ loanId: loan.id, installmentNumber: 2, amount: "600.00" });
+    await createInstallmentFixture({
+      loanId: loan.id,
+      installmentNumber: 1,
+      amount: "600.00",
+    });
+    await createInstallmentFixture({
+      loanId: loan.id,
+      installmentNumber: 2,
+      amount: "600.00",
+    });
 
     const paymentRes = await request
       .post("/api/v1/payments")
@@ -342,7 +366,11 @@ describe("Loans Module", () => {
       status: "active",
       isCompanyFunded: true,
     });
-    await createInstallmentFixture({ loanId: loan.id, installmentNumber: 1, amount: "300.00" });
+    await createInstallmentFixture({
+      loanId: loan.id,
+      installmentNumber: 1,
+      amount: "300.00",
+    });
 
     const deleteRes = await request
       .delete(`/api/v1/loans/${loan.id}`)

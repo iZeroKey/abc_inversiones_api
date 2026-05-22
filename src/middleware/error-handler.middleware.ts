@@ -26,10 +26,7 @@ export const errorHandler = (
       "Internal server error",
     );
   } else {
-    logger.warn(
-      { status, message, data: errorData?.data },
-      "Client error",
-    );
+    logger.warn({ status, message, data: errorData?.data }, "Client error");
   }
 
   sendError(res, status, message, errorData?.data || null);

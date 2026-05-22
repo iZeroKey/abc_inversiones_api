@@ -83,10 +83,12 @@ async function apiRequest<T>(
       ...options.headers,
     },
   });
-  const payload = await response.json() as ApiResponse<T>;
+  const payload = (await response.json()) as ApiResponse<T>;
 
   if (!response.ok) {
-    throw new Error(`${response.status} ${payload.message}: ${JSON.stringify(payload.data)}`);
+    throw new Error(
+      `${response.status} ${payload.message}: ${JSON.stringify(payload.data)}`,
+    );
   }
 
   return payload;
@@ -165,11 +167,15 @@ async function main(): Promise<void> {
   const existingUsers = await getUsers(ownerToken);
 
   for (const seedUser of seedUsers) {
-    const existing = existingUsers.find((user) => user.email === seedUser.email);
+    const existing = existingUsers.find(
+      (user) => user.email === seedUser.email,
+    );
 
     if (!existing) {
       const created = await createUser(ownerToken, seedUser);
-      console.log(`Creado ${created.email} (${created.role}, ${created.publicCode})`);
+      console.log(
+        `Creado ${created.email} (${created.role}, ${created.publicCode})`,
+      );
       await assertLogin(seedUser);
       continue;
     }
@@ -181,7 +187,9 @@ async function main(): Promise<void> {
     }
 
     const updated = await updateUserProfile(ownerToken, existing.id, seedUser);
-    console.log(`Actualizado ${updated.email} (${updated.role}, ${updated.publicCode})`);
+    console.log(
+      `Actualizado ${updated.email} (${updated.role}, ${updated.publicCode})`,
+    );
     await assertLogin(seedUser);
   }
 

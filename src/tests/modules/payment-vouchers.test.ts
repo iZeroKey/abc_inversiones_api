@@ -1,10 +1,21 @@
-import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
 import { db } from "../../config/db.js";
 import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
 import { users } from "../../db/schema/users.js";
 import { generatePublicCodeForRole } from "../../utils/public-code.util.js";
-import { authHeader, createAuthUser, createInstallmentFixture, createLoanFixture, createVoucherFixture, getUserByEmail, loginAs, request, seededEmails, uniqueEmail } from "../helpers/integration.js";
+import {
+  authHeader,
+  createAuthUser,
+  createInstallmentFixture,
+  createLoanFixture,
+  createVoucherFixture,
+  getUserByEmail,
+  loginAs,
+  request,
+  seededEmails,
+  uniqueEmail,
+} from "../helpers/integration.js";
 
 describe("Payment Vouchers Module", () => {
   it("debería permitir al cliente subir un voucher a un préstamo activo", async () => {
@@ -20,7 +31,11 @@ describe("Payment Vouchers Module", () => {
     const res = await request
       .post("/api/v1/payment-vouchers")
       .set(authHeader(await loginAs(seededEmails.client)))
-      .send({ loanId: loan.id, amount: "500", operationId: `OP-${Date.now()}` });
+      .send({
+        loanId: loan.id,
+        amount: "500",
+        operationId: `OP-${Date.now()}`,
+      });
 
     expect(res.status).toBe(201);
     expect(res.body.data.loanId).toBe(loan.id);
@@ -29,13 +44,16 @@ describe("Payment Vouchers Module", () => {
 
   it("debería enviar el voucher directo a revisión admin si el inversionista no tiene cuenta de acceso", async () => {
     const client = await getUserByEmail(seededEmails.client);
-    const [investorWithoutAccess] = await db.insert(users).values({
-      firstName: "Inversionista",
-      lastName: "Sin Acceso",
-      role: "investor",
-      publicCode: await generatePublicCodeForRole("investor"),
-      active: true,
-    }).returning();
+    const [investorWithoutAccess] = await db
+      .insert(users)
+      .values({
+        firstName: "Inversionista",
+        lastName: "Sin Acceso",
+        role: "investor",
+        publicCode: await generatePublicCodeForRole("investor"),
+        active: true,
+      })
+      .returning();
     const loan = await createLoanFixture({
       clientId: client!.id,
       investorId: investorWithoutAccess.id,
@@ -46,7 +64,11 @@ describe("Payment Vouchers Module", () => {
     const res = await request
       .post("/api/v1/payment-vouchers")
       .set(authHeader(await loginAs(seededEmails.client)))
-      .send({ loanId: loan.id, amount: "500", operationId: `OP-NO-ACCESS-${Date.now()}` });
+      .send({
+        loanId: loan.id,
+        amount: "500",
+        operationId: `OP-NO-ACCESS-${Date.now()}`,
+      });
 
     expect(res.status).toBe(201);
     expect(res.body.data.status).toBe("pending_admin_review");
@@ -168,7 +190,7 @@ describe("Payment Vouchers Module", () => {
       });
 
     expect(res.status).toBe(400);
-      expect(res.body.message).toContain("futura");
+    expect(res.body.message).toContain("futura");
   });
 
   it("debería permitir al cliente subir un voucher adjuntando una imagen como evidencia", async () => {
@@ -213,7 +235,11 @@ describe("Payment Vouchers Module", () => {
     const res = await request
       .post("/api/v1/payment-vouchers")
       .set(authHeader(await loginAs(seededEmails.client)))
-      .send({ loanId: loan.id, amount: "500", operationId: `  op dup ${duplicatedOperationId.slice(5)}  ` });
+      .send({
+        loanId: loan.id,
+        amount: "500",
+        operationId: `  op dup ${duplicatedOperationId.slice(5)}  `,
+      });
 
     expect(res.status).toBe(409);
   });
@@ -258,7 +284,11 @@ describe("Payment Vouchers Module", () => {
     const res = await request
       .post("/api/v1/payment-vouchers")
       .set(authHeader(await loginAs(seededEmails.client)))
-      .send({ loanId: loan.id, amount: "500", operationId: `OP-INACTIVE-${Date.now()}` });
+      .send({
+        loanId: loan.id,
+        amount: "500",
+        operationId: `OP-INACTIVE-${Date.now()}`,
+      });
 
     expect(res.status).toBe(400);
     expect(res.body.message).toContain("activos");

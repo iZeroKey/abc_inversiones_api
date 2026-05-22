@@ -1,8 +1,8 @@
 import "dotenv/config";
+import { eq } from "drizzle-orm";
 import { db } from "../config/db.js";
 import { supabaseAdmin } from "../config/supabase.js";
 import { users } from "../db/schema/users.js";
-import { eq } from "drizzle-orm";
 import { generatePublicCodeForRole } from "../utils/public-code.util.js";
 
 async function seed() {
@@ -88,8 +88,9 @@ async function seed() {
         .from(users)
         .where(eq(users.email, userData.email))
         .limit(1);
-      const publicCode = existingLocalUser?.publicCode
-        || await generatePublicCodeForRole(userData.role);
+      const publicCode =
+        existingLocalUser?.publicCode ||
+        (await generatePublicCodeForRole(userData.role));
 
       await db
         .insert(users)

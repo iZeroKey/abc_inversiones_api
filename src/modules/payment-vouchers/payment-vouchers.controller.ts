@@ -8,20 +8,38 @@ import { users } from "../../db/schema/users.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { sendNotification } from "../../utils/notification.util.js";
+import { emitLoanDomainEvent } from "../../utils/realtime.util.js";
 import {
   formatZodError,
   sendError,
   sendSuccess,
 } from "../../utils/response.util.js";
 import { resolveFileUrl, uploadFileStream } from "../../utils/storage.util.js";
-import { processPaymentLogic, recalculateLoanLedger } from "../payments/payments.service.js";
-import { createVoucherSchema, operationIdLookupSchema, processVoucherSchema, updateVoucherSchema } from "./payment-vouchers.schema.js";
+import {
+  processPaymentLogic,
+  recalculateLoanLedger,
+} from "../payments/payments.service.js";
+import {
+  createVoucherSchema,
+  operationIdLookupSchema,
+  processVoucherSchema,
+  updateVoucherSchema,
+} from "./payment-vouchers.schema.js";
 
 const isUniqueViolation = (error: unknown): boolean => {
-  return !!error && typeof error === "object" && "code" in error && error.code === "23505";
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "23505"
+  );
 };
 
-const attachSignedEvidenceUrl = async <T extends { evidenceUrl?: string | null }>(voucher: T): Promise<T> => {
+const attachSignedEvidenceUrl = async <
+  T extends { evidenceUrl?: string | null },
+>(
+  voucher: T,
+): Promise<T> => {
   if (!voucher.evidenceUrl) {
     return voucher;
   }
@@ -36,9 +54,15 @@ const normalizedOperationIdCondition = (operationId: string): SQL => {
   return sql`regexp_replace(upper(${paymentVouchers.operationId}), '[^A-Z0-9]', '', 'g') = ${operationId}`;
 };
 
-const voucherPendingStatuses = ["draft", "pending_investor_review", "pending_admin_review"];
+const voucherPendingStatuses = [
+  "draft",
+  "pending_investor_review",
+  "pending_admin_review",
+];
 
-const voucherNeedsInvestorReview = async (investorId?: string | null): Promise<boolean> => {
+const voucherNeedsInvestorReview = async (
+  investorId?: string | null,
+): Promise<boolean> => {
   if (!investorId) {
     return false;
   }
@@ -46,13 +70,15 @@ const voucherNeedsInvestorReview = async (investorId?: string | null): Promise<b
   const [investor] = await db
     .select({ id: users.id })
     .from(users)
-    .where(and(
-      eq(users.id, investorId),
-      eq(users.role, "investor"),
-      eq(users.active, true),
-      sql`${users.authUserId} IS NOT NULL`,
-      sql`${users.deletedAt} IS NULL`,
-    ))
+    .where(
+      and(
+        eq(users.id, investorId),
+        eq(users.role, "investor"),
+        eq(users.active, true),
+        sql`${users.authUserId} IS NOT NULL`,
+        sql`${users.deletedAt} IS NULL`,
+      ),
+    )
     .limit(1);
 
   return !!investor;
@@ -69,19 +95,25 @@ const voucherNeedsInvestorReview = async (investorId?: string | null): Promise<b
  *   del proxy Cloudflare al mantener actividad constante de red.
  * - Fallback: Si se recibe como JSON (sin multipart), usa el flujo legacy con multer.
  */
-export const submitVoucher = async (req: AuthRequest, res: Response): Promise<void> => {
+export const submitVoucher = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     // ── Fuente de datos: streaming (busboy) o legacy (multer/JSON) ──
     // Si la petición fue multipart, los campos vienen del stream-parser.
     // Si fue JSON (ej. tests o requests sin archivo), usar req.body.
     const streamParsed = req.streamParsed;
-    const hasStreamFields = streamParsed && Object.keys(streamParsed.fields).length > 0;
+    const hasStreamFields =
+      streamParsed && Object.keys(streamParsed.fields).length > 0;
     const bodySource = hasStreamFields ? streamParsed.fields : req.body;
 
     const validation = createVoucherSchema.safeParse(bodySource);
     if (!validation.success) {
       const futureOperationDateIssue = validation.error.issues.find(
-        (issue) => issue.path.join(".") === "operationDate" && issue.message.includes("futura"),
+        (issue) =>
+          issue.path.join(".") === "operationDate" &&
+          issue.message.includes("futura"),
       );
 
       sendError(
@@ -97,18 +129,27 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
     const { loanId, operationId } = validation.data;
 
     // 1. Verificar duplicado de operationId
-    const [existing] = await db.select()
+    const [existing] = await db
+      .select()
       .from(paymentVouchers)
       .where(normalizedOperationIdCondition(operationId))
       .limit(1);
-    
+
     if (existing) {
-      sendError(res, 409, "Este ID de operación ya ha sido registrado previamente");
+      sendError(
+        res,
+        409,
+        "Este ID de operación ya ha sido registrado previamente",
+      );
       return;
     }
 
     // 2. Verificar que el préstamo pertenece al cliente
-    const [loan] = await db.select().from(loans).where(and(eq(loans.id, loanId), eq(loans.clientId, clientId))).limit(1);
+    const [loan] = await db
+      .select()
+      .from(loans)
+      .where(and(eq(loans.id, loanId), eq(loans.clientId, clientId)))
+      .limit(1);
     if (!loan) {
       sendError(res, 403, "No tienes acceso a este préstamo");
       return;
@@ -141,18 +182,21 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     // 5. Determinar estado inicial según si el inversionista puede revisar.
-    const initialStatus = await voucherNeedsInvestorReview(loan.investorId)
+    const initialStatus = (await voucherNeedsInvestorReview(loan.investorId))
       ? "pending_investor_review"
       : "pending_admin_review";
 
-    const [newVoucher] = await db.insert(paymentVouchers).values({
-      ...validation.data,
-      operationId,
-      operationDate: validation.data.operationDate || new Date(),
-      clientId,
-      evidenceUrl,
-      status: initialStatus,
-    }).returning();
+    const [newVoucher] = await db
+      .insert(paymentVouchers)
+      .values({
+        ...validation.data,
+        operationId,
+        operationDate: validation.data.operationDate || new Date(),
+        clientId,
+        evidenceUrl,
+        status: initialStatus,
+      })
+      .returning();
 
     await logAudit({
       userId: clientId,
@@ -175,10 +219,21 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     const responseVoucher = await attachSignedEvidenceUrl(newVoucher);
+    emitLoanDomainEvent("voucher.created", {
+      loanId: newVoucher.loanId,
+      voucherId: newVoucher.id,
+      clientId: newVoucher.clientId,
+      investorId: loan.investorId,
+      status: newVoucher.status,
+    });
     sendSuccess(res, 201, "Voucher enviado para revisión", responseVoucher);
   } catch (error: unknown) {
     if (isUniqueViolation(error)) {
-      sendError(res, 409, "Este ID de operación ya ha sido registrado previamente");
+      sendError(
+        res,
+        409,
+        "Este ID de operación ya ha sido registrado previamente",
+      );
       return;
     }
 
@@ -186,7 +241,10 @@ export const submitVoucher = async (req: AuthRequest, res: Response): Promise<vo
   }
 };
 
-export const checkOperationIdExists = async (req: AuthRequest, res: Response): Promise<void> => {
+export const checkOperationIdExists = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const validation = operationIdLookupSchema.safeParse(req.query);
 
@@ -216,7 +274,10 @@ export const checkOperationIdExists = async (req: AuthRequest, res: Response): P
  * Lista vouchers según el rol del usuario autenticado.
  * Filtros opcionales: ?status=..., ?loanId=..., ?from=..., ?to=...
  */
-export const getVouchers = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getVouchers = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const user = req.user!;
     const { status, loanId, from, to } = req.query;
@@ -227,23 +288,39 @@ export const getVouchers = async (req: AuthRequest, res: Response): Promise<void
     if (user.role === "client") {
       conditions.push(eq(paymentVouchers.clientId, user.id));
     } else if (user.role === "investor") {
-      conditions.push(sql`EXISTS (SELECT 1 FROM loans WHERE loans.id = ${paymentVouchers.loanId} AND loans.investor_id = ${user.id})`);
+      conditions.push(
+        sql`EXISTS (SELECT 1 FROM loans WHERE loans.id = ${paymentVouchers.loanId} AND loans.investor_id = ${user.id})`,
+      );
     }
 
     conditions.push(sql`${paymentVouchers.deletedAt} IS NULL`);
 
     // Filtros opcionales
-    if (status) conditions.push(eq(paymentVouchers.status, status as typeof paymentVouchers.status.enumValues[number]));
+    if (status)
+      conditions.push(
+        eq(
+          paymentVouchers.status,
+          status as (typeof paymentVouchers.status.enumValues)[number],
+        ),
+      );
     if (loanId) conditions.push(eq(paymentVouchers.loanId, loanId as string));
-    if (from) conditions.push(sql`${paymentVouchers.createdAt} >= ${new Date(from as string)}`);
-    if (to) conditions.push(sql`${paymentVouchers.createdAt} <= ${new Date(to as string)}`);
+    if (from)
+      conditions.push(
+        sql`${paymentVouchers.createdAt} >= ${new Date(from as string)}`,
+      );
+    if (to)
+      conditions.push(
+        sql`${paymentVouchers.createdAt} <= ${new Date(to as string)}`,
+      );
 
     const results = await db
       .select()
       .from(paymentVouchers)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(paymentVouchers.createdAt));
-    const signedResults = await Promise.all(results.map((voucher) => attachSignedEvidenceUrl(voucher)));
+    const signedResults = await Promise.all(
+      results.map((voucher) => attachSignedEvidenceUrl(voucher)),
+    );
     sendSuccess(res, 200, "Vouchers obtenidos", signedResults);
   } catch (error) {
     sendError(res, 500, "Error al obtener vouchers", error);
@@ -255,7 +332,10 @@ export const getVouchers = async (req: AuthRequest, res: Response): Promise<void
  * Regla de negocio: Si el préstamo tiene inversionista, el inversionista DEBE aprobar antes que el Admin.
  * El Admin solo puede procesar directamente si el préstamo es fondeado por la empresa (sin inversionista).
  */
-export const processVoucher = async (req: AuthRequest, res: Response): Promise<void> => {
+export const processVoucher = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     const user = req.user!;
@@ -268,21 +348,36 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
 
     const { action, observation } = validation.data;
 
-    const [voucher] = await db.select().from(paymentVouchers).where(eq(paymentVouchers.id, id)).limit(1);
+    const [voucher] = await db
+      .select()
+      .from(paymentVouchers)
+      .where(eq(paymentVouchers.id, id))
+      .limit(1);
     if (!voucher || voucher.deletedAt || voucher.status === "deleted") {
       sendError(res, 404, "Voucher no encontrado");
       return;
     }
 
     // Obtener el préstamo para verificar si tiene inversionista
-    const [loan] = await db.select().from(loans).where(eq(loans.id, voucher.loanId)).limit(1);
+    const [loan] = await db
+      .select()
+      .from(loans)
+      .where(eq(loans.id, voucher.loanId))
+      .limit(1);
     if (!loan || loan.deletedAt || loan.status === "deleted") {
-      sendError(res, 400, "No se puede procesar un voucher de un préstamo eliminado");
+      sendError(
+        res,
+        400,
+        "No se puede procesar un voucher de un préstamo eliminado",
+      );
       return;
     }
 
-    const needsInvestorReview = await voucherNeedsInvestorReview(loan.investorId);
-    let nextStatus: typeof paymentVouchers.status.enumValues[number];
+    const needsInvestorReview = await voucherNeedsInvestorReview(
+      loan.investorId,
+    );
+    let nextStatus: (typeof paymentVouchers.status.enumValues)[number];
+    let appliedPaymentId: string | null = null;
 
     if (user.role === "investor") {
       // Inversionista: solo puede procesar vouchers en pending_investor_review
@@ -294,25 +389,34 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
         sendError(res, 403, "No estás asignado al préstamo de este voucher");
         return;
       }
-      nextStatus = action === "approve" ? "investor_approved" : "investor_rejected";
-
+      nextStatus =
+        action === "approve" ? "investor_approved" : "investor_rejected";
     } else if (user.role === "admin" || user.isOwner) {
       // Admin/Dueño: la lógica depende de si el inversionista puede revisar.
       if (needsInvestorReview) {
         // CON inversionista: el Admin solo puede actuar después de que el inversionista aprobó
         if (voucher.status !== "investor_approved") {
-          sendError(res, 400, "El inversionista debe aprobar este voucher antes de la validación administrativa");
+          sendError(
+            res,
+            400,
+            "El inversionista debe aprobar este voucher antes de la validación administrativa",
+          );
           return;
         }
       } else {
         // SIN inversionista con acceso: el Admin puede procesar directamente
-        if (!["pending_admin_review", "pending_investor_review", "investor_approved"].includes(voucher.status)) {
+        if (
+          ![
+            "pending_admin_review",
+            "pending_investor_review",
+            "investor_approved",
+          ].includes(voucher.status)
+        ) {
           sendError(res, 400, "Estado no apto para validación administrativa");
           return;
         }
       }
       nextStatus = action === "approve" ? "owner_approved" : "owner_rejected";
-
     } else {
       sendError(res, 403, "No tienes permisos para procesar vouchers");
       return;
@@ -320,7 +424,7 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
 
     // Si es aprobación final, aplicar el pago al préstamo
     if (nextStatus === "owner_approved") {
-      await processPaymentLogic({
+      const appliedPayment = await processPaymentLogic({
         loanId: voucher.loanId,
         amount: voucher.amount,
         method: "transfer",
@@ -330,9 +434,11 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
         reference: voucher.operationId,
         paymentDate: voucher.operationDate || undefined,
       });
+      appliedPaymentId = appliedPayment.id;
     }
 
-    const [updated] = await db.update(paymentVouchers)
+    const [updated] = await db
+      .update(paymentVouchers)
       .set({
         status: nextStatus,
         observation,
@@ -354,7 +460,8 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
     // Notificaciones según resultado
     // Al cliente: siempre
     const isApproved = nextStatus === "owner_approved";
-    const isRejected = nextStatus === "investor_rejected" || nextStatus === "owner_rejected";
+    const isRejected =
+      nextStatus === "investor_rejected" || nextStatus === "owner_rejected";
 
     if (isApproved || isRejected) {
       await sendNotification({
@@ -369,10 +476,15 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
     }
 
     // Al inversionista: cuando el Admin toma una decisión final
-    if ((nextStatus === "owner_approved" || nextStatus === "owner_rejected") && loan?.investorId) {
+    if (
+      (nextStatus === "owner_approved" || nextStatus === "owner_rejected") &&
+      loan?.investorId
+    ) {
       await sendNotification({
         userId: loan.investorId,
-        title: isApproved ? "Pago confirmado por administración" : "Pago rechazado por administración",
+        title: isApproved
+          ? "Pago confirmado por administración"
+          : "Pago rechazado por administración",
         body: isApproved
           ? `El pago por ${voucher.amount} que aprobaste ha sido confirmado.`
           : `El pago por ${voucher.amount} fue rechazado por la administración.`,
@@ -382,14 +494,41 @@ export const processVoucher = async (req: AuthRequest, res: Response): Promise<v
     }
 
     const responseVoucher = await attachSignedEvidenceUrl(updated);
-    sendSuccess(res, 200, `Voucher actualizado a ${nextStatus}`, responseVoucher);
+    emitLoanDomainEvent("voucher.updated", {
+      loanId: updated.loanId,
+      voucherId: updated.id,
+      paymentId: appliedPaymentId,
+      clientId: updated.clientId,
+      investorId: loan.investorId,
+      status: updated.status,
+    });
+
+    if (appliedPaymentId) {
+      emitLoanDomainEvent("payment.created", {
+        loanId: updated.loanId,
+        paymentId: appliedPaymentId,
+        clientId: updated.clientId,
+        investorId: loan.investorId,
+      });
+    }
+
+    sendSuccess(
+      res,
+      200,
+      `Voucher actualizado a ${nextStatus}`,
+      responseVoucher,
+    );
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al procesar el voucher";
+    const message =
+      error instanceof Error ? error.message : "Error al procesar el voucher";
     sendError(res, 500, message, error);
   }
 };
 
-export const updateVoucher = async (req: AuthRequest, res: Response): Promise<void> => {
+export const updateVoucher = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     const user = req.user!;
@@ -400,30 +539,49 @@ export const updateVoucher = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const [voucher] = await db.select().from(paymentVouchers).where(eq(paymentVouchers.id, id)).limit(1);
+    const [voucher] = await db
+      .select()
+      .from(paymentVouchers)
+      .where(eq(paymentVouchers.id, id))
+      .limit(1);
     if (!voucher || voucher.deletedAt || voucher.status === "deleted") {
       sendError(res, 404, "Voucher no encontrado");
       return;
     }
 
-    const [loan] = await db.select().from(loans).where(eq(loans.id, voucher.loanId)).limit(1);
+    const [loan] = await db
+      .select()
+      .from(loans)
+      .where(eq(loans.id, voucher.loanId))
+      .limit(1);
     if (!loan || loan.deletedAt || loan.status === "deleted") {
-      sendError(res, 400, "No se puede editar un voucher de un préstamo eliminado");
+      sendError(
+        res,
+        400,
+        "No se puede editar un voucher de un préstamo eliminado",
+      );
       return;
     }
 
-    const canEditPending = user.role === "client"
-      && voucher.clientId === user.id
-      && voucherPendingStatuses.includes(voucher.status);
-    const canEditApplied = (user.role === "admin" || user.isOwner)
-      && voucher.status === "owner_approved";
+    const canEditPending =
+      user.role === "client" &&
+      voucher.clientId === user.id &&
+      voucherPendingStatuses.includes(voucher.status);
+    const canEditApplied =
+      (user.role === "admin" || user.isOwner) &&
+      voucher.status === "owner_approved";
 
     if (!canEditPending && !canEditApplied) {
-      sendError(res, 403, "No tienes permiso para editar este voucher en su estado actual");
+      sendError(
+        res,
+        403,
+        "No tienes permiso para editar este voucher en su estado actual",
+      );
       return;
     }
 
-    const [updatedVoucher] = await db.update(paymentVouchers)
+    const [updatedVoucher] = await db
+      .update(paymentVouchers)
       .set({
         ...validation.data,
         operationDate: validation.data.operationDate || undefined,
@@ -433,6 +591,7 @@ export const updateVoucher = async (req: AuthRequest, res: Response): Promise<vo
       .returning();
 
     let recalculated = null;
+    let relatedPaymentId: string | null = null;
     if (canEditApplied) {
       const [payment] = await db
         .select()
@@ -441,7 +600,9 @@ export const updateVoucher = async (req: AuthRequest, res: Response): Promise<vo
         .limit(1);
 
       if (payment && !payment.deletedAt) {
-        await db.update(payments)
+        relatedPaymentId = payment.id;
+        await db
+          .update(payments)
           .set({
             amount: updatedVoucher.amount,
             paymentDate: updatedVoucher.operationDate || payment.paymentDate,
@@ -465,6 +626,24 @@ export const updateVoucher = async (req: AuthRequest, res: Response): Promise<vo
     });
 
     const responseVoucher = await attachSignedEvidenceUrl(updatedVoucher);
+    emitLoanDomainEvent("voucher.updated", {
+      loanId: updatedVoucher.loanId,
+      voucherId: updatedVoucher.id,
+      paymentId: relatedPaymentId,
+      clientId: updatedVoucher.clientId,
+      investorId: loan.investorId,
+      status: updatedVoucher.status,
+    });
+
+    if (relatedPaymentId) {
+      emitLoanDomainEvent("payment.updated", {
+        loanId: updatedVoucher.loanId,
+        paymentId: relatedPaymentId,
+        clientId: updatedVoucher.clientId,
+        investorId: loan.investorId,
+      });
+    }
+
     sendSuccess(res, 200, "Voucher actualizado correctamente", {
       voucher: responseVoucher,
       recalculation: recalculated,
@@ -474,20 +653,34 @@ export const updateVoucher = async (req: AuthRequest, res: Response): Promise<vo
   }
 };
 
-export const deleteVoucher = async (req: AuthRequest, res: Response): Promise<void> => {
+export const deleteVoucher = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     const user = req.user!;
 
-    const [voucher] = await db.select().from(paymentVouchers).where(eq(paymentVouchers.id, id)).limit(1);
+    const [voucher] = await db
+      .select()
+      .from(paymentVouchers)
+      .where(eq(paymentVouchers.id, id))
+      .limit(1);
     if (!voucher || voucher.deletedAt || voucher.status === "deleted") {
       sendError(res, 404, "Voucher no encontrado");
       return;
     }
 
-    const canDeletePending = user.role === "client"
-      && voucher.clientId === user.id
-      && voucherPendingStatuses.includes(voucher.status);
+    const [loan] = await db
+      .select({ investorId: loans.investorId })
+      .from(loans)
+      .where(eq(loans.id, voucher.loanId))
+      .limit(1);
+
+    const canDeletePending =
+      user.role === "client" &&
+      voucher.clientId === user.id &&
+      voucherPendingStatuses.includes(voucher.status);
     const canDeleteAny = user.role === "admin" || user.isOwner;
 
     if (!canDeletePending && !canDeleteAny) {
@@ -495,7 +688,8 @@ export const deleteVoucher = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const [deletedVoucher] = await db.update(paymentVouchers)
+    const [deletedVoucher] = await db
+      .update(paymentVouchers)
       .set({
         status: "deleted",
         deletedAt: new Date(),
@@ -505,6 +699,7 @@ export const deleteVoucher = async (req: AuthRequest, res: Response): Promise<vo
       .returning();
 
     let recalculated = null;
+    let relatedPaymentId: string | null = null;
     if (voucher.status === "owner_approved") {
       const [payment] = await db
         .select()
@@ -513,7 +708,9 @@ export const deleteVoucher = async (req: AuthRequest, res: Response): Promise<vo
         .limit(1);
 
       if (payment && !payment.deletedAt) {
-        await db.update(payments)
+        relatedPaymentId = payment.id;
+        await db
+          .update(payments)
           .set({
             status: "reversed",
             deletedAt: new Date(),
@@ -533,6 +730,24 @@ export const deleteVoucher = async (req: AuthRequest, res: Response): Promise<vo
       newData: deletedVoucher,
       req,
     });
+
+    emitLoanDomainEvent("voucher.deleted", {
+      loanId: deletedVoucher.loanId,
+      voucherId: deletedVoucher.id,
+      paymentId: relatedPaymentId,
+      clientId: deletedVoucher.clientId,
+      investorId: loan?.investorId,
+      status: deletedVoucher.status,
+    });
+
+    if (relatedPaymentId) {
+      emitLoanDomainEvent("payment.deleted", {
+        loanId: deletedVoucher.loanId,
+        paymentId: relatedPaymentId,
+        clientId: deletedVoucher.clientId,
+        investorId: loan?.investorId,
+      });
+    }
 
     sendSuccess(res, 200, "Voucher eliminado correctamente", {
       voucher: deletedVoucher,

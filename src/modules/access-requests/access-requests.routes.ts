@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as controller from "./access-requests.controller.js";
 import { authenticate } from "../../middleware/auth.middleware.js";
+import { publicRequestRateLimit } from "../../middleware/rate-limit.middleware.js";
 import { authorize } from "../../middleware/role.middleware.js";
 
 const router = Router();
@@ -11,7 +12,7 @@ const router = Router();
  * @access  Public
  * @body    { email, firstName, lastName, phone, roleRequested, additionalData }
  */
-router.post("/", controller.createRequest);
+router.post("/", publicRequestRateLimit, controller.createRequest);
 
 /**
  * @route   GET /api/v1/access-requests

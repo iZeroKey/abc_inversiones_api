@@ -1,13 +1,13 @@
 import { Router } from "express";
-import authRoutes from "../modules/auth/auth.routes.js";
-import { usersRoutes } from "../modules/users/users.routes.js";
 import { accessRequestsRoutes } from "../modules/access-requests/access-requests.routes.js";
-import { loansRoutes } from "../modules/loans/loans.routes.js";
-import { paymentsRoutes } from "../modules/payments/payments.routes.js";
-import { paymentVouchersRoutes } from "../modules/payment-vouchers/payment-vouchers.routes.js";
-import { notificationsRoutes } from "../modules/notifications/notifications.routes.js";
 import { auditRoutes } from "../modules/audit/audit.routes.js";
+import authRoutes from "../modules/auth/auth.routes.js";
+import { loansRoutes } from "../modules/loans/loans.routes.js";
+import { notificationsRoutes } from "../modules/notifications/notifications.routes.js";
+import { paymentVouchersRoutes } from "../modules/payment-vouchers/payment-vouchers.routes.js";
+import { paymentsRoutes } from "../modules/payments/payments.routes.js";
 import { reportsRoutes } from "../modules/reports/reports.routes.js";
+import { usersRoutes } from "../modules/users/users.routes.js";
 
 const router = Router();
 
@@ -17,7 +17,7 @@ router.get("/health", (req, res) => {
     success: true,
     message: "API is running",
     data: { status: "ok" },
-    meta: { timestamp: new Date().toISOString() }
+    meta: { timestamp: new Date().toISOString() },
   });
 });
 

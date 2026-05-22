@@ -16,24 +16,41 @@ async function getMaxLoanCodeNumber(): Promise<number> {
     .from(loans)
     .where(isNotNull(loans.publicCode));
 
-  return Math.max(...loanRows.map((row) => parsePublicCodeNumber(row.publicCode, "loan")), 0);
+  return Math.max(
+    ...loanRows.map((row) => parsePublicCodeNumber(row.publicCode, "loan")),
+    0,
+  );
 }
 
-async function getMaxUserCodeNumber(kind: Exclude<PublicCodeKind, "loan">): Promise<number> {
+async function getMaxUserCodeNumber(
+  kind: Exclude<PublicCodeKind, "loan">,
+): Promise<number> {
   const role = kind;
   const userRows = await db
     .select({ publicCode: users.publicCode })
     .from(users)
     .where(sql`${users.role} = ${role} AND ${users.publicCode} IS NOT NULL`);
 
-  return Math.max(...userRows.map((row) => parsePublicCodeNumber(row.publicCode, kind)), 0);
+  return Math.max(
+    ...userRows.map((row) => parsePublicCodeNumber(row.publicCode, kind)),
+    0,
+  );
 }
 
 async function syncSequencesWithExistingCodes() {
   await setPublicCodeSequenceValue("loan", await getMaxLoanCodeNumber());
-  await setPublicCodeSequenceValue("client", await getMaxUserCodeNumber("client"));
-  await setPublicCodeSequenceValue("investor", await getMaxUserCodeNumber("investor"));
-  await setPublicCodeSequenceValue("admin", await getMaxUserCodeNumber("admin"));
+  await setPublicCodeSequenceValue(
+    "client",
+    await getMaxUserCodeNumber("client"),
+  );
+  await setPublicCodeSequenceValue(
+    "investor",
+    await getMaxUserCodeNumber("investor"),
+  );
+  await setPublicCodeSequenceValue(
+    "admin",
+    await getMaxUserCodeNumber("admin"),
+  );
 }
 
 async function backfillLoans(): Promise<number> {
@@ -53,7 +70,9 @@ async function backfillLoans(): Promise<number> {
   return rows.length;
 }
 
-async function backfillUsers(kind: Exclude<PublicCodeKind, "loan">): Promise<number> {
+async function backfillUsers(
+  kind: Exclude<PublicCodeKind, "loan">,
+): Promise<number> {
   const role = kind;
   const rows = await db
     .select({ id: users.id })

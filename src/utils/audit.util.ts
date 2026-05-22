@@ -1,6 +1,6 @@
+import { Request } from "express";
 import { db } from "../config/db.js";
 import { auditLogs } from "../db/schema/audit-logs.js";
-import { Request } from "express";
 
 export interface AuditParams {
   userId?: string;

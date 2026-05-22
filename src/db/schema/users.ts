@@ -29,7 +29,9 @@ export const users = pgTable(
     dni: text("dni"),
     address: text("address"),
     bank: text("bank"),
-    bankAccounts: textArray("bank_accounts").notNull().default(sql`'{}'::text[]`),
+    bankAccounts: textArray("bank_accounts")
+      .notNull()
+      .default(sql`'{}'::text[]`),
     maritalStatus: text("marital_status", {
       enum: ["single", "married", "unspecified"],
     }),

@@ -258,14 +258,14 @@ Privado (Admin, Owner)
 
 ### Diccionario de Datos
 
-| Campo     | Tipo    | Obligatorio | Descripción        | Restricciones                             |
-| --------- | ------- | ----------- | ------------------ | ----------------------------------------- |
-| email     | string  | Sí          | Correo electrónico | Debe ser un email válido y único          |
-| password  | string  | Sí          | Contraseña         | Mínimo 6 caracteres                       |
-| firstName | string  | Sí          | Nombres            | Mínimo 2 caracteres                       |
-| lastName  | string  | Sí          | Apellidos          | Mínimo 2 caracteres                       |
-| phone     | string  | No          | Teléfono           | -                                         |
-| role      | enum    | No          | Rol del usuario    | client, investor, admin (default: client) |
+| Campo     | Tipo   | Obligatorio | Descripción        | Restricciones                             |
+| --------- | ------ | ----------- | ------------------ | ----------------------------------------- |
+| email     | string | Sí          | Correo electrónico | Debe ser un email válido y único          |
+| password  | string | Sí          | Contraseña         | Mínimo 6 caracteres                       |
+| firstName | string | Sí          | Nombres            | Mínimo 2 caracteres                       |
+| lastName  | string | Sí          | Apellidos          | Mínimo 2 caracteres                       |
+| phone     | string | No          | Teléfono           | -                                         |
+| role      | enum   | No          | Rol del usuario    | client, investor, admin (default: client) |
 
 ### Respuesta Exitosa
 

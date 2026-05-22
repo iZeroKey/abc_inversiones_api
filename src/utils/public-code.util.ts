@@ -47,10 +47,7 @@ export function publicCodeKindForRole(
   return "admin";
 }
 
-export function formatPublicCode(
-  kind: PublicCodeKind,
-  value: number,
-): string {
+export function formatPublicCode(kind: PublicCodeKind, value: number): string {
   if (!Number.isInteger(value) || value < 1 || value > PUBLIC_CODE_MAX) {
     throw new Error(`Public code sequence exhausted for ${kind}`);
   }
@@ -80,7 +77,9 @@ export function parsePublicCodeNumber(
   return Number(match[1]);
 }
 
-export async function generatePublicCode(kind: PublicCodeKind): Promise<string> {
+export async function generatePublicCode(
+  kind: PublicCodeKind,
+): Promise<string> {
   const spec = publicCodeSpecs[kind];
   const rows = await queryClient.unsafe(
     `SELECT nextval('${spec.sequenceName}') AS value`,

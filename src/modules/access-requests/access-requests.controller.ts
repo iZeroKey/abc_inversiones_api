@@ -5,6 +5,9 @@ import { supabaseAdmin } from "../../config/supabase.js";
 import { accessRequests } from "../../db/schema/access-requests.js";
 import { users } from "../../db/schema/users.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
+import { logAudit } from "../../utils/audit.util.js";
+import { sendNotification } from "../../utils/notification.util.js";
+import { generatePublicCodeForRole } from "../../utils/public-code.util.js";
 import {
   formatZodError,
   sendError,
@@ -14,9 +17,6 @@ import {
   createAccessRequestSchema,
   updateRequestStatusSchema,
 } from "./access-requests.schema.js";
-import { logAudit } from "../../utils/audit.util.js";
-import { sendNotification } from "../../utils/notification.util.js";
-import { generatePublicCodeForRole } from "../../utils/public-code.util.js";
 
 export const createRequest = async (
   req: Request,
@@ -119,12 +119,10 @@ export const updateStatus = async (
     }
 
     if (status === "approved") {
-      const password = initialPassword || "ABC123password";
-
       const { data: authData, error: authError } =
         await supabaseAdmin.auth.admin.createUser({
           email: accessRequest.email,
-          password: password,
+          password: initialPassword,
           email_confirm: true,
           phone: accessRequest.phone,
           phone_confirm: true,
@@ -140,15 +138,20 @@ export const updateStatus = async (
         return;
       }
 
-      const [createdUser] = await db.insert(users).values({
-        authUserId: authData.user!.id,
-        email: accessRequest.email,
-        firstName: accessRequest.firstName,
-        lastName: accessRequest.lastName,
-        phone: accessRequest.phone,
-        role: accessRequest.roleRequested,
-        publicCode: await generatePublicCodeForRole(accessRequest.roleRequested),
-      }).returning();
+      const [createdUser] = await db
+        .insert(users)
+        .values({
+          authUserId: authData.user!.id,
+          email: accessRequest.email,
+          firstName: accessRequest.firstName,
+          lastName: accessRequest.lastName,
+          phone: accessRequest.phone,
+          role: accessRequest.roleRequested,
+          publicCode: await generatePublicCodeForRole(
+            accessRequest.roleRequested,
+          ),
+        })
+        .returning();
 
       await logAudit({
         userId: req.user!.id,
@@ -158,7 +161,6 @@ export const updateStatus = async (
         req,
       });
 
-      // NOTIFICACIÓN: Bienvenida al usuario
       await sendNotification({
         userId: createdUser.id,
         title: "¡Bienvenido a ABC Inversiones!",
@@ -166,8 +168,7 @@ export const updateStatus = async (
         type: "ACCESS_APPROVED",
       });
     } else if (status === "rejected") {
-       // NOTIFICACIÓN: Opcional, pero usualmente se envía correo si no hay usuario en DB aún
-       // Como no hay usuario en DB, no podemos enviar notificación interna, solo log de auditoría
+      // TODO: Enviar email de rechazo con posible observación y sugerencia de contacto para más info
     }
 
     const [updatedRequest] = await db

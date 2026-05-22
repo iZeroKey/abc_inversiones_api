@@ -81,12 +81,7 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
     });
 
     if (error || !data.session) {
-      sendError(
-        res,
-        401,
-        "Refresh token inválido o expirado",
-        error?.message,
-      );
+      sendError(res, 401, "Refresh token inválido o expirado", error?.message);
       return;
     }
 
@@ -122,7 +117,10 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const register = async (req: AuthRequest, res: Response): Promise<void> => {
+export const register = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const validation = registerSchema.safeParse(req.body);
     if (!validation.success) {
@@ -142,8 +140,7 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
       bank,
       bankAccounts,
       maritalStatus,
-    } =
-      validation.data;
+    } = validation.data;
     const currentUser = req.user!;
 
     if (!currentUser.isOwner && role === "admin") {
@@ -228,13 +225,18 @@ export const changePassword = async (
     }
 
     if (!req.user!.authUserId) {
-      sendError(res, 400, "El usuario no tiene cuenta de autenticación vinculada");
+      sendError(
+        res,
+        400,
+        "El usuario no tiene cuenta de autenticación vinculada",
+      );
       return;
     }
 
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(req.user!.authUserId, {
-      password: newPassword,
-    });
+    const { error: updateError } =
+      await supabaseAdmin.auth.admin.updateUserById(req.user!.authUserId, {
+        password: newPassword,
+      });
 
     if (updateError) {
       sendError(
