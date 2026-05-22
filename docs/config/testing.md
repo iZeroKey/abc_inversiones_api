@@ -41,33 +41,25 @@ pnpm test:watch
 
 ## Setup
 
-El setup global ejecuta automáticamente:
+El setup global se encuentra en `src/tests/setup.ts` y se ejecuta automáticamente antes de correr las pruebas. Este archivo realiza de forma programática la inicialización y el limpiado del entorno mediante los siguientes pasos:
 
-1. **Reset del entorno**
+1. **Restablecer base de datos (Reset)**
+   Ejecuta el script para eliminar todas las tablas existentes en la base de datos de pruebas:
 
-```bash
-pnpm reset:app --confirm
-```
+   ```bash
+   pnpm app:reset --confirm
+   ```
 
-2. **Aplicar esquema**
-
-```bash
-pnpm exec drizzle-kit push --force
-```
-
-3. **Configurar Storage**
-
-```bash
-pnpm setup:storage
-```
-
-4. **Sembrar datos**
-
-```bash
-pnpm db:seed
-```
+2. **Inicialización Integral (Setup)**
+   Ejecuta el pipeline unificado para volver a construir todo el entorno:
+   ```bash
+   pnpm app:setup
+   ```
+   _(Este comando aplica el esquema de Drizzle, habilita RLS, siembra datos base, corrige zonas horarias y configura los buckets de Supabase)._
 
 ### En package.json
+
+Los scripts configurados para ejecutar la suite de pruebas son:
 
 ```json
 {
@@ -169,6 +161,6 @@ src/tests/
 
 ## Notas
 
-- Los tests requieren que las variables `SUPABASE_SERVICE_ROLE_KEY_TEST` y `DATABASE_TEST_URL` estén configuradas en `.env`
-- El entorno de prueba debe ser independiente del de producción
-- Los datos se restablecen antes de cada ejecución
+- Los tests requieren que las variables `SUPABASE_URL_TEST`, `SUPABASE_ANON_KEY_TEST`, `SUPABASE_SERVICE_ROLE_KEY_TEST` y `DATABASE_URL_TEST` estén configuradas en el archivo `.env`.
+- El entorno de prueba debe ser completamente independiente del de producción para evitar la pérdida accidental de datos reales.
+- Los datos se restablecen de manera destructiva al inicio de cada ejecución de pruebas.

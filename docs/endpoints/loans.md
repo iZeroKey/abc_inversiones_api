@@ -50,59 +50,43 @@ Privado (Admin, Owner)
 
 ```json
 {
-  "clientId": "uuid",
-  "investorId": "uuid",
-  "principal": "string",
-  "interestRate": "string",
-  "installmentsCount": "number",
-  "frequency": "daily | weekly | biweekly | monthly",
-  "startDate": "ISO8601 date",
-  "observation": "string"
+  "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+  "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
+  "principal": "10000.00",
+  "interestRate": "5.00",
+  "installmentsCount": 12,
+  "frequency": "monthly",
+  "startDate": "2026-06-08T00:00:00.000Z",
+  "observation": "Préstamo regular con cuota mensual"
 }
 ```
 
 ### Diccionario de Datos
 
-| Campo             | Tipo   | Obligatorio | Descripción                 | Restricciones                                       |
-| ----------------- | ------ | ----------- | --------------------------- | --------------------------------------------------- |
-| clientId          | uuid   | Sí          | ID del cliente              | UUID válido                                         |
-| investorId        | uuid   | No          | ID del inversionista        | UUID válido o null                                  |
-| principal         | string | Sí          | Monto principal             | Número positivo                                     |
-| interestRate      | string | Sí          | Tasa de interés por periodo | Número > 0; no se soportan préstamos sin interés    |
-| installmentsCount | number | Sí          | Número de cuotas            | Entero positivo                                     |
-| frequency         | enum   | No          | Frecuencia de pago          | daily, weekly, biweekly, monthly (default: monthly) |
-| startDate         | string | Sí          | Fecha de inicio             | ISO8601                                             |
-| observation       | string | No          | Observación                 | -                                                   |
+| Campo             | Tipo   | Obligatorio | Descripción                 | Restricciones                                                            |
+| ----------------- | ------ | ----------- | --------------------------- | ------------------------------------------------------------------------ |
+| clientId          | uuid   | Sí          | ID del cliente              | UUID de usuario con rol `"client"`.                                      |
+| investorId        | uuid   | No          | ID del inversionista        | UUID de usuario con rol `"investor"` o `null`/`undefined`.               |
+| principal         | string | Sí          | Monto principal solicitado  | Debe ser un valor numérico positivo.                                     |
+| interestRate      | string | Sí          | Tasa de interés por periodo | Debe ser un valor numérico mayor a `0`.                                  |
+| interestType      | string | No          | Tipo de interés             | Literal `"simple"` (default).                                            |
+| interestPeriod    | string | No          | Periodo del interés         | Literal `"monthly"` (default).                                           |
+| installmentsCount | number | Sí          | Número total de cuotas      | Entero positivo entre `1` y `120` (inclusive).                           |
+| frequency         | enum   | No          | Frecuencia de pago          | `"daily"`, `"weekly"`, `"biweekly"`, `"monthly"` (default: `"monthly"`). |
+| startDate         | string | Sí          | Fecha de inicio             | Formato ISO8601 con offset de zona horaria.                              |
+| observation       | string | No          | Notas u observaciones       | -                                                                        |
 
 ### Regla Financiera y Cronograma
 
-- `interestRate` se interpreta como porcentaje por periodo. Por ejemplo, `5` significa `5%`.
-- El sistema solo maneja préstamos con interés; `interestRate` debe ser mayor a `0`.
-- La cuota exacta se calcula con fórmula financiera: `cuota = (principal * rate) / (1 - (1 + rate) ** -installmentsCount)`.
-- La cuota exacta se redondea a 2 decimales y esa cuota redondeada es la cuota oficial.
-- `totalDebt` se calcula desde la cuota oficial redondeada: `cuotaOficial * installmentsCount`.
+- `interestRate` se interpreta como porcentaje por periodo (por ejemplo, `5.00` equivale a `5%`).
+- La cuota oficial exacta se calcula con la fórmula financiera de amortización constante: `cuota = (principal * rate) / (1 - (1 + rate) ** -installmentsCount)`, redondeada a 2 decimales.
+- `totalDebt` se calcula como `cuotaOficial * installmentsCount`.
 - `totalInterest` se calcula como `totalDebt - principal`.
-- Todas las cuotas generadas tienen el mismo monto.
-- La última cuota no se ajusta para cuadrar decimales ocultos de la fórmula financiera.
-- `frequency` no cambia el importe de la cuota; solo cambia las fechas de vencimiento.
-- Mensual: `startDate + i meses`, ajustando al último día válido si el mes no tiene el día original.
-- Quincenal: `startDate + 15 * i días`.
-- Semanal: `startDate + 7 * i días`.
-- Diario: `startDate + (i + 1) días`.
-
-Ejemplo financiero:
-
-```txt
-principal: 10000
-interestRate: 5
-installmentsCount: 12
-
-Cuotas 1 a 12: 1128.25
-totalDebt: 13539.00
-totalInterest: 3539.00
-```
-
-No se soportan préstamos con `interestRate === 0`. Si en el futuro se agregan préstamos sin interés, se deberá definir una política específica para distribuir capital y diferencias de centavos.
+- La frecuencia (`frequency`) define el cálculo de fechas de vencimiento para las cuotas (`installments`):
+  - `"daily"`: `startDate + (i + 1) días`.
+  - `"weekly"`: `startDate + 7 * i días`.
+  - `"biweekly"`: `startDate + 15 * i días`.
+  - `"monthly"`: `startDate + i meses` (ajustando al último día válido si el mes de destino es más corto).
 
 ### Respuesta Exitosa
 
@@ -111,21 +95,21 @@ No se soportan préstamos con `interestRate === 0`. Si en el futuro se agregan p
   "success": true,
   "message": "Préstamo creado y enviado a revisión",
   "data": {
-    "id": "uuid",
+    "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
     "publicCode": "PR-00001",
-    "clientId": "uuid",
+    "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
     "clientCode": "CL-00001",
-    "clientName": "Juan Perez",
-    "investorId": "uuid",
+    "clientName": "Juan Pérez",
+    "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
     "investorCode": "IN-00001",
-    "investorName": "Maria Gomez",
+    "investorName": "María Gómez",
     "principal": "10000.00",
     "interestRate": "5.00",
-    "totalDebt": "13539.00",
+    "totalDebt": "11282.52",
     "status": "pending_investor_review"
   },
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:26:00.000Z"
   }
 }
 ```
@@ -136,7 +120,7 @@ No se soportan préstamos con `interestRate === 0`. Si en el futuro se agregan p
 | ------ | --------------------- |
 | 201    | Préstamo creado       |
 | 400    | Datos inválidos       |
-| 401    | No autorizado         |
+| 401    | No autenticado        |
 | 404    | Cliente no encontrado |
 | 500    | Error interno         |
 
@@ -144,7 +128,7 @@ No se soportan préstamos con `interestRate === 0`. Si en el futuro se agregan p
 
 ## Get All Loans
 
-Listar préstamos. Filtra automáticamente según el rol.
+Listar préstamos con paginación y filtros. Filtra automáticamente según el rol del usuario autenticado (clientes sólo ven sus préstamos, inversionistas sólo los suyos).
 
 ### Endpoint
 
@@ -164,15 +148,17 @@ Privado
 
 ### Parámetros de Consulta
 
-| Campo      | Tipo   | Descripción                                                                  |
-| ---------- | ------ | ---------------------------------------------------------------------------- |
-| status     | string | Filtrar por estado                                                           |
-| clientId   | uuid   | Filtrar por UUID interno de cliente                                          |
-| investorId | uuid   | Filtrar por UUID interno de inversionista                                    |
-| search     | string | Buscar por `publicCode`, `clientCode`, `investorCode` o nombres relacionados |
-| q          | string | Alias de `search`                                                            |
-| page       | number | Número de página                                                             |
-| limit      | number | Límite por página                                                            |
+| Campo      | Tipo   | Obligatorio | Descripción                                                                              |
+| ---------- | ------ | ----------- | ---------------------------------------------------------------------------------------- |
+| status     | string | No          | Filtrar por estado del préstamo (ej. `"active"`, `"paid"`, `"rejected"`, `"defaulted"`). |
+| clientId   | uuid   | No          | Filtrar por ID del cliente (ignorado para clientes).                                     |
+| investorId | uuid   | No          | Filtrar por ID del inversionista (ignorado para inversionistas).                         |
+| from       | string | No          | Fecha ISO8601 inicial para filtrar por fecha de creación del préstamo.                   |
+| to         | string | No          | Fecha ISO8601 final para filtrar por fecha de creación del préstamo.                     |
+| search     | string | No          | Buscar coincidencia parcial en códigos públicos o nombres del cliente/inversionista.     |
+| q          | string | No          | Alias para `search`.                                                                     |
+| page       | number | No          | Número de página (default: `1`).                                                         |
+| limit      | number | No          | Límite por página (default: `20`, max: `100`).                                           |
 
 ### Respuesta Exitosa
 
@@ -182,24 +168,27 @@ Privado
   "message": "Préstamos obtenidos",
   "data": [
     {
-      "id": "uuid",
+      "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
       "publicCode": "PR-00001",
-      "clientId": "uuid",
+      "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
       "clientCode": "CL-00001",
-      "clientName": "Juan Perez",
-      "investorId": "uuid",
+      "clientName": "Juan Pérez",
+      "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
       "investorCode": "IN-00001",
-      "investorName": "Maria Gomez",
+      "investorName": "María Gómez",
       "principal": "10000.00",
-      "totalDebt": "13539.00",
+      "totalDebt": "11282.52",
       "status": "active",
-      "installmentsCount": 3,
-      "createdAt": "2026-01-01T00:00:00.000Z"
+      "installmentsCount": 12,
+      "createdAt": "2026-05-22T04:26:00.000Z"
     }
   ],
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z",
-    "pagination": {...}
+    "page": 1,
+    "limit": 20,
+    "total": 1,
+    "totalPages": 1,
+    "timestamp": "2026-05-22T04:26:00.000Z"
   }
 }
 ```
@@ -209,14 +198,14 @@ Privado
 | Código | Descripción         |
 | ------ | ------------------- |
 | 200    | Préstamos obtenidos |
-| 401    | No autorizado       |
+| 401    | No autenticado      |
 | 500    | Error interno       |
 
 ---
 
 ## Get Summary
 
-Obtener resumen financiero según el rol.
+Obtener el resumen financiero consolidado según el rol del usuario autenticado.
 
 ### Endpoint
 
@@ -234,25 +223,63 @@ Privado
 | ------------- | -------------- | ----------- |
 | Authorization | Bearer {token} | Sí          |
 
-### Respuesta Exitosa
+### Respuesta Exitosa (Según Rol)
+
+#### Rol: Cliente
 
 ```json
 {
   "success": true,
-  "message": "Resumen obtenido",
+  "message": "Resumen de cuenta cliente",
   "data": {
-    "totalLoans": 5,
-    "activeLoans": 3,
-    "totalDebt": "50000.00",
-    "totalPaid": "30000.00",
-    "nextPayment": {
-      "dueDate": "2024-02-01T00:00:00.000Z",
-      "amount": "5000.00"
+    "stats": {
+      "totalPrincipal": "10000.00",
+      "totalDebt": "11282.52"
     },
-    "overduePayments": 2
+    "nextPayment": {
+      "date": "2026-06-08T00:00:00.000Z",
+      "amount": "940.21"
+    }
   },
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:26:00.000Z"
+  }
+}
+```
+
+#### Rol: Inversionista
+
+```json
+{
+  "success": true,
+  "message": "Resumen de inversiones",
+  "data": {
+    "investedAmount": "50000.00",
+    "expectedRevenue": "56412.60",
+    "overdue": {
+      "overdueCount": 2,
+      "overdueAmount": "1880.42"
+    }
+  },
+  "meta": {
+    "timestamp": "2026-05-22T04:26:00.000Z"
+  }
+}
+```
+
+#### Rol: Admin / Owner
+
+```json
+{
+  "success": true,
+  "message": "Dashboard administrativo",
+  "data": {
+    "totalActiveLoans": 15,
+    "totalPortfolio": "150000.00",
+    "overdueGlobal": "4500.00"
+  },
+  "meta": {
+    "timestamp": "2026-05-22T04:26:00.000Z"
   }
 }
 ```
@@ -262,14 +289,14 @@ Privado
 | Código | Descripción      |
 | ------ | ---------------- |
 | 200    | Resumen obtenido |
-| 401    | No autorizado    |
+| 401    | No autenticado   |
 | 500    | Error interno    |
 
 ---
 
 ## Get Loan By ID
 
-Obtener detalle de un préstamo específico.
+Obtener detalle de un préstamo específico por su ID (UUID).
 
 ### Endpoint
 
@@ -279,13 +306,13 @@ GET /api/v1/loans/:id
 
 ### Parámetros de Ruta
 
-| Parámetro | Tipo | Descripción               |
-| --------- | ---- | ------------------------- |
-| id        | uuid | UUID interno del préstamo |
+| Parámetro | Tipo | Obligatorio | Descripción               |
+| --------- | ---- | ----------- | ------------------------- |
+| id        | uuid | Sí          | UUID interno del préstamo |
 
 ### Acceso
 
-Privado
+Privado (Cualquier participante del préstamo o Admin/Owner)
 
 ### Encabezados
 
@@ -298,28 +325,28 @@ Privado
 ```json
 {
   "success": true,
-  "message": "Préstamo obtenido",
+  "message": "Detalle de préstamo obtenido",
   "data": {
-    "id": "uuid",
+    "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
     "publicCode": "PR-00001",
-    "clientId": "uuid",
+    "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
     "clientCode": "CL-00001",
-    "clientName": "Juan Perez",
-    "investorId": "uuid",
+    "clientName": "Juan Pérez",
+    "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
     "investorCode": "IN-00001",
-    "investorName": "Maria Gomez",
+    "investorName": "María Gómez",
     "principal": "10000.00",
     "interestRate": "5.00",
-    "totalDebt": "13539.00",
+    "totalDebt": "11282.52",
     "status": "active",
-    "installmentsCount": 3,
+    "installmentsCount": 12,
     "frequency": "monthly",
-    "startDate": "2026-01-01T00:00:00.000Z",
-    "createdAt": "2026-01-01T00:00:00.000Z",
-    "updatedAt": "2026-01-01T00:00:00.000Z"
+    "startDate": "2026-05-08T00:00:00.000Z",
+    "createdAt": "2026-05-08T00:00:00.000Z",
+    "updatedAt": "2026-05-08T00:00:00.000Z"
   },
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:26:00.000Z"
   }
 }
 ```
@@ -329,7 +356,8 @@ Privado
 | Código | Descripción            |
 | ------ | ---------------------- |
 | 200    | Préstamo obtenido      |
-| 401    | No autorizado          |
+| 401    | No autenticado         |
+| 403    | Sin acceso             |
 | 404    | Préstamo no encontrado |
 | 500    | Error interno          |
 
@@ -337,7 +365,7 @@ Privado
 
 ## Get Loan Installments
 
-Obtener el cronograma de pagos (cuotas) de un préstamo.
+Obtener el cronograma detallado de cuotas de un préstamo.
 
 ### Endpoint
 
@@ -347,13 +375,13 @@ GET /api/v1/loans/:id/installments
 
 ### Parámetros de Ruta
 
-| Parámetro | Tipo | Descripción     |
-| --------- | ---- | --------------- |
-| id        | uuid | ID del préstamo |
+| Parámetro | Tipo | Obligatorio | Descripción     |
+| --------- | ---- | ----------- | --------------- |
+| id        | uuid | Sí          | ID del préstamo |
 
 ### Acceso
 
-Privado
+Privado (Participantes del préstamo o Admin/Owner)
 
 ### Encabezados
 
@@ -369,24 +397,19 @@ Privado
   "message": "Cronograma obtenido",
   "data": [
     {
-      "id": "uuid",
+      "id": "uuid-installment-1",
+      "loanId": "2bb837fa-f182-4aa8-9283-718293bc9281",
       "installmentNumber": 1,
-      "dueDate": "2024-02-01T00:00:00.000Z",
-      "amount": "5000.00",
-      "paidAmount": "0",
-      "status": "pending"
-    },
-    {
-      "id": "uuid",
-      "installmentNumber": 2,
-      "dueDate": "2024-03-01T00:00:00.000Z",
-      "amount": "5000.00",
-      "paidAmount": "5000.00",
-      "status": "paid"
+      "dueDate": "2026-06-08T00:00:00.000Z",
+      "amount": "940.21",
+      "paidAmount": "0.00",
+      "status": "pending",
+      "createdAt": "2026-05-22T04:26:00.000Z",
+      "updatedAt": "2026-05-22T04:26:00.000Z"
     }
   ],
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:26:00.000Z"
   }
 }
 ```
@@ -396,7 +419,8 @@ Privado
 | Código | Descripción            |
 | ------ | ---------------------- |
 | 200    | Cronograma obtenido    |
-| 401    | No autorizado          |
+| 401    | No autenticado         |
+| 403    | Sin acceso             |
 | 404    | Préstamo no encontrado |
 | 500    | Error interno          |
 
@@ -404,7 +428,7 @@ Privado
 
 ## Get Admin Loan Summary
 
-Tabla resumen administrativa de préstamos para la vista tipo resumen del frontend.
+Obtener una lista consolidada y detallada de préstamos para el dashboard administrativo, incluyendo datos financieros acumulados de pagos y deudas pendientes.
 
 ### Endpoint
 
@@ -430,47 +454,47 @@ Privado (Admin, Owner)
   "message": "Resumen administrativo de préstamos obtenido",
   "data": [
     {
-      "id": "uuid",
+      "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
       "publicCode": "PR-00001",
-      "clientId": "uuid",
+      "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
       "clientCode": "CL-00001",
-      "clientName": "Juan Perez",
-      "investorId": "uuid",
+      "clientName": "Juan Pérez",
+      "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
       "investorCode": "IN-00001",
-      "investorName": "Maria Gomez",
-      "creditDate": "2026-05-08T00:00:00.000-05:00",
+      "investorName": "María Gómez",
+      "creditDate": "2026-05-08T00:00:00.000Z",
       "principal": "10000.00",
       "frequency": "monthly",
       "interestRate": "5.00",
-      "paidAmount": "3000.00",
-      "totalInterest": "3539.00",
-      "remainingDebt": "10539.00",
-      "remainingInstallments": 7,
-      "totalDebt": "13539.00",
+      "totalDebt": "11282.52",
       "status": "active",
-      "createdAt": "2026-05-08T00:00:00.000-05:00"
+      "paidAmount": "940.21",
+      "totalInterest": "1282.52",
+      "remainingDebt": "10342.31",
+      "remainingInstallments": 11,
+      "createdAt": "2026-05-08T00:00:00.000Z"
     }
   ],
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:26:00.000Z"
   }
 }
 ```
 
 ### Códigos de Estado HTTP
 
-| Código | Descripción                       |
-| ------ | --------------------------------- |
-| 200    | Resumen administrativo obtenido   |
-| 401    | No autorizado                     |
-| 403    | No tiene permisos administrativos |
-| 500    | Error interno                     |
+| Código | Descripción                        |
+| ------ | ---------------------------------- |
+| 200    | Resumen administrativo obtenido    |
+| 401    | No autenticado                     |
+| 403    | No autorizado (Sin permisos Admin) |
+| 500    | Error interno                      |
 
 ---
 
 ## Update Loan
 
-Editar un préstamo por corrección operativa. Si el préstamo ya tiene cronograma, se recalculan deuda y cuotas con la regla financiera vigente y se reaplican los pagos confirmados no eliminados en orden cronológico. Si los pagos superan la nueva deuda, el exceso queda expuesto en `overpaidAmount`.
+Editar los parámetros de un préstamo. Si el préstamo ya tiene un cronograma activo, se recalculan la deuda y cuotas vigentes y se reaplican todos los pagos confirmados no eliminados en orden cronológico. Si los pagos registrados superan la nueva deuda calculada, el excedente se expone en `overpaidAmount`.
 
 ### Endpoint
 
@@ -478,201 +502,15 @@ Editar un préstamo por corrección operativa. Si el préstamo ya tiene cronogra
 PATCH /api/v1/loans/:id
 ```
 
-### Acceso
-
-Privado (Admin, Owner)
-
-### Cuerpo de Solicitud
-
-```json
-{
-  "clientId": "uuid",
-  "investorId": "uuid",
-  "principal": "12000.00",
-  "interestRate": "4.50",
-  "installmentsCount": 10,
-  "frequency": "monthly",
-  "startDate": "2026-02-01T00:00:00.000Z",
-  "observation": "Corrección de monto"
-}
-```
-
-### Respuesta Exitosa
-
-```json
-{
-  "success": true,
-  "message": "Préstamo actualizado",
-  "data": {
-    "id": "uuid",
-    "publicCode": "PR-00001",
-    "principal": "12000.00",
-    "totalDebt": "14955.30",
-    "overpaidAmount": "0.00",
-    "status": "active"
-  }
-}
-```
-
-### Códigos de Estado HTTP
-
-| Código | Descripción            |
-| ------ | ---------------------- |
-| 200    | Préstamo actualizado   |
-| 400    | Datos inválidos        |
-| 401    | No autorizado          |
-| 403    | No tiene permisos      |
-| 404    | Préstamo no encontrado |
-
----
-
-## Approve Loan
-
-Aprobar un préstamo.
-
-### Endpoint
-
-```
-PATCH /api/v1/loans/:id/approve
-```
-
 ### Parámetros de Ruta
 
-| Parámetro | Tipo | Descripción     |
-| --------- | ---- | --------------- |
-| id        | uuid | ID del préstamo |
-
-### Acceso
-
-Privado (Admin, Owner, Investor asignado)
-
-### Reglas
-
-- Inversionista asignado: puede aprobar un préstamo en `pending_investor_review`; el préstamo pasa a `pending_admin_review`.
-- Admin/Owner: puede activar directamente préstamos en `draft`, `pending_investor_review`, `pending_admin_review`, `rejected`, `defaulted` o `active`.
-- Si el préstamo ya tiene cuotas, la aprobación administrativa no duplica el cronograma.
-- Si el préstamo no tiene cuotas, se generan usando la regla financiera y de fechas indicada en [Create Loan](#create-loan).
-- Un préstamo `paid` responde exitosamente como ya pagado y no se modifica.
-
-### Encabezados
-
-| Encabezado    | Valor          | Obligatorio |
-| ------------- | -------------- | ----------- |
-| Authorization | Bearer {token} | Sí          |
-
-### Cuerpo de Solicitud
-
-Sin cuerpo
-
-### Respuesta Exitosa
-
-```json
-{
-  "success": true,
-  "message": "Préstamo activado y cuotas generadas",
-  "data": {
-    "loan": {
-      "id": "uuid",
-      "publicCode": "PR-00001",
-      "clientCode": "CL-00001",
-      "clientName": "Juan Perez",
-      "investorCode": "IN-00001",
-      "investorName": "Maria Gomez",
-      "status": "active",
-      "totalDebt": "13539.00"
-    },
-    "installments": [
-      {
-        "installmentNumber": 1,
-        "dueDate": "2026-06-08T00:00:00.000-05:00",
-        "amount": "1128.25",
-        "paidAmount": "0.00",
-        "status": "pending"
-      }
-    ]
-  },
-  "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
-  }
-}
-```
-
-### Códigos de Estado HTTP
-
-| Código | Descripción            |
-| ------ | ---------------------- |
-| 200    | Préstamo aprobado      |
-| 401    | No autorizado          |
-| 403    | No tiene permisos      |
-| 404    | Préstamo no encontrado |
-| 500    | Error interno          |
-
----
-
-## Delete Loan
-
-Eliminar lógicamente un préstamo creado por error. No borra cuotas, pagos ni auditoría; el préstamo queda en estado `deleted`, se oculta de listados normales y bloquea nuevos pagos o vouchers.
-
-### Endpoint
-
-```
-DELETE /api/v1/loans/:id
-```
+| Parámetro | Tipo | Obligatorio | Descripción               |
+| --------- | ---- | ----------- | ------------------------- |
+| id        | uuid | Sí          | ID del préstamo a editar. |
 
 ### Acceso
 
 Privado (Admin, Owner)
-
-### Respuesta Exitosa
-
-```json
-{
-  "success": true,
-  "message": "Préstamo eliminado",
-  "data": {
-    "id": "uuid",
-    "status": "deleted",
-    "deletedAt": "2026-01-01T00:00:00.000Z"
-  }
-}
-```
-
-### Códigos de Estado HTTP
-
-| Código | Descripción            |
-| ------ | ---------------------- |
-| 200    | Préstamo eliminado     |
-| 401    | No autorizado          |
-| 403    | No tiene permisos      |
-| 404    | Préstamo no encontrado |
-
----
-
-## Reject Loan
-
-Rechazar un préstamo.
-
-### Endpoint
-
-```
-PATCH /api/v1/loans/:id/reject
-```
-
-### Parámetros de Ruta
-
-| Parámetro | Tipo | Descripción     |
-| --------- | ---- | --------------- |
-| id        | uuid | ID del préstamo |
-
-### Acceso
-
-Privado (Admin, Owner, Investor asignado)
-
-### Reglas
-
-- Inversionista asignado: puede rechazar únicamente préstamos en `pending_investor_review`.
-- Admin/Owner: puede rechazar préstamos en cualquier estado salvo `paid`.
-- Si el préstamo ya está `rejected`, la respuesta es exitosa y no se modifica.
 
 ### Encabezados
 
@@ -685,28 +523,60 @@ Privado (Admin, Owner, Investor asignado)
 
 ```json
 {
-  "observation": "string"
+  "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+  "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
+  "principal": "12000.00",
+  "interestRate": "4.50",
+  "installmentsCount": 10,
+  "frequency": "monthly",
+  "startDate": "2026-02-01T00:00:00.000Z",
+  "observation": "Reajuste de tasa pactado con cliente"
 }
 ```
 
-### Diccionario de Datos
+### Diccionario de Datos (Todos Opcionales)
 
-| Campo       | Tipo   | Obligatorio | Descripción       |
-| ----------- | ------ | ----------- | ----------------- |
-| observation | string | No          | Razón del rechazo |
+| Campo             | Tipo   | Descripción                    | Restricciones                                     |
+| ----------------- | ------ | ------------------------------ | ------------------------------------------------- |
+| clientId          | uuid   | ID del cliente                 | UUID de usuario con rol `"client"`.               |
+| investorId        | uuid   | ID del inversionista (o null)  | UUID de usuario con rol `"investor"` o `null`.    |
+| principal         | string | Nuevo monto principal          | Debe ser numérico positivo.                       |
+| interestRate      | string | Nueva tasa de interés          | Debe ser numérico mayor a `0`.                    |
+| installmentsCount | number | Nuevo número de cuotas         | Entero positivo entre `1` y `120`.                |
+| frequency         | enum   | Frecuencia de pago             | `"daily"`, `"weekly"`, `"biweekly"`, `"monthly"`. |
+| startDate         | string | Fecha de inicio                | Formato ISO8601.                                  |
+| observation       | string | Notas o explicaciones (o null) | -                                                 |
 
 ### Respuesta Exitosa
 
 ```json
 {
   "success": true,
-  "message": "Préstamo rechazado",
+  "message": "Préstamo actualizado correctamente",
   "data": {
-    "id": "uuid",
-    "status": "rejected"
+    "loan": {
+      "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
+      "publicCode": "PR-00001",
+      "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+      "clientCode": "CL-00001",
+      "clientName": "Juan Pérez",
+      "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
+      "investorCode": "IN-00001",
+      "investorName": "María Gómez",
+      "principal": "12000.00",
+      "interestRate": "4.50",
+      "totalDebt": "13020.30",
+      "status": "active",
+      "installmentsCount": 10,
+      "frequency": "monthly",
+      "startDate": "2026-02-01T00:00:00.000Z",
+      "createdAt": "2026-05-08T00:00:00.000Z",
+      "updatedAt": "2026-05-22T04:26:00.000Z"
+    },
+    "overpaidAmount": "0.00"
   },
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:26:00.000Z"
   }
 }
 ```
@@ -715,8 +585,315 @@ Privado (Admin, Owner, Investor asignado)
 
 | Código | Descripción            |
 | ------ | ---------------------- |
-| 200    | Préstamo rechazado     |
-| 401    | No autorizado          |
-| 403    | No tiene permisos      |
+| 200    | Préstamo actualizado   |
+| 400    | Datos inválidos        |
+| 401    | No autenticado         |
+| 403    | No autorizado          |
 | 404    | Préstamo no encontrado |
 | 500    | Error interno          |
+
+---
+
+## Approve Loan
+
+Aprobar y activar un préstamo.
+
+### Reglas
+
+- **Inversionista asignado**: Si el préstamo se encuentra en `pending_investor_review`, puede realizar la aprobación, lo que cambiará el estado a `pending_admin_review`.
+- **Administrador / Dueño**: Puede activar préstamos que estén en estados `draft`, `pending_investor_review`, `pending_admin_review`, `rejected`, `defaulted` o `active`.
+- Si el préstamo ya cuenta con cuotas, la activación de Admin no duplica el cronograma.
+- Si el préstamo no tiene cuotas, se generan automáticamente en base a la regla financiera de amortización.
+- Si el préstamo ya está `paid`, se responde exitosamente de inmediato indicando que ya está pagado sin realizar cambios.
+
+### Endpoint
+
+```
+PATCH /api/v1/loans/:id/approve
+```
+
+### Parámetros de Ruta
+
+| Parámetro | Tipo | Obligatorio | Descripción                        |
+| --------- | ---- | ----------- | ---------------------------------- |
+| id        | uuid | Sí          | ID del préstamo a aprobar/activar. |
+
+### Acceso
+
+Privado (Admin, Owner, o Inversionista asignado)
+
+### Encabezados
+
+| Encabezado    | Valor          | Obligatorio |
+| ------------- | -------------- | ----------- |
+| Authorization | Bearer {token} | Sí          |
+
+### Respuesta Exitosa
+
+#### Caso 1: Aprobado por Inversionista (Cambia a `pending_admin_review`)
+
+```json
+{
+  "success": true,
+  "message": "Préstamo aprobado por inversionista. Pendiente de Admin.",
+  "data": {
+    "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
+    "publicCode": "PR-00001",
+    "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+    "clientCode": "CL-00001",
+    "clientName": "Juan Pérez",
+    "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
+    "investorCode": "IN-00001",
+    "investorName": "María Gómez",
+    "principal": "10000.00",
+    "interestRate": "5.00",
+    "totalDebt": "11282.52",
+    "status": "pending_admin_review",
+    "createdAt": "2026-05-08T00:00:00.000Z",
+    "updatedAt": "2026-05-22T04:26:00.000Z"
+  },
+  "meta": {
+    "timestamp": "2026-05-22T04:26:00.000Z"
+  }
+}
+```
+
+#### Caso 2: Activado por Admin (Genera cuotas y cambia a `active`)
+
+```json
+{
+  "success": true,
+  "message": "Préstamo activado y cuotas generadas",
+  "data": {
+    "loan": {
+      "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
+      "publicCode": "PR-00001",
+      "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+      "clientCode": "CL-00001",
+      "clientName": "Juan Pérez",
+      "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
+      "investorCode": "IN-00001",
+      "investorName": "María Gómez",
+      "principal": "10000.00",
+      "interestRate": "5.00",
+      "totalDebt": "11282.52",
+      "status": "active"
+    },
+    "installments": [
+      {
+        "id": "uuid-installment-1",
+        "installmentNumber": 1,
+        "dueDate": "2026-06-08T00:00:00.000Z",
+        "amount": "940.21",
+        "paidAmount": "0.00",
+        "status": "pending"
+      }
+    ]
+  },
+  "meta": {
+    "timestamp": "2026-05-22T04:26:00.000Z"
+  }
+}
+```
+
+#### Caso 3: Activado por Admin pero ya estaba activo (Sin volver a crear cuotas)
+
+```json
+{
+  "success": true,
+  "message": "Préstamo ya se encuentra activo",
+  "data": {
+    "loan": {
+      "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
+      "publicCode": "PR-00001",
+      "status": "active"
+    },
+    "installments": [ ... ]
+  },
+  "meta": {
+    "timestamp": "2026-05-22T04:26:00.000Z"
+  }
+}
+```
+
+#### Caso 4: Intentar activar un préstamo ya pagado (`paid`)
+
+```json
+{
+  "success": true,
+  "message": "Préstamo ya se encuentra pagado",
+  "data": {
+    "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
+    "status": "paid"
+  },
+  "meta": {
+    "timestamp": "2026-05-22T04:26:00.000Z"
+  }
+}
+```
+
+### Códigos de Estado HTTP
+
+| Código | Descripción            |
+| ------ | ---------------------- |
+| 200    | Aprobación exitosa     |
+| 400    | Operación no permitida |
+| 401    | No autenticado         |
+| 403    | Sin permisos           |
+| 404    | Préstamo no encontrado |
+| 500    | Error interno          |
+
+---
+
+## Delete Loan
+
+Eliminar lógicamente un préstamo creado por error. El préstamo pasa al estado `"deleted"`, se oculta de las búsquedas normales y bloquea cualquier registro de pago posterior.
+
+### Endpoint
+
+```
+DELETE /api/v1/loans/:id
+```
+
+### Parámetros de Ruta
+
+| Parámetro | Tipo | Obligatorio | Descripción                 |
+| --------- | ---- | ----------- | --------------------------- |
+| id        | uuid | Sí          | ID del préstamo a eliminar. |
+
+### Acceso
+
+Privado (Admin, Owner)
+
+### Encabezados
+
+| Encabezado    | Valor          | Obligatorio |
+| ------------- | -------------- | ----------- |
+| Authorization | Bearer {token} | Sí          |
+
+### Respuesta Exitosa
+
+```json
+{
+  "success": true,
+  "message": "Préstamo eliminado correctamente",
+  "data": {
+    "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
+    "publicCode": "PR-00001",
+    "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+    "status": "deleted",
+    "deletedAt": "2026-05-22T04:26:00.000Z",
+    "updatedAt": "2026-05-22T04:26:00.000Z"
+  },
+  "meta": {
+    "timestamp": "2026-05-22T04:26:00.000Z"
+  }
+}
+```
+
+### Códigos de Estado HTTP
+
+| Código | Descripción            |
+| ------ | ---------------------- |
+| 200    | Préstamo desactivado   |
+| 401    | No autenticado         |
+| 403    | No autorizado          |
+| 404    | Préstamo no encontrado |
+| 500    | Error interno          |
+
+---
+
+## Reject Loan
+
+Rechazar una solicitud de préstamo.
+
+### Reglas
+
+- **Inversionista asignado**: Puede rechazar un préstamo únicamente si está en `pending_investor_review`.
+- **Administrador / Dueño**: Puede rechazar préstamos en cualquier estado excepto cuando ya esté pagado (`paid`).
+- Si el préstamo ya se encuentra rechazado (`rejected`), el endpoint responde de inmediato de forma exitosa sin alterar los datos.
+
+### Endpoint
+
+```
+PATCH /api/v1/loans/:id/reject
+```
+
+### Parámetros de Ruta
+
+| Parámetro | Tipo | Obligatorio | Descripción                 |
+| --------- | ---- | ----------- | --------------------------- |
+| id        | uuid | Sí          | ID del préstamo a rechazar. |
+
+### Acceso
+
+Privado (Admin, Owner, o Inversionista asignado)
+
+### Encabezados
+
+| Encabezado    | Valor            | Obligatorio |
+| ------------- | ---------------- | ----------- |
+| Authorization | Bearer {token}   | Sí          |
+| Content-Type  | application/json | Sí          |
+
+### Cuerpo de Solicitud
+
+```json
+{
+  "observation": "Historial crediticio con alertas externas"
+}
+```
+
+### Diccionario de Datos
+
+| Campo       | Tipo   | Obligatorio | Descripción                     |
+| ----------- | ------ | ----------- | ------------------------------- |
+| observation | string | No          | Razón del rechazo del préstamo. |
+
+### Respuesta Exitosa
+
+#### Caso 1: Préstamo rechazado con éxito
+
+```json
+{
+  "success": true,
+  "message": "Préstamo rechazado",
+  "data": {
+    "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
+    "publicCode": "PR-00001",
+    "status": "rejected",
+    "observation": "Historial crediticio con alertas externas"
+  },
+  "meta": {
+    "timestamp": "2026-05-22T04:26:00.000Z"
+  }
+}
+```
+
+#### Caso 2: Préstamo ya se encontraba rechazado
+
+```json
+{
+  "success": true,
+  "message": "Préstamo ya se encuentra rechazado",
+  "data": {
+    "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
+    "publicCode": "PR-00001",
+    "status": "rejected"
+  },
+  "meta": {
+    "timestamp": "2026-05-22T04:26:00.000Z"
+  }
+}
+```
+
+### Códigos de Estado HTTP
+
+| Código | Descripción             |
+| ------ | ----------------------- |
+| 200    | Préstamo rechazado      |
+| 400    | Datos o estado inválido |
+| 401    | No autenticado          |
+| 403    | No autorizado           |
+| 404    | Préstamo no encontrado  |
+| 500    | Error interno           |

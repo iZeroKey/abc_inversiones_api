@@ -69,7 +69,7 @@ Público
     }
   },
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:00:00.000Z"
   }
 }
 ```
@@ -79,22 +79,22 @@ Público
 ```json
 {
   "success": false,
-  "message": "Credenciales inválidas",
+  "message": "Credenciales incorrectas",
   "data": null,
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:00:00.000Z"
   }
 }
 ```
 
 ### Códigos de Estado HTTP
 
-| Código | Descripción            |
-| ------ | ---------------------- |
-| 200    | Login exitoso          |
-| 400    | Datos inválidos        |
-| 401    | Credenciales inválidas |
-| 500    | Error interno          |
+| Código | Descripción              |
+| ------ | ------------------------ |
+| 200    | Login exitoso            |
+| 400    | Datos inválidos          |
+| 401    | Credenciales incorrectas |
+| 500    | Error interno            |
 
 ---
 
@@ -146,7 +146,7 @@ Público
     }
   },
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:00:00.000Z"
   }
 }
 ```
@@ -159,7 +159,7 @@ Público
   "message": "Refresh token inválido o expirado",
   "data": "Invalid Refresh Token: Refresh Token Not Found",
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:00:00.000Z"
   }
 }
 ```
@@ -204,21 +204,20 @@ Sin cuerpo
 ```json
 {
   "success": true,
-  "message": "Logout exitoso",
-  "data": null,
+  "message": "Sesión cerrada correctamente",
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:00:00.000Z"
   }
 }
 ```
 
 ### Códigos de Estado HTTP
 
-| Código | Descripción    |
-| ------ | -------------- |
-| 200    | Logout exitoso |
-| 401    | No autenticado |
-| 500    | Error interno  |
+| Código | Descripción                  |
+| ------ | ---------------------------- |
+| 200    | Sesión cerrada correctamente |
+| 401    | No autenticado               |
+| 500    | Error interno                |
 
 ---
 
@@ -247,25 +246,35 @@ Privado (Admin, Owner)
 
 ```json
 {
-  "email": "string",
-  "password": "string",
-  "firstName": "string",
-  "lastName": "string",
-  "phone": "string",
-  "role": "client | investor | admin"
+  "email": "user@example.com",
+  "password": "securepassword",
+  "firstName": "Juan",
+  "lastName": "Pérez",
+  "phone": "+51999999999",
+  "role": "client",
+  "dni": "12345678",
+  "address": "Calle Falsa 123",
+  "bank": "Banco Central",
+  "bankAccounts": ["123-456789-0-99"],
+  "maritalStatus": "single"
 }
 ```
 
 ### Diccionario de Datos
 
-| Campo     | Tipo   | Obligatorio | Descripción        | Restricciones                             |
-| --------- | ------ | ----------- | ------------------ | ----------------------------------------- |
-| email     | string | Sí          | Correo electrónico | Debe ser un email válido y único          |
-| password  | string | Sí          | Contraseña         | Mínimo 6 caracteres                       |
-| firstName | string | Sí          | Nombres            | Mínimo 2 caracteres                       |
-| lastName  | string | Sí          | Apellidos          | Mínimo 2 caracteres                       |
-| phone     | string | No          | Teléfono           | -                                         |
-| role      | enum   | No          | Rol del usuario    | client, investor, admin (default: client) |
+| Campo         | Tipo             | Obligatorio | Descripción                     | Restricciones                                          |
+| ------------- | ---------------- | ----------- | ------------------------------- | ------------------------------------------------------ |
+| email         | string           | Sí          | Correo electrónico              | Debe ser un email válido y único                       |
+| password      | string           | Sí          | Contraseña                      | Mínimo 6 caracteres                                    |
+| firstName     | string           | Sí          | Nombres                         | Mínimo 2 caracteres                                    |
+| lastName      | string           | Sí          | Apellidos                       | Mínimo 2 caracteres                                    |
+| phone         | string           | No          | Teléfono                        | Opcional                                               |
+| role          | enum             | No          | Rol del usuario                 | client, investor, admin (default: client)              |
+| dni           | string           | No          | Documento Nacional de Identidad | Opcional, puede ser null                               |
+| address       | string           | No          | Dirección de domicilio          | Opcional, puede ser null                               |
+| bank          | string           | No          | Banco del usuario               | Opcional, puede ser null                               |
+| bankAccounts  | array of strings | No          | Lista de cuentas bancarias      | Opcional, default: `[]`                                |
+| maritalStatus | enum             | No          | Estado civil                    | single, married, unspecified. Opcional, puede ser null |
 
 ### Respuesta Exitosa
 
@@ -274,15 +283,30 @@ Privado (Admin, Owner)
   "success": true,
   "message": "Usuario registrado exitosamente",
   "data": {
-    "id": "uuid",
-    "email": "email@example.com",
-    "publicCode": "CL-00001",
-    "firstName": "Juan",
-    "lastName": "Pérez",
-    "role": "client"
+    "user": {
+      "id": "uuid",
+      "authUserId": "uuid",
+      "publicCode": "CL-00001",
+      "firstName": "Juan",
+      "lastName": "Pérez",
+      "email": "user@example.com",
+      "phone": "+51999999999",
+      "dni": "12345678",
+      "address": "Calle Falsa 123",
+      "bank": "Banco Central",
+      "bankAccounts": ["123-456789-0-99"],
+      "maritalStatus": "single",
+      "role": "client",
+      "isOwner": false,
+      "active": true,
+      "avatarUrl": null,
+      "createdAt": "2026-05-22T04:00:00.000Z",
+      "updatedAt": "2026-05-22T04:00:00.000Z",
+      "deletedAt": null
+    }
   },
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:00:00.000Z"
   }
 }
 ```
@@ -342,10 +366,9 @@ Privado
 ```json
 {
   "success": true,
-  "message": "Contraseña cambiada exitosamente",
-  "data": null,
+  "message": "Contraseña actualizada correctamente",
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:00:00.000Z"
   }
 }
 ```
@@ -358,7 +381,7 @@ Privado
   "message": "La contraseña actual es incorrecta",
   "data": null,
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:00:00.000Z"
   }
 }
 ```
@@ -367,7 +390,7 @@ Privado
 
 | Código | Descripción                           |
 | ------ | ------------------------------------- |
-| 200    | Contraseña cambiada                   |
+| 200    | Contraseña actualizada correctamente  |
 | 400    | Datos inválidos                       |
 | 401    | No autorizado o contraseña incorrecta |
 | 500    | Error interno                         |

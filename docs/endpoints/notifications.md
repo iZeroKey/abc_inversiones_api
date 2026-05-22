@@ -44,17 +44,18 @@ Privado
   "message": "Notificaciones obtenidas",
   "data": [
     {
-      "id": "uuid",
+      "id": "7fa8e122-fbf3-472e-aa21-0022ff77ab33",
+      "userId": "uuid-user-id",
       "title": "Préstamo aprobado",
       "body": "Tu préstamo ha sido aprobado",
       "type": "LOAN_APPROVED",
       "isRead": false,
-      "data": null,
-      "createdAt": "2026-01-01T00:00:00.000Z"
+      "data": "{\"loanId\":\"2bb837fa-f182-4aa8-9283-718293bc9281\"}",
+      "createdAt": "2026-05-22T04:30:00.000Z"
     }
   ],
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z",
+    "timestamp": "2026-05-22T04:30:00.000Z",
     "page": 1,
     "limit": 20,
     "total": 1,
@@ -101,21 +102,23 @@ Privado
 ```json
 {
   "success": true,
-  "message": "Notificaciones marcadas como leídas",
-  "data": null,
+  "message": "Todas las notificaciones marcadas como leídas",
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:30:00.000Z"
   }
 }
 ```
 
+> [!NOTE]
+> La llave `data` se omite de la respuesta (es `undefined` en lugar de `null`).
+
 ### Códigos de Estado HTTP
 
-| Código | Descripción                 |
-| ------ | --------------------------- |
-| 200    | Notificaciones actualizadas |
-| 401    | No autorizado               |
-| 500    | Error interno               |
+| Código | Descripción                                   |
+| ------ | --------------------------------------------- |
+| 200    | Todas las notificaciones marcadas como leídas |
+| 401    | No autorizado                                 |
+| 500    | Error interno                                 |
 
 ---
 
@@ -152,11 +155,17 @@ Privado
   "success": true,
   "message": "Notificación marcada como leída",
   "data": {
-    "id": "uuid",
-    "isRead": true
+    "id": "7fa8e122-fbf3-472e-aa21-0022ff77ab33",
+    "userId": "uuid-user-id",
+    "title": "Préstamo aprobado",
+    "body": "Tu préstamo ha sido aprobado",
+    "type": "LOAN_APPROVED",
+    "isRead": true,
+    "data": "{\"loanId\":\"2bb837fa-f182-4aa8-9283-718293bc9281\"}",
+    "createdAt": "2026-05-22T04:30:00.000Z"
   },
   "meta": {
-    "timestamp": "2026-01-01T00:00:00.000Z"
+    "timestamp": "2026-05-22T04:30:00.000Z"
   }
 }
 ```

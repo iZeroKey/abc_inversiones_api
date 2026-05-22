@@ -363,9 +363,10 @@ Si el préstamo no tiene inversionista con cuenta de acceso activa, el voucher e
 
 ### Auditoría
 
-| Método | Endpoint    | Descripción | Acceso |
-| ------ | ----------- | ----------- | ------ |
-| GET    | /audit-logs | Listar logs | Admin  |
+| Método | Endpoint                 | Descripción                   | Acceso |
+| ------ | ------------------------ | ----------------------------- | ------ |
+| GET    | /audit-logs              | Listar logs                   | Admin  |
+| GET    | /audit-logs/user/:userId | Historial de logs por usuario | Admin  |
 
 ---
 
@@ -391,17 +392,33 @@ Si el préstamo no tiene inversionista con cuenta de acceso activa, el voucher e
 
 ## Scripts
 
-| Comando              | Descripción           |
-| -------------------- | --------------------- |
-| `pnpm dev`           | Iniciar en desarrollo |
-| `pnpm build`         | Compilar              |
-| `pnpm start`         | Iniciar producción    |
-| `pnpm typecheck`     | Verificar tipos       |
-| `pnpm test`          | Ejecutar pruebas      |
-| `pnpm db:push`       | Aplicar esquema       |
-| `pnpm db:seed`       | Sembrar datos         |
-| `pnpm db:seed:api`   | Sembrar mediante API  |
-| `pnpm setup:storage` | Configurar storage    |
+A continuación se detallan todos los scripts disponibles para ser ejecutados con `pnpm`:
+
+| Comando                      | Descripción                                                                                          |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                   | Inicia el servidor de desarrollo local con `tsx watch` (recarga automática).                         |
+| `pnpm build`                 | Compila el proyecto TypeScript en código JavaScript nativo en la carpeta `dist/`.                    |
+| `pnpm start`                 | Inicia el servidor en producción utilizando los archivos compilados en `dist/server.js`.             |
+| `pnpm typecheck`             | Ejecuta la validación de tipos TypeScript sin emitir archivos.                                       |
+| `pnpm test`                  | Ejecuta la suite de pruebas completa con Vitest una sola vez.                                        |
+| `pnpm test:watch`            | Ejecuta pruebas interactivamente con Vitest en modo observador.                                      |
+| `pnpm lint`                  | Ejecuta validación y formato de estilos con ESLint.                                                  |
+| `pnpm lint:fix`              | Valida y corrige automáticamente problemas de formato de estilos con ESLint.                         |
+| `pnpm app:setup`             | Inicialización unificada de la aplicación (db:push, setup:rls, db:seed, backfill, timezone, storage) |
+| `pnpm app:reset`             | Restablece la base de datos por completo (elimina y recrea el esquema público).                      |
+| `pnpm db:push`               | Sincroniza el esquema local de Drizzle directamente con la base de datos.                            |
+| `pnpm db:generate`           | Genera archivos de migración SQL de Drizzle Kit.                                                     |
+| `pnpm db:migrate`            | Ejecuta migraciones de base de datos acumuladas.                                                     |
+| `pnpm db:seed`               | Siembra los datos esenciales (iniciales y obligatorios) directo en la base de datos.                 |
+| `pnpm db:seed:api`           | Siembra datos adicionales enviando peticiones HTTP reales (requiere servidor local activo).          |
+| `pnpm db:seed:demo-api`      | Siembra un flujo de prueba completo de demo (préstamos, vouchers en revisión, cuotas) mediante API.  |
+| `pnpm public-codes:backfill` | Genera códigos públicos autogenerados (`publicCode`) en registros de usuarios/préstamos existentes.  |
+| `pnpm db:timezone`           | Configura y valida la zona horaria en la base de datos PostgreSQL.                                   |
+| `pnpm setup:rls`             | Habilita y actualiza las políticas de Row Level Security (RLS) en la base de datos.                  |
+| `pnpm setup:storage`         | Crea y configura los buckets privados de Supabase (`avatars`, `vouchers`).                           |
+| `pnpm setup:storage:dry-run` | Valida la conectividad y existencia de los buckets de Supabase sin hacer modificaciones.             |
+| `pnpm check:overdue`         | Verifica cuotas cuyo vencimiento haya pasado y actualiza su estado a `overdue`.                      |
+| `pnpm send:reminders`        | Envía recordatorios para notificar a los clientes sobre cuotas por vencer o vencidas.                |
 
 ---
 
@@ -414,7 +431,7 @@ Si el préstamo no tiene inversionista con cuenta de acceso activa, el voucher e
 - Logging estructurado con Pino
 - Error handling global
 - Validación de MIME types en uploads (JPEG, PNG, WebP)
-- Límite de tamaño por endpoint (1.5MB OCR, 5MB vouchers/avatars)
+- Límite de tamaño por endpoint (1.5MB OCR, 2MB avatars, 5MB vouchers)
 
 ### Respuesta Estándar
 

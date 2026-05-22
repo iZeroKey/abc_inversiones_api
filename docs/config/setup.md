@@ -33,20 +33,38 @@ El proyecto utiliza un schema de validación con Zod. Las variables requeridas d
 | `STORAGE_SIGNED_URL_TTL_SECONDS` | number  | 900                 | TTL para URLs firmadas    |
 | `OCR_ENABLED`                    | boolean | true                | Habilitar OCR de vouchers |
 | `OCR_PROVIDER`                   | string  | google-vision       | Proveedor de OCR          |
-| `DATABASE_TEST_URL`              | string  | -                   | URL para tests            |
+
+### Para Pruebas (Test)
+
+Estas variables son requeridas únicamente cuando se ejecutan las pruebas (`NODE_ENV=test` o en Vitest):
+
+| Variable                         | Tipo   | Descripción                                |
+| -------------------------------- | ------ | ------------------------------------------ |
+| `SUPABASE_URL_TEST`              | string | URL del proyecto Supabase para pruebas     |
+| `SUPABASE_ANON_KEY_TEST`         | string | Clave anónima pública para pruebas         |
+| `SUPABASE_SERVICE_ROLE_KEY_TEST` | string | Clave de service role (admin) para pruebas |
+| `DATABASE_URL_TEST`              | string | URL de conexión a PostgreSQL para pruebas  |
 
 ### Ejemplo de .env
 
 ```text
+# App
 NODE_ENV=development
 PORT=3000
 APP_NAME=abc-inversiones-api
+APP_TIMEZONE=America/Lima
 
+# Desarrollo / Producción
 SUPABASE_URL=https://xxxxx.supabase.co
 SUPABASE_ANON_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...
 SUPABASE_SERVICE_ROLE_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...
-
 DATABASE_URL=postgresql://postgres:password@db.xxxxx.supabase.co:5432/postgres
+
+# Pruebas
+SUPABASE_URL_TEST=https://xxxxx-test.supabase.co
+SUPABASE_ANON_KEY_TEST=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...
+SUPABASE_SERVICE_ROLE_KEY_TEST=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...
+DATABASE_URL_TEST=postgresql://postgres:password@db.xxxxx-test.supabase.co:5432/postgres
 ```
 
 ---
@@ -125,25 +143,53 @@ pnpm install
 
 ```bash
 cp .env.example .env
-# Completar las variables requeridas
+# Completar las variables requeridas (de desarrollo y/o de pruebas)
 ```
 
-3. **Aplicar esquema**
+3. **Inicializar la aplicación (Recomendado)**
+
+La forma más rápida y segura de preparar el entorno es ejecutar el comando unificado:
 
 ```bash
-pnpm db:push
+pnpm app:setup
 ```
 
-4. **Configurar Storage**
+Este comando realiza de manera secuencial los siguientes pasos:
+
+- **`pnpm db:push`**: Sincroniza el esquema de base de datos de Drizzle directamente con PostgreSQL.
+- **`pnpm setup:rls`**: Ejecuta las consultas necesarias para habilitar políticas RLS (Row Level Security).
+- **`pnpm db:seed`**: Siembra los datos esenciales (usuarios administradores base, roles iniciales).
+- **`pnpm public-codes:backfill`**: Asegura que todos los registros clave tengan códigos públicos formateados.
+- **`pnpm db:timezone`**: Configura la zona horaria correcta en el motor de base de datos.
+- **`pnpm setup:storage`**: Inicializa y configura los buckets de almacenamiento en Supabase (`avatars` y `vouchers`).
+- **`pnpm setup:storage:dry-run`**: Comprueba y valida la conexión final de almacenamiento.
+
+_Si prefieres ejecutar estos pasos uno por uno, puedes consultar la sección de [Scripts Disponibles](#scripts-disponibles)._
+
+4. **Limpieza o reinicio (Opcional)**
+
+Si en algún momento necesitas vaciar por completo la base de datos para volver a ejecutar el setup desde cero, ejecuta:
 
 ```bash
-pnpm setup:storage
+pnpm app:reset
 ```
 
-5. **Ejecutar tests**
+_Advertencia: Esto borrará permanentemente todas las tablas en el esquema público de la base de datos configurada._
+
+5. **Ejecutar pruebas (Opcional)**
+
+Para validar que el entorno de pruebas está bien configurado y el código pasa las pruebas de integración:
 
 ```bash
 pnpm test
+```
+
+6. **Iniciar desarrollo**
+
+Inicia el servidor local en modo observador:
+
+```bash
+pnpm dev
 ```
 
 Opcionalmente, con el servidor local encendido, puedes sembrar datos de prueba usando llamadas reales al API:
@@ -154,25 +200,34 @@ pnpm db:seed:api
 
 Por defecto usa `http://localhost:3000/api/v1`, autentica al owner `admin@abc.com` y crea/actualiza usuarios `api.*@abc.com`. Puedes ajustar `API_SEED_BASE_URL`, `API_SEED_OWNER_EMAIL`, `API_SEED_OWNER_PASSWORD` y `API_SEED_DEFAULT_PASSWORD`.
 
-6. **Iniciar desarrollo**
-
-```bash
-pnpm dev
-```
+---
 
 ### Scripts Disponibles
 
-| Comando               | Descripción                     |
-| --------------------- | ------------------------------- |
-| `pnpm dev`            | Iniciar servidor en desarrollo  |
-| `pnpm build`          | Compilar TypeScript             |
-| `pnpm start`          | Iniciar producción              |
-| `pnpm typecheck`      | Verificar tipos                 |
-| `pnpm test`           | Ejecutar pruebas                |
-| `pnpm lint`           | Verificar código                |
-| `pnpm db:push`        | Aplicar esquema a DB            |
-| `pnpm db:seed`        | Sembrar datos iniciales         |
-| `pnpm db:seed:api`    | Sembrar datos mediante API HTTP |
-| `pnpm setup:storage`  | Configurar buckets              |
-| `pnpm check:overdue`  | Verificar cuotas vencidas       |
-| `pnpm send:reminders` | Enviar recordatorios            |
+A continuación se detallan todos los scripts que se pueden ejecutar desde el archivo `package.json`:
+
+| Comando                      | Descripción                                                                                          |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                   | Inicia el servidor de desarrollo local usando `tsx watch` (observa cambios en caliente).             |
+| `pnpm build`                 | Compila el proyecto TypeScript en código JavaScript nativo dentro de la carpeta `dist/`.             |
+| `pnpm start`                 | Inicia el servidor en producción utilizando los archivos compilados en `dist/server.js`.             |
+| `pnpm typecheck`             | Ejecuta el compilador de TypeScript en modo validación de tipos sin emitir ningún archivo.           |
+| `pnpm test`                  | Ejecuta la suite de pruebas de integración completa con Vitest una sola vez.                         |
+| `pnpm test:watch`            | Ejecuta las pruebas en modo interactivo observando los cambios en los archivos.                      |
+| `pnpm lint`                  | Ejecuta la validación de código y formato de estilos con ESLint.                                     |
+| `pnpm lint:fix`              | Valida y corrige automáticamente problemas menores de estilo o sintaxis con ESLint.                  |
+| `pnpm app:setup`             | Inicialización unificada de la aplicación (db:push, setup:rls, db:seed, backfill, timezone, storage) |
+| `pnpm app:reset`             | Restablece por completo la base de datos (elimina y recrea el esquema público).                      |
+| `pnpm db:push`               | Empuja el esquema local definido en Drizzle a la base de datos de forma directa.                     |
+| `pnpm db:generate`           | Genera archivos de migración (SQL) de Drizzle Kit.                                                   |
+| `pnpm db:migrate`            | Ejecuta migraciones de base de datos acumuladas.                                                     |
+| `pnpm db:seed`               | Siembra los datos esenciales (iniciales y obligatorios) directo en la base de datos.                 |
+| `pnpm db:seed:api`           | Siembra datos adicionales enviando peticiones HTTP reales (requiere servidor local activo).          |
+| `pnpm db:seed:demo-api`      | Siembra un flujo de prueba completo de demo (préstamos, vouchers en revisión, cuotas) mediante API.  |
+| `pnpm public-codes:backfill` | Genera códigos públicos autogenerados (`publicCode`) en registros de usuarios/préstamos existentes.  |
+| `pnpm db:timezone`           | Configura y valida la zona horaria en la base de datos PostgreSQL.                                   |
+| `pnpm setup:rls`             | Habilita y actualiza las políticas de Row Level Security (RLS) en la base de datos.                  |
+| `pnpm setup:storage`         | Crea y configura los buckets privados de Supabase (`avatars`, `vouchers`).                           |
+| `pnpm setup:storage:dry-run` | Valida la conectividad y existencia de los buckets de Supabase sin hacer modificaciones.             |
+| `pnpm check:overdue`         | Verifica cuotas cuyo vencimiento haya pasado y actualiza su estado a `overdue`.                      |
+| `pnpm send:reminders`        | Envía recordatorios para notificar a los clientes sobre cuotas por vencer o vencidas.                |
