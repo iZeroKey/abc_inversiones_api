@@ -1,29 +1,33 @@
+import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { Response } from "express";
 import { db } from "../../config/db.js";
 import { supabaseAdmin } from "../../config/supabase.js";
 import { loans } from "../../db/schema/loans.js";
 import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
 import { users } from "../../db/schema/users.js";
-import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { AuthRequest } from "../../middleware/auth.middleware.js";
+import { logAudit } from "../../utils/audit.util.js";
 import {
-  sendSuccess,
-  sendError,
+  generatePublicCodeForRole,
+  parsePublicCodeNumber,
+  publicCodeKindForRole,
+} from "../../utils/public-code.util.js";
+import {
   formatZodError,
+  sendError,
+  sendSuccess,
 } from "../../utils/response.util.js";
+import {
+  deleteStorageReference,
+  resolveFileUrl,
+  uploadAvatar,
+} from "../../utils/storage.util.js";
 import {
   adminCreateUserSchema,
   adminUpdateUserSchema,
   linkAuthAccountSchema,
   selfUpdateUserSchema,
 } from "./users.schema.js";
-import { AuthRequest } from "../../middleware/auth.middleware.js";
-import { logAudit } from "../../utils/audit.util.js";
-import { deleteStorageReference, resolveFileUrl, uploadAvatar } from "../../utils/storage.util.js";
-import {
-  generatePublicCodeForRole,
-  parsePublicCodeNumber,
-  publicCodeKindForRole,
-} from "../../utils/public-code.util.js";
 
 const selfForbiddenFields = new Set([
   "id",
@@ -39,13 +43,17 @@ const selfForbiddenFields = new Set([
   "deletedAt",
 ]);
 
-const normalizeNullableText = (value: string | null | undefined): string | null | undefined => {
+const normalizeNullableText = (
+  value: string | null | undefined,
+): string | null | undefined => {
   if (value === undefined || value === null) return value;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
 };
 
-const normalizeUserPayload = <T extends Record<string, unknown>>(data: T): T => {
+const normalizeUserPayload = <T extends Record<string, unknown>>(
+  data: T,
+): T => {
   const normalized = { ...data };
   for (const field of ["email", "phone", "dni", "address", "bank"] as const) {
     if (field in normalized) {
@@ -58,7 +66,9 @@ const normalizeUserPayload = <T extends Record<string, unknown>>(data: T): T => 
   return normalized;
 };
 
-const attachSignedAvatarUrl = async <T extends { avatarUrl?: string | null }>(user: T): Promise<T> => {
+const attachSignedAvatarUrl = async <T extends { avatarUrl?: string | null }>(
+  user: T,
+): Promise<T> => {
   if (!user.avatarUrl) {
     return user;
   }
@@ -92,9 +102,11 @@ const canUseAdministrativeUpdate = (
     return true;
   }
 
-  return currentUser.role === "admin"
-    && currentUser.id !== targetUser.id
-    && targetUser.role !== "admin";
+  return (
+    currentUser.role === "admin" &&
+    currentUser.id !== targetUser.id &&
+    targetUser.role !== "admin"
+  );
 };
 
 const movePendingInvestorVouchersToAdminReview = async (
@@ -106,15 +118,17 @@ const movePendingInvestorVouchersToAdminReview = async (
       status: "pending_admin_review",
       updatedAt: new Date(),
     })
-    .where(and(
-      eq(paymentVouchers.status, "pending_investor_review"),
-      sql`EXISTS (
+    .where(
+      and(
+        eq(paymentVouchers.status, "pending_investor_review"),
+        sql`EXISTS (
         SELECT 1
         FROM ${loans}
         WHERE ${loans.id} = ${paymentVouchers.loanId}
           AND ${loans.investorId} = ${investorId}
       )`,
-    ))
+      ),
+    )
     .returning({ id: paymentVouchers.id });
 
   return updated.length;
@@ -130,13 +144,17 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
   }
 };
 
-export const getAllUsers = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getAllUsers = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
-    const searchTerm = typeof req.query.search === "string"
-      ? req.query.search.trim()
-      : typeof req.query.q === "string"
-        ? req.query.q.trim()
-        : "";
+    const searchTerm =
+      typeof req.query.search === "string"
+        ? req.query.search.trim()
+        : typeof req.query.q === "string"
+          ? req.query.q.trim()
+          : "";
 
     const conditions: SQL[] = [];
     if (searchTerm) {
@@ -159,14 +177,19 @@ export const getAllUsers = async (req: AuthRequest, res: Response): Promise<void
       .from(users)
       .where(conditions.length > 0 ? conditions[0] : undefined)
       .orderBy(desc(users.createdAt));
-    const signedResults = await Promise.all(results.map((user) => attachSignedAvatarUrl(user)));
+    const signedResults = await Promise.all(
+      results.map((user) => attachSignedAvatarUrl(user)),
+    );
     sendSuccess(res, 200, "Usuarios obtenidos", signedResults);
   } catch (error) {
     sendError(res, 500, "Error al obtener usuarios", error);
   }
 };
 
-export const createUser = async (req: AuthRequest, res: Response): Promise<void> => {
+export const createUser = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const validation = adminCreateUserSchema.safeParse(req.body);
     if (!validation.success) {
@@ -183,8 +206,9 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
     }
 
     if (
-      data.publicCode
-      && parsePublicCodeNumber(data.publicCode, publicCodeKindForRole(data.role)) < 1
+      data.publicCode &&
+      parsePublicCodeNumber(data.publicCode, publicCodeKindForRole(data.role)) <
+        1
     ) {
       sendError(res, 400, "Código público inválido para el rol indicado");
       return;
@@ -215,7 +239,8 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
         .insert(users)
         .values({
           authUserId,
-          publicCode: data.publicCode || await generatePublicCodeForRole(data.role),
+          publicCode:
+            data.publicCode || (await generatePublicCodeForRole(data.role)),
           firstName: data.firstName,
           lastName: data.lastName,
           email: data.email,
@@ -251,10 +276,17 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
   }
 };
 
-export const getUserById = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getUserById = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
-    const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
 
     if (!user) {
       sendError(res, 404, "Usuario no encontrado");
@@ -273,12 +305,19 @@ export const getUserById = async (req: AuthRequest, res: Response): Promise<void
   }
 };
 
-export const updateUser = async (req: AuthRequest, res: Response): Promise<void> => {
+export const updateUser = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     const currentUser = req.user!;
 
-    const [oldUser] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    const [oldUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
     if (!oldUser) {
       sendError(res, 404, "Usuario no encontrado");
       return;
@@ -302,26 +341,34 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
       );
 
       if (forbiddenFields.length > 0) {
-        sendError(res, 400, "No puedes modificar campos administrativos en tu perfil", {
-          fields: forbiddenFields,
-        });
+        sendError(
+          res,
+          400,
+          "No puedes modificar campos administrativos en tu perfil",
+          {
+            fields: forbiddenFields,
+          },
+        );
         return;
       }
     }
 
-    const validation = (useAdminSchema ? adminUpdateUserSchema : selfUpdateUserSchema).safeParse(req.body);
+    const validation = (
+      useAdminSchema ? adminUpdateUserSchema : selfUpdateUserSchema
+    ).safeParse(req.body);
     if (!validation.success) {
       sendError(res, 400, "Datos inválidos", formatZodError(validation.error));
       return;
     }
 
     const updateData = normalizeUserPayload(validation.data);
-    const publicCode = oldUser.publicCode
-      || await generatePublicCodeForRole(oldUser.role);
-    const isRemovingInvestorAccess = oldUser.role === "investor"
-      && oldUser.active
-      && "active" in updateData
-      && updateData.active === false;
+    const publicCode =
+      oldUser.publicCode || (await generatePublicCodeForRole(oldUser.role));
+    const isRemovingInvestorAccess =
+      oldUser.role === "investor" &&
+      oldUser.active &&
+      "active" in updateData &&
+      updateData.active === false;
 
     const [updatedUser] = await db
       .update(users)
@@ -343,7 +390,10 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
       module: "USERS",
       entityId: id,
       oldData: oldUser,
-      newData: { ...updatedUser, movedPendingVouchersToAdminReview: movedVouchers },
+      newData: {
+        ...updatedUser,
+        movedPendingVouchersToAdminReview: movedVouchers,
+      },
       req,
     });
 
@@ -354,7 +404,10 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
   }
 };
 
-export const linkAuthAccount = async (req: AuthRequest, res: Response): Promise<void> => {
+export const linkAuthAccount = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     const currentUser = req.user!;
@@ -365,7 +418,11 @@ export const linkAuthAccount = async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
-    const [targetUser] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    const [targetUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
     if (!targetUser) {
       sendError(res, 404, "Usuario no encontrado");
       return;
@@ -416,7 +473,12 @@ export const linkAuthAccount = async (req: AuthRequest, res: Response): Promise<
       req,
     });
 
-    sendSuccess(res, 200, "Cuenta de acceso vinculada correctamente", updatedUser);
+    sendSuccess(
+      res,
+      200,
+      "Cuenta de acceso vinculada correctamente",
+      updatedUser,
+    );
   } catch (error) {
     sendError(res, 500, "Error al vincular cuenta de acceso", error);
   }
@@ -430,7 +492,10 @@ export const linkAuthAccount = async (req: AuthRequest, res: Response): Promise<
  * Usa reemplazo seguro: sube a ruta temporal, elimina la anterior,
  * luego sube a ruta canónica. Si algo falla, el avatar anterior se preserva.
  */
-export const updateAvatar = async (req: AuthRequest, res: Response): Promise<void> => {
+export const updateAvatar = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const user = req.user!;
 
@@ -472,7 +537,12 @@ export const updateAvatar = async (req: AuthRequest, res: Response): Promise<voi
     });
 
     const responseUser = await attachSignedAvatarUrl(updatedUser);
-    sendSuccess(res, 200, "Foto de perfil actualizada correctamente", responseUser);
+    sendSuccess(
+      res,
+      200,
+      "Foto de perfil actualizada correctamente",
+      responseUser,
+    );
   } catch (error) {
     sendError(res, 500, "Error al actualizar avatar", error);
   }
@@ -483,7 +553,10 @@ export const updateAvatar = async (req: AuthRequest, res: Response): Promise<voi
  * Borra el objeto de Supabase Storage cuando la referencia actual es interna
  * y limpia avatarUrl en la tabla users.
  */
-export const deleteAvatar = async (req: AuthRequest, res: Response): Promise<void> => {
+export const deleteAvatar = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const user = req.user!;
 
@@ -519,17 +592,29 @@ export const deleteAvatar = async (req: AuthRequest, res: Response): Promise<voi
       req,
     });
 
-    sendSuccess(res, 200, "Foto de perfil eliminada correctamente", updatedUser);
+    sendSuccess(
+      res,
+      200,
+      "Foto de perfil eliminada correctamente",
+      updatedUser,
+    );
   } catch (error) {
     sendError(res, 500, "Error al eliminar avatar", error);
   }
 };
 
-export const deleteUser = async (req: AuthRequest, res: Response): Promise<void> => {
+export const deleteUser = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
 
-    const [targetUser] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    const [targetUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
     if (!targetUser) {
       sendError(res, 404, "Usuario no encontrado");
       return;
@@ -539,7 +624,7 @@ export const deleteUser = async (req: AuthRequest, res: Response): Promise<void>
       sendError(res, 403, "No tienes permiso para gestionar este usuario");
       return;
     }
-    
+
     const [deletedUser] = await db
       .update(users)
       .set({
@@ -550,9 +635,10 @@ export const deleteUser = async (req: AuthRequest, res: Response): Promise<void>
       .where(eq(users.id, id))
       .returning();
 
-    const movedVouchers = targetUser.role === "investor"
-      ? await movePendingInvestorVouchersToAdminReview(id)
-      : 0;
+    const movedVouchers =
+      targetUser.role === "investor"
+        ? await movePendingInvestorVouchersToAdminReview(id)
+        : 0;
 
     await logAudit({
       userId: req.user!.id,

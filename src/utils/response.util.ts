@@ -1,9 +1,12 @@
 import { Response } from "express";
-import { ZodError } from "zod";
 import { DateTime } from "luxon";
+import { ZodError } from "zod";
 import { env } from "../config/env.js";
 
-export interface ApiResponse<T = unknown, M extends Record<string, unknown> = Record<string, unknown>> {
+export interface ApiResponse<
+  T = unknown,
+  M extends Record<string, unknown> = Record<string, unknown>,
+> {
   success: boolean;
   message: string;
   data?: T;
@@ -13,7 +16,9 @@ export interface ApiResponse<T = unknown, M extends Record<string, unknown> = Re
 }
 
 const getTimestamp = () => {
-  return DateTime.now().setZone(env.APP_TIMEZONE).toISO() || new Date().toISOString();
+  return (
+    DateTime.now().setZone(env.APP_TIMEZONE).toISO() || new Date().toISOString()
+  );
 };
 
 export const sendSuccess = <
@@ -42,7 +47,7 @@ export const sendError = (
   res: Response,
   status: number,
   message: string,
-  error?: unknown
+  error?: unknown,
 ): void => {
   const isProduction = env.NODE_ENV === "production";
   const shouldHideServerError = isProduction && status >= 500;
@@ -50,7 +55,7 @@ export const sendError = (
   const response: ApiResponse<unknown | null> = {
     success: false,
     message: shouldHideServerError ? "Error interno del servidor" : message,
-    data: shouldHideServerError ? null : (error || null),
+    data: shouldHideServerError ? null : error || null,
     meta: {
       timestamp: getTimestamp(),
     },
