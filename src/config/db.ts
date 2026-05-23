@@ -15,12 +15,17 @@ export const queryClient = postgres(env.DATABASE_URL, {
   idle_timeout: 20,
   connect_timeout: 30,
   prepare: false,
-  max_lifetime: 60 * 1000,
+  max_lifetime: 60 * 30,
 });
 
 export const db = drizzle(queryClient, { schema });
 
 logger.info(
-  { max: isTest ? 1 : 10, idle_timeout: 20 },
+  {
+    max: isTest ? 1 : 10,
+    idle_timeout: 20,
+    connect_timeout: 30,
+    max_lifetime: 60 * 30,
+  },
   "PostgreSQL client configured",
 );

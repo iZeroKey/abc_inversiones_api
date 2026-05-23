@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "../config/db.js";
-import { supabase } from "../config/supabase.js";
+import { supabaseAdmin } from "../config/supabase.js";
 import { users } from "../db/schema/users.js";
 
 export interface AuthResolutionResult {
@@ -23,7 +23,7 @@ export const resolveAuthenticatedUser = async (
   const {
     data: { user: authUser },
     error,
-  } = await supabase.auth.getUser(token);
+  } = await supabaseAdmin.auth.getUser(token);
 
   if (error || !authUser) {
     return {
