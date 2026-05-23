@@ -3,7 +3,7 @@ import { sendSuccess } from "../../utils/response.util.js";
 
 /**
  * Health check con métricas de memoria y uptime.
- * Útil para monitorear el impacto de streaming vs buffering en Cloud Run.
+ * Útil para monitorear presión de memoria en Cloud Run.
  */
 export const getHealth = (_request: Request, response: Response): void => {
   const mem = process.memoryUsage();

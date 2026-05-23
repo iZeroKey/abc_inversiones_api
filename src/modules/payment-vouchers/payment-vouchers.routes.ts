@@ -21,8 +21,7 @@ router.post("/analyze", authenticate, authorize(["client"]), uploadRateLimit, bu
  * @route   POST /api/v1/payment-vouchers
  * @desc    Subir un nuevo comprobante de pago (Voucher) con la imagen y los datos
  *          finales confirmados por el cliente.
- *          Usa Streaming Pass-Through: los bytes fluyen directamente a Supabase Storage
- *          sin acumularse en RAM del backend (~64KB vs ~5MB por request).
+ *          Usa busboy con buffer acotado por límite de archivo antes de subir a Storage.
  * @access  Private (Client)
  * @body    { loanId, amount, operationId, operationDate?, observation? } + campo "evidence" (imagen)
  */

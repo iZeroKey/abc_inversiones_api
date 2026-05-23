@@ -1,4 +1,4 @@
-import { and, desc, eq, getTableColumns, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, isNull, ne, sql } from "drizzle-orm";
 import { Response } from "express";
 import { db } from "../../config/db.js";
 import { installments } from "../../db/schema/installments.js";
@@ -55,7 +55,13 @@ export const getClientStatement = async (
       })
       .from(loans)
       .innerJoin(users, eq(users.id, loans.clientId))
-      .where(eq(loans.clientId, targetClientId))
+      .where(
+        and(
+          eq(loans.clientId, targetClientId),
+          isNull(loans.deletedAt),
+          ne(loans.status, "deleted"),
+        ),
+      )
       .orderBy(desc(loans.createdAt));
 
     // Estadísticas generales
@@ -67,7 +73,13 @@ export const getClientStatement = async (
         paidLoans: sql<number>`count(*) FILTER (WHERE ${loans.status} = 'paid')`,
       })
       .from(loans)
-      .where(eq(loans.clientId, targetClientId));
+      .where(
+        and(
+          eq(loans.clientId, targetClientId),
+          isNull(loans.deletedAt),
+          ne(loans.status, "deleted"),
+        ),
+      );
 
     // Cuotas vencidas
     const [overdueStats] = await db
@@ -80,6 +92,8 @@ export const getClientStatement = async (
       .where(
         and(
           eq(loans.clientId, targetClientId),
+          isNull(loans.deletedAt),
+          ne(loans.status, "deleted"),
           eq(installments.status, "overdue"),
         ),
       );
@@ -92,7 +106,15 @@ export const getClientStatement = async (
       })
       .from(payments)
       .innerJoin(loans, eq(loans.id, payments.loanId))
-      .where(eq(loans.clientId, targetClientId));
+      .where(
+        and(
+          eq(loans.clientId, targetClientId),
+          isNull(loans.deletedAt),
+          ne(loans.status, "deleted"),
+          eq(payments.status, "confirmed"),
+          isNull(payments.deletedAt),
+        ),
+      );
 
     sendSuccess(res, 200, "Estado de cuenta obtenido", {
       client,
@@ -141,7 +163,13 @@ export const getInvestorPortfolio = async (
       })
       .from(loans)
       .innerJoin(users, eq(users.id, loans.clientId))
-      .where(eq(loans.investorId, targetInvestorId))
+      .where(
+        and(
+          eq(loans.investorId, targetInvestorId),
+          isNull(loans.deletedAt),
+          ne(loans.status, "deleted"),
+        ),
+      )
       .orderBy(desc(loans.createdAt));
 
     // Estadísticas
@@ -154,7 +182,13 @@ export const getInvestorPortfolio = async (
         defaultedLoans: sql<number>`count(*) FILTER (WHERE ${loans.status} = 'defaulted')`,
       })
       .from(loans)
-      .where(eq(loans.investorId, targetInvestorId));
+      .where(
+        and(
+          eq(loans.investorId, targetInvestorId),
+          isNull(loans.deletedAt),
+          ne(loans.status, "deleted"),
+        ),
+      );
 
     // Vouchers pendientes de revisión del inversionista
     const pendingVouchers = await db
@@ -172,6 +206,9 @@ export const getInvestorPortfolio = async (
         and(
           eq(loans.investorId, targetInvestorId),
           eq(paymentVouchers.status, "pending_investor_review"),
+          isNull(loans.deletedAt),
+          ne(loans.status, "deleted"),
+          isNull(paymentVouchers.deletedAt),
         ),
       )
       .orderBy(desc(paymentVouchers.createdAt));
@@ -203,7 +240,8 @@ export const getAdminDashboard = async (
         totalPortfolio: sql<string>`COALESCE(sum(${loans.principal}) FILTER (WHERE ${loans.status} = 'active'), 0)`,
         totalDebt: sql<string>`COALESCE(sum(${loans.totalDebt}) FILTER (WHERE ${loans.status} = 'active'), 0)`,
       })
-      .from(loans);
+      .from(loans)
+      .where(and(isNull(loans.deletedAt), ne(loans.status, "deleted")));
 
     // Mora global
     const [overdueStats] = await db
@@ -212,7 +250,14 @@ export const getAdminDashboard = async (
         overdueAmount: sql<string>`COALESCE(sum(${installments.amount} - ${installments.paidAmount}), 0)`,
       })
       .from(installments)
-      .where(eq(installments.status, "overdue"));
+      .innerJoin(loans, eq(loans.id, installments.loanId))
+      .where(
+        and(
+          eq(installments.status, "overdue"),
+          isNull(loans.deletedAt),
+          ne(loans.status, "deleted"),
+        ),
+      );
 
     // Vouchers pendientes de procesamiento
     const [voucherStats] = await db
@@ -220,7 +265,13 @@ export const getAdminDashboard = async (
         pendingInvestor: sql<number>`count(*) FILTER (WHERE ${paymentVouchers.status} = 'pending_investor_review')`,
         pendingAdmin: sql<number>`count(*) FILTER (WHERE ${paymentVouchers.status} IN ('pending_admin_review', 'investor_approved'))`,
       })
-      .from(paymentVouchers);
+      .from(paymentVouchers)
+      .where(
+        and(
+          isNull(paymentVouchers.deletedAt),
+          ne(paymentVouchers.status, "deleted"),
+        ),
+      );
 
     // Usuarios activos
     const [userStats] = await db
@@ -231,7 +282,7 @@ export const getAdminDashboard = async (
         admins: sql<number>`count(*) FILTER (WHERE ${users.role} = 'admin')`,
       })
       .from(users)
-      .where(eq(users.active, true));
+      .where(and(eq(users.active, true), isNull(users.deletedAt)));
 
     sendSuccess(res, 200, "Dashboard administrativo", {
       loans: loanStats,

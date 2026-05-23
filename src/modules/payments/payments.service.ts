@@ -204,80 +204,85 @@ export const recalculateLoanLedger = async (loanId: string) => {
 /**
  * Lógica central de aplicación de pagos (Waterfall logic)
  */
-export const processPaymentLogic = async (params: ProcessPaymentParams) => {
-  return await db.transaction(async (tx) => {
-    const {
+export const processPaymentLogicInTransaction = async (
+  tx: DbTransaction,
+  params: ProcessPaymentParams,
+) => {
+  const {
+    loanId,
+    amount,
+    method,
+    reference,
+    observation,
+    registeredById,
+    paymentDate,
+    voucherId,
+    evidenceUrl,
+    allowOverpayment = false,
+  } = params;
+  const amountToApply = toCents(amount);
+  const effectivePaymentDate = paymentDate || new Date();
+
+  const [loan] = await tx
+    .select()
+    .from(loans)
+    .where(eq(loans.id, loanId))
+    .limit(1);
+  if (!loan) throw new PaymentBusinessError("Préstamo no encontrado", 404);
+  if (loan.deletedAt || loan.status === "deleted") {
+    throw new PaymentBusinessError("El préstamo fue eliminado");
+  }
+  if (loan.status !== "active")
+    throw new PaymentBusinessError("El préstamo no está activo");
+
+  const pendingInstallments = await tx
+    .select()
+    .from(installments)
+    .where(
+      and(
+        eq(installments.loanId, loanId),
+        or(
+          eq(installments.status, "pending"),
+          eq(installments.status, "overdue"),
+        ),
+      ),
+    )
+    .orderBy(asc(installments.dueDate));
+
+  const outstandingDebt = pendingInstallments.reduce((total, inst) => {
+    return total + Math.max(toCents(inst.amount) - toCents(inst.paidAmount), 0);
+  }, 0);
+
+  if (outstandingDebt <= 0) {
+    throw new PaymentBusinessError("El préstamo no tiene deuda pendiente");
+  }
+
+  if (!allowOverpayment && amountToApply > outstandingDebt) {
+    throw new PaymentBusinessError("El pago excede la deuda pendiente");
+  }
+
+  const [newPayment] = await tx
+    .insert(payments)
+    .values({
       loanId,
-      amount,
+      voucherId,
+      amount: fromCents(amountToApply),
       method,
       reference,
       observation,
-      registeredById,
-      paymentDate,
-      voucherId,
       evidenceUrl,
-      allowOverpayment = false,
-    } = params;
-    const amountToApply = toCents(amount);
-    const effectivePaymentDate = paymentDate || new Date();
+      registeredById,
+      paymentDate: effectivePaymentDate,
+    })
+    .returning();
 
-    const [loan] = await tx
-      .select()
-      .from(loans)
-      .where(eq(loans.id, loanId))
-      .limit(1);
-    if (!loan) throw new PaymentBusinessError("Préstamo no encontrado", 404);
-    if (loan.deletedAt || loan.status === "deleted") {
-      throw new PaymentBusinessError("El préstamo fue eliminado");
-    }
-    if (loan.status !== "active")
-      throw new PaymentBusinessError("El préstamo no está activo");
+  await recalculateLoanLedgerInTransaction(tx, loanId);
 
-    const pendingInstallments = await tx
-      .select()
-      .from(installments)
-      .where(
-        and(
-          eq(installments.loanId, loanId),
-          or(
-            eq(installments.status, "pending"),
-            eq(installments.status, "overdue"),
-          ),
-        ),
-      )
-      .orderBy(asc(installments.dueDate));
+  return newPayment;
+};
 
-    const outstandingDebt = pendingInstallments.reduce((total, inst) => {
-      return (
-        total + Math.max(toCents(inst.amount) - toCents(inst.paidAmount), 0)
-      );
-    }, 0);
-
-    if (outstandingDebt <= 0) {
-      throw new PaymentBusinessError("El préstamo no tiene deuda pendiente");
-    }
-
-    if (!allowOverpayment && amountToApply > outstandingDebt) {
-      throw new PaymentBusinessError("El pago excede la deuda pendiente");
-    }
-
-    const [newPayment] = await tx
-      .insert(payments)
-      .values({
-        loanId,
-        voucherId,
-        amount: fromCents(amountToApply),
-        method,
-        reference,
-        observation,
-        evidenceUrl,
-        registeredById,
-        paymentDate: effectivePaymentDate,
-      })
-      .returning();
-
-    await recalculateLoanLedgerInTransaction(tx, loanId);
-
-    return newPayment;
-  });
+export const processPaymentLogic = async (params: ProcessPaymentParams) => {
+  return await db.transaction((tx) =>
+    processPaymentLogicInTransaction(tx, params),
+  );
 };

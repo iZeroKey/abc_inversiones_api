@@ -13,6 +13,7 @@ type RateLimitEntry = {
 };
 
 const buckets = new Map<string, RateLimitEntry>();
+const isTest = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
 
 const getClientKey = (req: Request): string => {
   const forwardedFor = req.headers["x-forwarded-for"];
@@ -25,6 +26,11 @@ const getClientKey = (req: Request): string => {
 
 export const rateLimit = (options: RateLimitOptions) => {
   return (req: Request, res: Response, next: NextFunction): void => {
+    if (isTest) {
+      next();
+      return;
+    }
+
     const now = Date.now();
     const key = getClientKey(req);
     const current = buckets.get(key);

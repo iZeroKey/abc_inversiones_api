@@ -75,17 +75,18 @@ export const getAuditLogs = async (
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const countExpression = sql<number>`count(*)`.mapWith(Number);
-    const [[totalRow], results] = await Promise.all([
-      db.select({ total: countExpression }).from(auditLogs).where(where),
-      db
-        .select(auditLogSelection)
-        .from(auditLogs)
-        .leftJoin(users, eq(users.id, auditLogs.userId))
-        .where(where)
-        .orderBy(desc(auditLogs.createdAt))
-        .limit(limit)
-        .offset(offset),
-    ]);
+    const [totalRow] = await db
+      .select({ total: countExpression })
+      .from(auditLogs)
+      .where(where);
+    const results = await db
+      .select(auditLogSelection)
+      .from(auditLogs)
+      .leftJoin(users, eq(users.id, auditLogs.userId))
+      .where(where)
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(limit)
+      .offset(offset);
 
     const total = totalRow?.total || 0;
     sendSuccess(res, 200, "Logs de auditoría obtenidos", results, {

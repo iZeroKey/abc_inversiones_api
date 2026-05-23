@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm";
 import { Request, Response } from "express";
 import { db } from "../../config/db.js";
 import { supabase, supabaseAdmin } from "../../config/supabase.js";
 import { users } from "../../db/schema/users.js";
+import { resolveAuthenticatedUser } from "../../middleware/auth.helpers.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
 import { generatePublicCodeForRole } from "../../utils/public-code.util.js";
@@ -37,12 +37,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.authUserId, data.user.id))
-      .limit(1);
-
     const session = data.session
       ? {
           access_token: data.session.access_token,
@@ -51,15 +45,32 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         }
       : null;
 
+    if (!session) {
+      sendError(res, 401, "No se pudo crear la sesión");
+      return;
+    }
+
+    const { user, status, message } = await resolveAuthenticatedUser(
+      session.access_token,
+    );
+
+    if (!user) {
+      await supabaseAdmin.auth.admin
+        .signOut(session.access_token, "global")
+        .catch(() => {});
+      sendError(res, status, message);
+      return;
+    }
+
     await logAudit({
-      userId: user?.id,
+      userId: user.id,
       action: "LOGIN",
       module: "AUTH",
       req,
     });
 
     sendSuccess(res, 200, "Login exitoso", {
-      user: user || null,
+      user,
       session,
     });
   } catch (error) {

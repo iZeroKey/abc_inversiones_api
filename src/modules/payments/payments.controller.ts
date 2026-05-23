@@ -59,7 +59,7 @@ export const registerPayment = async (
       evidenceUrl = await uploadFileStream(
         "vouchers",
         validation.data.loanId,
-        streamParsed.fileStream.stream,
+        streamParsed.fileStream.buffer,
         streamParsed.fileStream.generatedName,
         streamParsed.fileStream.mimetype,
       );

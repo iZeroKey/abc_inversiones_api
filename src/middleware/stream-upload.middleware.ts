@@ -2,7 +2,7 @@ import busboy from "busboy";
 import { randomUUID } from "crypto";
 import { NextFunction, Response } from "express";
 import path from "path";
-import { PassThrough, Readable } from "stream";
+import { Readable } from "stream";
 import { AuthRequest } from "./auth.middleware.js";
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -21,6 +21,8 @@ export interface ParsedFileStream {
   fieldname: string;
   originalname: string;
   mimetype: string;
+  buffer: Buffer;
+  size: number;
   stream: Readable;
   generatedName: string;
 }
@@ -139,19 +141,28 @@ export const streamUpload = (options: StreamUploadOptions) => {
           };
         });
       } else {
-        const passThrough = new PassThrough();
-        stream.pipe(passThrough);
-
         const ext = path.extname(filename) || ".jpg";
         const generatedName = `${randomUUID()}${ext}`;
+        const chunks: Buffer[] = [];
 
-        parsed.fileStream = {
-          fieldname: name,
-          originalname: filename,
-          mimetype: mimeType,
-          stream: passThrough,
-          generatedName,
-        };
+        stream.on("data", (chunk: Buffer) => {
+          chunks.push(chunk);
+        });
+
+        stream.on("end", () => {
+          if (fileTruncated) return;
+
+          const buffer = Buffer.concat(chunks);
+          parsed.fileStream = {
+            fieldname: name,
+            originalname: filename,
+            mimetype: mimeType,
+            buffer,
+            size: buffer.length,
+            stream: Readable.from(buffer),
+            generatedName,
+          };
+        });
       }
     });
 

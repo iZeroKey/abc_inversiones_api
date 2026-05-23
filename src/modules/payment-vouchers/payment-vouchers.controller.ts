@@ -16,7 +16,8 @@ import {
 } from "../../utils/response.util.js";
 import { resolveFileUrl, uploadFileStream } from "../../utils/storage.util.js";
 import {
-  processPaymentLogic,
+  PaymentBusinessError,
+  processPaymentLogicInTransaction,
   recalculateLoanLedger,
 } from "../payments/payments.service.js";
 import {
@@ -88,11 +89,11 @@ const voucherNeedsInvestorReview = async (
  * Permite al cliente subir un comprobante de pago (voucher).
  * Acepta imagen como multipart/form-data en el campo "evidence".
  *
- * Implementación con Streaming Pass-Through:
+ * Implementación con busboy y buffer acotado:
  * - Los campos de texto se extraen del stream-parser (busboy) conforme llegan.
- * - La imagen se retransmite en tiempo real a Supabase Storage sin acumularse
- *   en RAM, reduciendo el uso de memoria a ~64KB por request y evitando timeouts
- *   del proxy Cloudflare al mantener actividad constante de red.
+ * - La imagen se mantiene en memoria con límite estricto antes de subirla a
+ *   Supabase Storage. El límite actual es pequeño (5MB) y evita deadlocks por
+ *   backpressure entre busboy y el SDK de Storage.
  * - Fallback: Si se recibe como JSON (sin multipart), usa el flujo legacy con multer.
  */
 export const submitVoucher = async (
@@ -100,8 +101,8 @@ export const submitVoucher = async (
   res: Response,
 ): Promise<void> => {
   try {
-    // ── Fuente de datos: streaming (busboy) o legacy (multer/JSON) ──
-    // Si la petición fue multipart, los campos vienen del stream-parser.
+    // Fuente de datos: multipart (busboy) o JSON.
+    // Si la petición fue multipart, los campos vienen del parser.
     // Si fue JSON (ej. tests o requests sin archivo), usar req.body.
     const streamParsed = req.streamParsed;
     const hasStreamFields =
@@ -166,16 +167,14 @@ export const submitVoucher = async (
       return;
     }
 
-    // 4. Subir imagen al Storage — modo streaming o legacy
+    // 4. Subir imagen al Storage
     let evidenceUrl = validation.data.evidenceUrl || null;
 
     if (streamParsed?.fileStream) {
-      // ── Streaming Pass-Through: pipe directo a Supabase Storage ──
-      // Los bytes fluyen: Cliente → Cloud Run → Supabase sin acumularse en RAM.
       evidenceUrl = await uploadFileStream(
         "vouchers",
         loanId,
-        streamParsed.fileStream.stream,
+        streamParsed.fileStream.buffer,
         streamParsed.fileStream.generatedName,
         streamParsed.fileStream.mimetype,
       );
@@ -422,31 +421,41 @@ export const processVoucher = async (
       return;
     }
 
-    // Si es aprobación final, aplicar el pago al préstamo
-    if (nextStatus === "owner_approved") {
-      const appliedPayment = await processPaymentLogic({
-        loanId: voucher.loanId,
-        amount: voucher.amount,
-        method: "transfer",
-        registeredById: user.id,
-        voucherId: voucher.id,
-        observation: `Voucher aprobado: ${observation || ""}`,
-        reference: voucher.operationId,
-        paymentDate: voucher.operationDate || undefined,
-      });
-      appliedPaymentId = appliedPayment.id;
-    }
+    const { updated, paymentId } = await db.transaction(async (tx) => {
+      let paymentId: string | null = null;
 
-    const [updated] = await db
-      .update(paymentVouchers)
-      .set({
-        status: nextStatus,
-        observation,
-        processedById: user.id,
-        updatedAt: new Date(),
-      })
-      .where(eq(paymentVouchers.id, id))
-      .returning();
+      if (nextStatus === "owner_approved") {
+        const appliedPayment = await processPaymentLogicInTransaction(tx, {
+          loanId: voucher.loanId,
+          amount: voucher.amount,
+          method: "transfer",
+          registeredById: user.id,
+          voucherId: voucher.id,
+          observation: `Voucher aprobado: ${observation || ""}`,
+          reference: voucher.operationId,
+          paymentDate: voucher.operationDate || undefined,
+        });
+        paymentId = appliedPayment.id;
+      }
+
+      const [updated] = await tx
+        .update(paymentVouchers)
+        .set({
+          status: nextStatus,
+          observation,
+          processedById: user.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(paymentVouchers.id, id))
+        .returning();
+
+      if (!updated) {
+        throw new Error("No se pudo actualizar el voucher");
+      }
+
+      return { updated, paymentId };
+    });
+    appliedPaymentId = paymentId;
 
     await logAudit({
       userId: user.id,
@@ -521,7 +530,9 @@ export const processVoucher = async (
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Error al procesar el voucher";
-    sendError(res, 500, message, error);
+    const status =
+      error instanceof PaymentBusinessError ? error.statusCode : 500;
+    sendError(res, status, message, error);
   }
 };
 
