@@ -1,8 +1,13 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { db } from "../../config/db.js";
+import { loans } from "../../db/schema/loans.js";
+import { payments } from "../../db/schema/payments.js";
 import {
   authHeader,
   createAuthUser,
   createLoanFixture,
+  getUserByEmail,
   loginAs,
   request,
   seededEmails,
@@ -75,5 +80,53 @@ describe("Reports Module", () => {
 
     expect(statementRes.status).toBe(200);
     expect(portfolioRes.status).toBe(200);
+  });
+
+  it("debería excluir préstamos eliminados y pagos revertidos del statement", async () => {
+    const client = await createAuthUser({
+      email: uniqueEmail("reports-filter-client"),
+      firstName: "Cliente",
+      lastName: "Filtros",
+      role: "client",
+    });
+    const admin = await getUserByEmail(seededEmails.admin);
+    const activeLoan = await createLoanFixture({
+      clientId: client.id,
+      status: "active",
+      isCompanyFunded: true,
+      totalDebt: "100.00",
+    });
+    const deletedLoan = await createLoanFixture({
+      clientId: client.id,
+      status: "active",
+      isCompanyFunded: true,
+      principal: "999.00",
+      totalDebt: "999.00",
+    });
+
+    await db
+      .update(loans)
+      .set({ status: "deleted", deletedAt: new Date() })
+      .where(eq(loans.id, deletedLoan.id));
+    await db.insert(payments).values({
+      loanId: activeLoan.id,
+      amount: "50.00",
+      method: "cash",
+      registeredById: admin!.id,
+      status: "reversed",
+      deletedAt: new Date(),
+    });
+
+    const res = await request
+      .get(`/api/v1/reports/statement/${client.id}`)
+      .set(authHeader(await loginAs(seededEmails.admin)));
+
+    expect(res.status).toBe(200);
+    expect(
+      res.body.data.loans.some(
+        (loan: { id: string }) => loan.id === deletedLoan.id,
+      ),
+    ).toBe(false);
+    expect(res.body.data.summary.totalPaid).toBe("0");
   });
 });

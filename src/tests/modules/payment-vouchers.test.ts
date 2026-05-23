@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { db } from "../../config/db.js";
 import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
+import { payments } from "../../db/schema/payments.js";
 import { users } from "../../db/schema/users.js";
 import { generatePublicCodeForRole } from "../../utils/public-code.util.js";
 import {
@@ -362,6 +363,51 @@ describe("Payment Vouchers Module", () => {
       .set(authHeader(adminToken));
     expect(deleted.status).toBe(200);
     expect(deleted.body.data.recalculation.loan.status).toBe("active");
+  });
+
+  it("debería mantener pendiente el voucher si la aprobación excede la deuda", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      investorId: null,
+      status: "active",
+      isCompanyFunded: true,
+      totalDebt: "100.00",
+      installmentsCount: 1,
+    });
+    await createInstallmentFixture({
+      loanId: loan.id,
+      installmentNumber: 1,
+      amount: "100.00",
+    });
+    const voucher = await createVoucherFixture({
+      loanId: loan.id,
+      clientId: client!.id,
+      amount: "100.01",
+      operationId: `OP-OVER-${Date.now()}`,
+      status: "pending_admin_review",
+    });
+
+    const res = await request
+      .patch(`/api/v1/payment-vouchers/${voucher.id}/process`)
+      .set(authHeader(adminToken))
+      .send({ action: "approve" });
+
+    expect(res.status).toBe(400);
+
+    const [updatedVoucher] = await db
+      .select()
+      .from(paymentVouchers)
+      .where(eq(paymentVouchers.id, voucher.id))
+      .limit(1);
+    const appliedPayments = await db
+      .select()
+      .from(payments)
+      .where(eq(payments.voucherId, voucher.id));
+
+    expect(updatedVoucher.status).toBe("pending_admin_review");
+    expect(appliedPayments).toHaveLength(0);
   });
 
   it("debería permitir aprobación del inversionista", async () => {

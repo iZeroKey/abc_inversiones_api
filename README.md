@@ -47,7 +47,7 @@ ABC Inversiones es una plataforma de gestión de préstamos que permite:
 - **Base de datos**: PostgreSQL (Supabase)
 - **Autenticación**: Supabase Auth
 - **Almacenamiento**: Supabase Storage
-- **Upload Streaming**: Busboy (multipart parser de bajo nivel)
+- **Upload Multipart**: Busboy (multipart parser de bajo nivel)
 - **OCR**: Google Cloud Vision API
 - **Logging**: Pino
 
@@ -62,7 +62,7 @@ src/
 ├── middleware/
 │   ├── auth.middleware.ts           # JWT vía Supabase Auth
 │   ├── role.middleware.ts           # Autorización por rol
-│   ├── stream-upload.middleware.ts  # Busboy streaming/buffer (vouchers, OCR, avatars)
+│   ├── stream-upload.middleware.ts  # Busboy multipart con buffers acotados
 │   └── error-handler.middleware.ts  # Manejo global de errores
 ├── modules/         # Lógica de negocio por módulo
 ├── routes/          # Definición de endpoints
@@ -72,17 +72,17 @@ src/
 └── tests/           # Tests de integración (vitest + supertest)
 ```
 
-### Estrategia de Upload: Streaming Pass-Through
+### Estrategia de Upload: Busboy con Buffer Acotado
 
 El backend usa dos estrategias de upload según el endpoint:
 
-| Endpoint                         | Middleware                     | Estrategia          | Límite | Razón                                           |
-| -------------------------------- | ------------------------------ | ------------------- | ------ | ----------------------------------------------- |
-| `POST /payment-vouchers`         | `streamVoucherUpload` (busboy) | Stream → Storage    | 5 MB   | Los bytes fluyen al Storage sin acumular en RAM |
-| `POST /payment-vouchers/analyze` | `bufferOcrUpload` (busboy)     | Buffer → Vision API | 1.5 MB | Vision API necesita la imagen completa          |
-| `PATCH /users/me/avatar`         | `bufferAvatarUpload` (busboy)  | Buffer → Storage    | 2 MB   | Reemplazo seguro del avatar anterior            |
+| Endpoint                         | Middleware                     | Estrategia          | Límite | Razón                                    |
+| -------------------------------- | ------------------------------ | ------------------- | ------ | ---------------------------------------- |
+| `POST /payment-vouchers`         | `streamVoucherUpload` (busboy) | Buffer → Storage    | 5 MB   | Límite pequeño y subida segura a Storage |
+| `POST /payment-vouchers/analyze` | `bufferOcrUpload` (busboy)     | Buffer → Vision API | 1.5 MB | Vision API necesita la imagen completa   |
+| `PATCH /users/me/avatar`         | `bufferAvatarUpload` (busboy)  | Buffer → Storage    | 2 MB   | Reemplazo seguro del avatar anterior     |
 
-**¿Por qué streaming?** La API se despliega en Cloud Run (Santiago) detrás de un Cloudflare Worker con límite de 100s por conexión. Con multer, el archivo se acumula en RAM antes de procesarse; con busboy, los campos de texto se procesan **durante** la subida del archivo, permitiendo validación concurrente y reduciendo el tiempo total de respuesta.
+**¿Por qué busboy?** La API mantiene límites estrictos por endpoint y evita cargar archivos grandes sin control. Los archivos permitidos son pequeños, por lo que un buffer acotado simplifica el flujo y evita problemas de backpressure entre el parser multipart y Supabase Storage.
 
 ---
 

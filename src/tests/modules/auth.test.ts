@@ -1,4 +1,7 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { db } from "../../config/db.js";
+import { users } from "../../db/schema/users.js";
 import {
   authHeader,
   createAuthUser,
@@ -40,6 +43,26 @@ describe("Auth Endpoints", () => {
       expect(typeof res.body.data.session.expires_in).toBe("number");
       expect(res.body.data.session.user).toBeUndefined();
       expect(res.body.data.session.token_type).toBeUndefined();
+    });
+
+    it("debería rechazar login si el usuario local está inactivo", async () => {
+      const inactiveUser = await createAuthUser({
+        email: uniqueEmail("inactive-login"),
+        firstName: "Usuario",
+        lastName: "Inactivo",
+        role: "client",
+      });
+
+      await db
+        .update(users)
+        .set({ active: false, updatedAt: new Date() })
+        .where(eq(users.id, inactiveUser.id));
+
+      const res = await request
+        .post("/api/v1/auth/login")
+        .send({ email: inactiveUser.email, password: TEST_PASSWORD });
+
+      expect(res.status).toBe(403);
     });
   });
 
