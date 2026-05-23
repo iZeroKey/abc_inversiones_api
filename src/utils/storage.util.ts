@@ -195,23 +195,26 @@ export const resolveFileUrl = async (
 export const uploadFileStream = async (
   bucket: string,
   folder: string,
-  stream: Readable,
+  file: Readable | Buffer,
   fileName: string,
   contentType: string,
 ): Promise<string> => {
   const filePath = `${folder}/${fileName}`;
 
-  logger.debug({ bucket, filePath }, "Streaming upload: recolectando stream");
-
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  let buffer: Buffer;
+  if (Buffer.isBuffer(file)) {
+    buffer = file;
+  } else {
+    const chunks: Buffer[] = [];
+    for await (const chunk of file) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    buffer = Buffer.concat(chunks);
   }
 
-  const buffer = Buffer.concat(chunks);
   logger.debug(
     { bucket, filePath, sizeKB: (buffer.length / 1024).toFixed(1) },
-    "Stream recolectado, subiendo a Storage",
+    "Subiendo archivo a Storage",
   );
 
   const { data, error } = await supabaseAdmin.storage
@@ -225,7 +228,7 @@ export const uploadFileStream = async (
     throw new Error(`Error subiendo archivo a Storage: ${error.message}`);
   }
 
-  logger.debug({ bucket, filePath: data.path }, "Streaming upload completado");
+  logger.debug({ bucket, filePath: data.path }, "Upload completado");
 
   return createStorageReference(bucket, data.path);
 };
