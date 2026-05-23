@@ -96,26 +96,6 @@ const loanListSelection = {
   >`(SELECT GREATEST(${installments.amount} - ${installments.paidAmount}, 0) FROM ${installments} WHERE ${installments.loanId} = ${loans.id} AND ${installments.status} <> 'paid' ORDER BY ${installments.dueDate} ASC LIMIT 1)`,
 };
 
-const parsePositiveInt = (
-  value: unknown,
-  fallback: number,
-  max?: number,
-): number => {
-  const raw =
-    typeof value === "string"
-      ? value
-      : Array.isArray(value) && typeof value[0] === "string"
-        ? value[0]
-        : "";
-  const parsed = Number.parseInt(raw, 10);
-
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return fallback;
-  }
-
-  return max ? Math.min(parsed, max) : parsed;
-};
-
 const selectLoanWithParticipantsById = async (id: string) => {
   const [loan] = await db
     .select(loanWithParticipantsSelection)
@@ -348,9 +328,6 @@ export const getAllLoans = async (
   try {
     const user = req.user!;
     const { status, clientId, investorId, from, to, search, q } = req.query;
-    const page = parsePositiveInt(req.query.page, 1);
-    const limit = parsePositiveInt(req.query.limit, 20, 100);
-    const offset = (page - 1) * limit;
 
     const conditions: SQL[] = [];
 
@@ -401,32 +378,21 @@ export const getAllLoans = async (
     }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
-    const countExpression = sql<number>`count(*)`.mapWith(Number);
 
-    const [[totalRow], results] = await Promise.all([
-      db
-        .select({ total: countExpression })
-        .from(loans)
-        .innerJoin(clientUsers, eq(clientUsers.id, loans.clientId))
-        .leftJoin(investorUsers, eq(investorUsers.id, loans.investorId))
-        .where(where),
-      db
-        .select(loanListSelection)
-        .from(loans)
-        .innerJoin(clientUsers, eq(clientUsers.id, loans.clientId))
-        .leftJoin(investorUsers, eq(investorUsers.id, loans.investorId))
-        .where(where)
-        .orderBy(desc(loans.createdAt))
-        .limit(limit)
-        .offset(offset),
-    ]);
+    const results = await db
+      .select(loanListSelection)
+      .from(loans)
+      .innerJoin(clientUsers, eq(clientUsers.id, loans.clientId))
+      .leftJoin(investorUsers, eq(investorUsers.id, loans.investorId))
+      .where(where)
+      .orderBy(desc(loans.createdAt));
 
-    const total = totalRow?.total || 0;
+    const total = results.length;
     sendSuccess(res, 200, "Préstamos obtenidos", results, {
-      page,
-      limit,
+      page: 1,
+      limit: total,
       total,
-      totalPages: Math.max(1, Math.ceil(total / limit)),
+      totalPages: 1,
     });
   } catch (error) {
     sendError(res, 500, "Error al obtener préstamos", error);
