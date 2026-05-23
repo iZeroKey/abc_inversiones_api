@@ -12,6 +12,7 @@ import {
   parsePublicCodeNumber,
   publicCodeKindForRole,
 } from "../../utils/public-code.util.js";
+import { emitUserDomainEvent } from "../../utils/realtime.util.js";
 import {
   formatZodError,
   sendError,
@@ -270,6 +271,12 @@ export const createUser = async (
       req,
     });
 
+    emitUserDomainEvent("user.created", {
+      userId: createdUser.id,
+      role: createdUser.role,
+      active: createdUser.active,
+    });
+
     sendSuccess(res, 201, "Usuario creado correctamente", createdUser);
   } catch (error) {
     sendError(res, 500, "Error al crear usuario", error);
@@ -398,6 +405,11 @@ export const updateUser = async (
     });
 
     const responseUser = await attachSignedAvatarUrl(updatedUser);
+    emitUserDomainEvent("user.updated", {
+      userId: updatedUser.id,
+      role: updatedUser.role,
+      active: updatedUser.active,
+    });
     sendSuccess(res, 200, "Usuario actualizado correctamente", responseUser);
   } catch (error) {
     sendError(res, 500, "Error al actualizar usuario", error);
@@ -473,6 +485,12 @@ export const linkAuthAccount = async (
       req,
     });
 
+    emitUserDomainEvent("user.updated", {
+      userId: updatedUser.id,
+      role: updatedUser.role,
+      active: updatedUser.active,
+    });
+
     sendSuccess(
       res,
       200,
@@ -537,6 +555,11 @@ export const updateAvatar = async (
     });
 
     const responseUser = await attachSignedAvatarUrl(updatedUser);
+    emitUserDomainEvent("user.updated", {
+      userId: updatedUser.id,
+      role: updatedUser.role,
+      active: updatedUser.active,
+    });
     sendSuccess(
       res,
       200,
@@ -590,6 +613,12 @@ export const deleteAvatar = async (
       oldData: { avatarUrl: currentUser.avatarUrl },
       newData: { avatarUrl: null },
       req,
+    });
+
+    emitUserDomainEvent("user.updated", {
+      userId: updatedUser.id,
+      role: updatedUser.role,
+      active: updatedUser.active,
     });
 
     sendSuccess(
@@ -647,6 +676,12 @@ export const deleteUser = async (
       entityId: id,
       newData: { movedPendingVouchersToAdminReview: movedVouchers },
       req,
+    });
+
+    emitUserDomainEvent("user.deleted", {
+      userId: deletedUser.id,
+      role: deletedUser.role,
+      active: deletedUser.active,
     });
 
     sendSuccess(res, 200, "Usuario desactivado correctamente", deletedUser);

@@ -315,12 +315,23 @@ export const updateLoan = async (
     });
 
     const responseLoan = await selectLoanWithParticipantsById(updated.id);
-    emitLoanDomainEvent("loan.updated", {
-      loanId: updated.id,
-      clientId: recalculated.loan.clientId,
-      investorId: recalculated.loan.investorId,
-      status: recalculated.loan.status,
-    });
+    emitLoanDomainEvent(
+      "loan.updated",
+      {
+        loanId: updated.id,
+        clientId: recalculated.loan.clientId,
+        investorId: recalculated.loan.investorId,
+        status: recalculated.loan.status,
+      },
+      {
+        userIds: [
+          oldLoan.clientId,
+          oldLoan.investorId,
+          recalculated.loan.clientId,
+          recalculated.loan.investorId,
+        ],
+      },
+    );
     sendSuccess(res, 200, "Préstamo actualizado correctamente", {
       loan: responseLoan || recalculated.loan,
       overpaidAmount: recalculated.overpaidAmount,

@@ -9,6 +9,10 @@ import { logAudit } from "../../utils/audit.util.js";
 import { sendNotification } from "../../utils/notification.util.js";
 import { generatePublicCodeForRole } from "../../utils/public-code.util.js";
 import {
+  emitAccessRequestDomainEvent,
+  emitUserDomainEvent,
+} from "../../utils/realtime.util.js";
+import {
   formatZodError,
   sendError,
   sendSuccess,
@@ -40,6 +44,11 @@ export const createRequest = async (
       entityId: newRequest.id,
       newData: newRequest,
       req,
+    });
+
+    emitAccessRequestDomainEvent("access-request.created", {
+      requestId: newRequest.id,
+      status: newRequest.status,
     });
 
     sendSuccess(res, 201, "Solicitud enviada correctamente", newRequest);
@@ -101,6 +110,7 @@ export const updateStatus = async (
     }
 
     const { status, observation, initialPassword } = validation.data;
+    let createdUser: typeof users.$inferSelect | undefined;
 
     const [accessRequest] = await db
       .select()
@@ -138,7 +148,7 @@ export const updateStatus = async (
         return;
       }
 
-      const [createdUser] = await db
+      [createdUser] = await db
         .insert(users)
         .values({
           authUserId: authData.user!.id,
@@ -152,6 +162,11 @@ export const updateStatus = async (
           ),
         })
         .returning();
+
+      if (!createdUser) {
+        sendError(res, 500, "No se pudo crear el usuario aprobado");
+        return;
+      }
 
       await logAudit({
         userId: req.user!.id,
@@ -189,6 +204,19 @@ export const updateStatus = async (
       newData: { status },
       req,
     });
+
+    emitAccessRequestDomainEvent("access-request.updated", {
+      requestId: updatedRequest.id,
+      status: updatedRequest.status,
+    });
+
+    if (createdUser) {
+      emitUserDomainEvent("user.created", {
+        userId: createdUser.id,
+        role: createdUser.role,
+        active: createdUser.active,
+      });
+    }
 
     sendSuccess(res, 200, `Solicitud marcada como ${status}`, updatedRequest);
   } catch (error) {

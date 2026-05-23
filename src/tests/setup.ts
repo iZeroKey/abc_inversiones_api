@@ -1,19 +1,20 @@
 import { execSync } from "child_process";
 import "dotenv/config";
+import { env } from "../config/env.js";
 import { queryClient } from "../config/db.js";
 
 export async function setup() {
-  if (!process.env.DATABASE_URL) {
-    console.warn("DATABASE_URL no definida. Saltando setup de DB.");
-    return;
-  }
-
   console.log("Configurando entorno de prueba...");
 
   try {
     const commandEnv = {
       ...process.env,
+      NODE_ENV: "test",
       VITEST: "true",
+      DATABASE_URL: env.DATABASE_URL,
+      SUPABASE_URL: env.SUPABASE_URL,
+      SUPABASE_ANON_KEY: env.SUPABASE_ANON_KEY,
+      SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY,
     };
 
     execSync("pnpm app:reset --confirm", {

@@ -91,6 +91,7 @@ class RealtimeService {
 
     this.userBySocket.clear();
     this.socketsByUser.clear();
+    this.socketUsers.clear();
 
     if (!this.wss) {
       return;
@@ -247,7 +248,18 @@ class RealtimeService {
     token: string,
     authTimeout: ReturnType<typeof setTimeout>,
   ): Promise<void> {
-    const authResult = await resolveAuthenticatedUser(token);
+    let authResult: Awaited<ReturnType<typeof resolveAuthenticatedUser>>;
+    try {
+      authResult = await resolveAuthenticatedUser(token);
+    } catch {
+      this.safeSend(socket, {
+        type: "auth.error",
+        data: { message: "No se pudo validar la autenticación" },
+        timestamp: new Date().toISOString(),
+      });
+      socket.close(1011, "Authentication service unavailable");
+      return;
+    }
 
     if (!authResult.user) {
       this.safeSend(socket, {
