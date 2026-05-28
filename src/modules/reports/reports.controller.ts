@@ -52,6 +52,8 @@ export const getClientStatement = async (
         ...getTableColumns(loans),
         clientCode: users.publicCode,
         clientName: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
+        pendingInstallments: sql<number>`COALESCE((SELECT count(*) FROM ${installments} WHERE ${installments.loanId} = ${loans.id} AND ${installments.status} <> 'paid'), 0)::int`,
+        totalPaid: sql<string>`COALESCE((SELECT sum(${installments.paidAmount}) FROM ${installments} WHERE ${installments.loanId} = ${loans.id}), 0)`,
       })
       .from(loans)
       .innerJoin(users, eq(users.id, loans.clientId))
@@ -116,6 +118,22 @@ export const getClientStatement = async (
         ),
       );
 
+    const [pendingInstallmentStats] = await db
+      .select({
+        pendingInstallments: sql<number>`count(*)::int`,
+      })
+      .from(installments)
+      .innerJoin(loans, eq(loans.id, installments.loanId))
+      .where(
+        and(
+          eq(loans.clientId, targetClientId),
+          eq(loans.status, "active"),
+          isNull(loans.deletedAt),
+          ne(loans.status, "deleted"),
+          ne(installments.status, "paid"),
+        ),
+      );
+
     sendSuccess(res, 200, "Estado de cuenta obtenido", {
       client,
       summary: {
@@ -124,7 +142,9 @@ export const getClientStatement = async (
         paymentCount: paymentStats?.paymentCount || 0,
         overdueCount: overdueStats?.overdueCount || 0,
         overdueAmount: overdueStats?.overdueAmount || "0",
+        pendingInstallments: pendingInstallmentStats?.pendingInstallments || 0,
       },
+      pendingInstallments: pendingInstallmentStats?.pendingInstallments || 0,
       loans: clientLoans,
     });
   } catch (error) {
@@ -190,6 +210,23 @@ export const getInvestorPortfolio = async (
         ),
       );
 
+    const [paymentStats] = await db
+      .select({
+        collectedAmount: sql<string>`COALESCE(sum(${payments.amount}), 0)`,
+        confirmedPayments: sql<number>`count(*)`,
+      })
+      .from(payments)
+      .innerJoin(loans, eq(loans.id, payments.loanId))
+      .where(
+        and(
+          eq(loans.investorId, targetInvestorId),
+          isNull(loans.deletedAt),
+          ne(loans.status, "deleted"),
+          eq(payments.status, "confirmed"),
+          isNull(payments.deletedAt),
+        ),
+      );
+
     // Vouchers pendientes de revisión del inversionista
     const pendingVouchers = await db
       .select({
@@ -213,8 +250,17 @@ export const getInvestorPortfolio = async (
       )
       .orderBy(desc(paymentVouchers.createdAt));
 
+    const summary = {
+      ...stats,
+      collectedAmount: paymentStats?.collectedAmount || "0",
+      confirmedPayments: paymentStats?.confirmedPayments || 0,
+      totalReturn: stats?.expectedRevenue || "0",
+    };
+
     sendSuccess(res, 200, "Portafolio de inversiones obtenido", {
-      summary: stats,
+      summary,
+      collectedAmount: summary.collectedAmount,
+      investments: investorLoans,
       loans: investorLoans,
       pendingVouchers,
     });
