@@ -312,15 +312,18 @@ En `PATCH /users/:id`, un usuario solo puede actualizar sus campos de perfil (`f
 
 ### Préstamos
 
-| Método | Endpoint                | Descripción        | Acceso  |
-| ------ | ----------------------- | ------------------ | ------- |
-| POST   | /loans                  | Crear préstamo     | Admin   |
-| GET    | /loans                  | Listar préstamos   | Privado |
-| GET    | /loans/summary          | Resumen financiero | Privado |
-| GET    | /loans/:id              | Préstamo por ID    | Privado |
-| GET    | /loans/:id/installments | Cronograma         | Privado |
-| PATCH  | /loans/:id/approve      | Aprobar préstamo   | Privado |
-| PATCH  | /loans/:id/reject       | Rechazar préstamo  | Privado |
+| Método | Endpoint                | Descripción                                   | Acceso  |
+| ------ | ----------------------- | --------------------------------------------- | ------- |
+| POST   | /loans                  | Crear préstamo                                | Admin   |
+| GET    | /loans                  | Listar préstamos                              | Privado |
+| GET    | /loans/summary          | Resumen financiero                            | Privado |
+| GET    | /loans/:id              | Préstamo por ID                               | Privado |
+| GET    | /loans/:id/bundle       | Detalle completo con cuotas, pagos y vouchers | Privado |
+| GET    | /loans/:id/installments | Cronograma                                    | Privado |
+| PATCH  | /loans/:id/approve      | Aprobar préstamo                              | Privado |
+| PATCH  | /loans/:id/reject       | Rechazar préstamo                             | Privado |
+
+`GET /loans` acepta `page`, `limit`, `status`, `search`, `clientId`, `investorId`, `from` y `to`. Cuando se envía `limit`, la respuesta incluye `meta.page`, `meta.limit`, `meta.total` y `meta.totalPages`. `GET /loans/:id/bundle` es aditivo y evita llamadas separadas a detalle, cronograma, pagos y vouchers.
 
 ### Pagos
 
@@ -360,6 +363,8 @@ Si el préstamo no tiene inversionista con cuenta de acceso activa, el voucher e
 | GET    | /reports/statement | Estado de cuenta       | Admin, Client   |
 | GET    | /reports/portfolio | Portafolio inversiones | Admin, Investor |
 | GET    | /reports/dashboard | Dashboard admin        | Admin           |
+
+`/reports/statement` incluye progreso por préstamo (`totalPaid`, `pendingInstallments`) y resumen agregado de cuotas pendientes. `/reports/portfolio` incluye `collectedAmount`, `confirmedPayments`, `totalReturn` y el alias `investments` para clientes que consumen portafolio como lista de inversiones.
 
 ### Auditoría
 

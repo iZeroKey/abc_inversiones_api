@@ -61,8 +61,10 @@ Privado (Client para sí mismo, Admin)
       "totalPaid": "500.00",
       "paymentCount": 1,
       "overdueCount": 0,
-      "overdueAmount": "0.00"
+      "overdueAmount": "0.00",
+      "pendingInstallments": 11
     },
+    "pendingInstallments": 11,
     "loans": [
       {
         "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
@@ -81,7 +83,9 @@ Privado (Client para sí mismo, Admin)
         "updatedAt": "2026-05-22T04:30:00.000Z",
         "deletedAt": null,
         "clientCode": "US-00001",
-        "clientName": "Juan Pérez"
+        "clientName": "Juan Pérez",
+        "totalPaid": "500.00",
+        "pendingInstallments": 11
       }
     ]
   },
@@ -144,10 +148,27 @@ Privado (Investor para sí mismo, Admin)
     "summary": {
       "totalInvested": "50000.00",
       "expectedRevenue": "55000.00",
+      "totalReturn": "55000.00",
+      "collectedAmount": "12500.00",
+      "confirmedPayments": 8,
       "activeLoans": 5,
       "paidLoans": 2,
       "defaultedLoans": 0
     },
+    "collectedAmount": "12500.00",
+    "investments": [
+      {
+        "loanId": "2bb837fa-f182-4aa8-9283-718293bc9281",
+        "publicCode": "PR-00001",
+        "clientId": "uuid-client-id",
+        "clientCode": "US-00001",
+        "clientName": "Juan Pérez",
+        "principal": "10000.00",
+        "totalDebt": "11000.00",
+        "status": "active",
+        "createdAt": "2026-05-01T00:00:00.000Z"
+      }
+    ],
     "loans": [
       {
         "loanId": "2bb837fa-f182-4aa8-9283-718293bc9281",
@@ -177,6 +198,8 @@ Privado (Investor para sí mismo, Admin)
   }
 }
 ```
+
+`investments` es un alias aditivo de `loans` para clientes que ya consumen el portafolio como lista de inversiones. Ambos arreglos contienen la misma forma de datos.
 
 ### Códigos de Estado HTTP
 

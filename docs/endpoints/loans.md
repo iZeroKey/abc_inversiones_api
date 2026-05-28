@@ -6,12 +6,13 @@
 2. [Get All Loans](#get-all-loans)
 3. [Get Summary](#get-summary)
 4. [Get Loan By ID](#get-loan-by-id)
-5. [Get Loan Installments](#get-loan-installments)
-6. [Get Admin Loan Summary](#get-admin-loan-summary)
-7. [Update Loan](#update-loan)
-8. [Approve Loan](#approve-loan)
-9. [Delete Loan](#delete-loan)
-10. [Reject Loan](#reject-loan)
+5. [Get Loan Bundle](#get-loan-bundle)
+6. [Get Loan Installments](#get-loan-installments)
+7. [Get Admin Loan Summary](#get-admin-loan-summary)
+8. [Update Loan](#update-loan)
+9. [Approve Loan](#approve-loan)
+10. [Delete Loan](#delete-loan)
+11. [Reject Loan](#reject-loan)
 
 ---
 
@@ -148,17 +149,17 @@ Privado
 
 ### Parámetros de Consulta
 
-| Campo      | Tipo   | Obligatorio | Descripción                                                                              |
-| ---------- | ------ | ----------- | ---------------------------------------------------------------------------------------- |
-| status     | string | No          | Filtrar por estado del préstamo (ej. `"active"`, `"paid"`, `"rejected"`, `"defaulted"`). |
-| clientId   | uuid   | No          | Filtrar por ID del cliente (ignorado para clientes).                                     |
-| investorId | uuid   | No          | Filtrar por ID del inversionista (ignorado para inversionistas).                         |
-| from       | string | No          | Fecha ISO8601 inicial para filtrar por fecha de creación del préstamo.                   |
-| to         | string | No          | Fecha ISO8601 final para filtrar por fecha de creación del préstamo.                     |
-| search     | string | No          | Buscar coincidencia parcial en códigos públicos o nombres del cliente/inversionista.     |
-| q          | string | No          | Alias para `search`.                                                                     |
-| page       | number | No          | Número de página (default: `1`).                                                         |
-| limit      | number | No          | Límite por página (default: `20`, max: `100`).                                           |
+| Campo      | Tipo   | Obligatorio | Descripción                                                                                                    |
+| ---------- | ------ | ----------- | -------------------------------------------------------------------------------------------------------------- |
+| status     | string | No          | Filtrar por estado del préstamo (ej. `"active"`, `"paid"`, `"rejected"`, `"defaulted"`).                       |
+| clientId   | uuid   | No          | Filtrar por ID del cliente (ignorado para clientes).                                                           |
+| investorId | uuid   | No          | Filtrar por ID del inversionista (ignorado para inversionistas).                                               |
+| from       | string | No          | Fecha ISO8601 inicial para filtrar por fecha de creación del préstamo.                                         |
+| to         | string | No          | Fecha ISO8601 final para filtrar por fecha de creación del préstamo.                                           |
+| search     | string | No          | Buscar coincidencia parcial en códigos públicos o nombres del cliente/inversionista.                           |
+| q          | string | No          | Alias para `search`.                                                                                           |
+| page       | number | No          | Número de página (default: `1` cuando se envía `limit`).                                                       |
+| limit      | number | No          | Límite por página. Si se omite, se devuelve la lista completa compatible con clientes antiguos. Máximo: `100`. |
 
 ### Respuesta Exitosa
 
@@ -180,6 +181,11 @@ Privado
       "totalDebt": "11282.52",
       "status": "active",
       "installmentsCount": 12,
+      "totalPaid": "940.21",
+      "remainingDebt": "10342.31",
+      "remainingInstallments": 11,
+      "nextPaymentDate": "2026-06-08T00:00:00.000Z",
+      "nextPaymentAmount": "940.21",
       "createdAt": "2026-05-22T04:26:00.000Z"
     }
   ],
@@ -356,6 +362,109 @@ Privado (Cualquier participante del préstamo o Admin/Owner)
 | Código | Descripción            |
 | ------ | ---------------------- |
 | 200    | Préstamo obtenido      |
+| 401    | No autenticado         |
+| 403    | Sin acceso             |
+| 404    | Préstamo no encontrado |
+| 500    | Error interno          |
+
+---
+
+## Get Loan Bundle
+
+Obtener en una sola respuesta el detalle del préstamo, cronograma, pagos confirmados/revertidos no eliminados y vouchers no eliminados. Este endpoint evita consultas repetidas desde clientes que necesitan abrir el detalle completo de un préstamo.
+
+### Endpoint
+
+```
+GET /api/v1/loans/:id/bundle
+```
+
+### Parámetros de Ruta
+
+| Parámetro | Tipo | Obligatorio | Descripción               |
+| --------- | ---- | ----------- | ------------------------- |
+| id        | uuid | Sí          | UUID interno del préstamo |
+
+### Acceso
+
+Privado (Cualquier participante del préstamo o Admin/Owner)
+
+### Encabezados
+
+| Encabezado    | Valor          | Obligatorio |
+| ------------- | -------------- | ----------- |
+| Authorization | Bearer {token} | Sí          |
+
+### Respuesta Exitosa
+
+```json
+{
+  "success": true,
+  "message": "Bundle de préstamo obtenido",
+  "data": {
+    "loan": {
+      "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
+      "publicCode": "PR-00001",
+      "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+      "clientCode": "CL-00001",
+      "clientName": "Juan Pérez",
+      "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
+      "investorCode": "IN-00001",
+      "investorName": "María Gómez",
+      "principal": "10000.00",
+      "interestRate": "5.00",
+      "totalDebt": "11282.52",
+      "status": "active"
+    },
+    "installments": [
+      {
+        "id": "uuid-installment-1",
+        "loanId": "2bb837fa-f182-4aa8-9283-718293bc9281",
+        "installmentNumber": 1,
+        "dueDate": "2026-06-08T00:00:00.000Z",
+        "amount": "940.21",
+        "paidAmount": "0.00",
+        "status": "pending"
+      }
+    ],
+    "payments": [
+      {
+        "id": "uuid-payment-1",
+        "loanId": "2bb837fa-f182-4aa8-9283-718293bc9281",
+        "amount": "940.21",
+        "paymentDate": "2026-06-08T00:00:00.000Z",
+        "method": "transfer",
+        "status": "confirmed",
+        "evidenceUrl": "https://signed-url-temporal.example"
+      }
+    ],
+    "vouchers": [
+      {
+        "id": "uuid-voucher-1",
+        "loanId": "2bb837fa-f182-4aa8-9283-718293bc9281",
+        "amount": "940.21",
+        "operationId": "OP-12345",
+        "status": "owner_approved",
+        "evidenceUrl": "https://signed-url-temporal.example"
+      }
+    ]
+  },
+  "meta": {
+    "timestamp": "2026-05-22T04:26:00.000Z"
+  }
+}
+```
+
+### Notas de Privacidad
+
+- `payments[].evidenceUrl` y `vouchers[].evidenceUrl` pueden ser URLs firmadas temporales.
+- El cliente debe tratar esta respuesta como sensible y evitar persistirla localmente.
+
+### Códigos de Estado HTTP
+
+| Código | Descripción            |
+| ------ | ---------------------- |
+| 200    | Bundle obtenido        |
 | 401    | No autenticado         |
 | 403    | Sin acceso             |
 | 404    | Préstamo no encontrado |
