@@ -35,6 +35,13 @@ router.get("/summary", authenticate, controller.getSummary);
 router.get("/admin-summary", authenticate, authorize(["admin"]), controller.getAdminLoanSummary);
 
 /**
+ * @route   GET /api/v1/loans/:id/bundle
+ * @desc    Obtener detalle, cronograma, pagos y vouchers de un préstamo en una sola respuesta.
+ * @access  Private
+ */
+router.get("/:id/bundle", authenticate, controller.getLoanBundle);
+
+/**
  * @route   GET /api/v1/loans/:id
  * @desc    Obtener detalle de un préstamo específico.
  * @access  Private

@@ -4,7 +4,9 @@ import {
   eq,
   getTableColumns,
   ilike,
+  isNull,
   lt,
+  ne,
   or,
   sql,
   type SQL,
@@ -14,6 +16,8 @@ import { Response } from "express";
 import { db } from "../../config/db.js";
 import { installments } from "../../db/schema/installments.js";
 import { loans } from "../../db/schema/loans.js";
+import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
+import { payments } from "../../db/schema/payments.js";
 import { users } from "../../db/schema/users.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { logAudit } from "../../utils/audit.util.js";
@@ -25,6 +29,7 @@ import {
   sendError,
   sendSuccess,
 } from "../../utils/response.util.js";
+import { resolveFileUrl } from "../../utils/storage.util.js";
 import { recalculateLoanLedger } from "../payments/payments.service.js";
 import {
   buildInstallmentDrafts,
@@ -106,6 +111,21 @@ const selectLoanWithParticipantsById = async (id: string) => {
     .limit(1);
 
   return loan;
+};
+
+const attachSignedEvidenceUrl = async <
+  T extends { evidenceUrl?: string | null },
+>(
+  record: T,
+): Promise<T> => {
+  if (!record.evidenceUrl) {
+    return record;
+  }
+
+  return {
+    ...record,
+    evidenceUrl: await resolveFileUrl(record.evidenceUrl),
+  };
 };
 
 export const createLoan = async (
@@ -327,7 +347,15 @@ export const getAllLoans = async (
 ): Promise<void> => {
   try {
     const user = req.user!;
-    const { status, clientId, investorId, from, to, search, q } = req.query;
+    const { status, clientId, investorId, from, to, search, q, page, limit } =
+      req.query;
+    const pageNumber = Math.max(Number.parseInt(String(page ?? "1"), 10), 1);
+    const requestedLimit = Number.parseInt(String(limit ?? ""), 10);
+    const hasPagination = Number.isFinite(requestedLimit) && requestedLimit > 0;
+    const pageLimit = hasPagination
+      ? Math.min(Math.max(requestedLimit, 1), 100)
+      : undefined;
+    const offset = pageLimit ? (pageNumber - 1) * pageLimit : 0;
 
     const conditions: SQL[] = [];
 
@@ -379,7 +407,7 @@ export const getAllLoans = async (
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const results = await db
+    const baseQuery = db
       .select(loanListSelection)
       .from(loans)
       .innerJoin(clientUsers, eq(clientUsers.id, loans.clientId))
@@ -387,12 +415,24 @@ export const getAllLoans = async (
       .where(where)
       .orderBy(desc(loans.createdAt));
 
-    const total = results.length;
+    const results = pageLimit
+      ? await baseQuery.limit(pageLimit).offset(offset)
+      : await baseQuery;
+
+    const [countRow] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(loans)
+      .innerJoin(clientUsers, eq(clientUsers.id, loans.clientId))
+      .leftJoin(investorUsers, eq(investorUsers.id, loans.investorId))
+      .where(where);
+
+    const total = countRow?.total ?? results.length;
+    const responseLimit = pageLimit ?? total;
     sendSuccess(res, 200, "Préstamos obtenidos", results, {
-      page: 1,
-      limit: total,
+      page: pageLimit ? pageNumber : 1,
+      limit: responseLimit,
       total,
-      totalPages: 1,
+      totalPages: responseLimit > 0 ? Math.ceil(total / responseLimit) : 1,
     });
   } catch (error) {
     sendError(res, 500, "Error al obtener préstamos", error);
@@ -457,6 +497,65 @@ export const getLoanInstallments = async (
     sendSuccess(res, 200, "Cronograma obtenido", results);
   } catch (error) {
     sendError(res, 500, "Error al obtener cronograma", error);
+  }
+};
+
+export const getLoanBundle = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const loanId = req.params.id as string;
+    const user = req.user!;
+    const loan = await selectLoanWithParticipantsById(loanId);
+
+    if (!loan || loan.deletedAt || loan.status === "deleted") {
+      sendError(res, 404, "Préstamo no encontrado");
+      return;
+    }
+
+    if (!canAccessLoan(user, loan)) {
+      sendError(res, 403, "No tienes acceso a este préstamo");
+      return;
+    }
+
+    const [loanInstallments, loanPayments, loanVouchers] = await Promise.all([
+      db
+        .select()
+        .from(installments)
+        .where(eq(installments.loanId, loanId))
+        .orderBy(installments.installmentNumber),
+      db
+        .select()
+        .from(payments)
+        .where(and(eq(payments.loanId, loanId), isNull(payments.deletedAt)))
+        .orderBy(desc(payments.paymentDate)),
+      db
+        .select()
+        .from(paymentVouchers)
+        .where(
+          and(
+            eq(paymentVouchers.loanId, loanId),
+            isNull(paymentVouchers.deletedAt),
+            ne(paymentVouchers.status, "deleted"),
+          ),
+        )
+        .orderBy(desc(paymentVouchers.createdAt)),
+    ]);
+
+    const [signedPayments, signedVouchers] = await Promise.all([
+      Promise.all(loanPayments.map(attachSignedEvidenceUrl)),
+      Promise.all(loanVouchers.map(attachSignedEvidenceUrl)),
+    ]);
+
+    sendSuccess(res, 200, "Bundle de préstamo obtenido", {
+      loan,
+      installments: loanInstallments,
+      payments: signedPayments,
+      vouchers: signedVouchers,
+    });
+  } catch (error) {
+    sendError(res, 500, "Error al obtener bundle del préstamo", error);
   }
 };
 

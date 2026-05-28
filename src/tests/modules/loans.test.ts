@@ -268,6 +268,62 @@ describe("Loans Module", () => {
     }
   });
 
+  it("debería paginar préstamos y exponer meta total", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+
+    const res = await request
+      .get("/api/v1/loans")
+      .query({ page: 1, limit: 1 })
+      .set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBeLessThanOrEqual(1);
+    expect(res.body.meta.page).toBe(1);
+    expect(res.body.meta.limit).toBe(1);
+    expect(res.body.meta.total).toBeGreaterThanOrEqual(res.body.data.length);
+    expect(res.body.meta.totalPages).toBeGreaterThanOrEqual(1);
+  });
+
+  it("debería devolver detalle, cuotas, pagos y vouchers en el bundle", async () => {
+    const adminToken = await loginAs(seededEmails.admin);
+    const client = await getUserByEmail(seededEmails.client);
+    const loan = await createLoanFixture({
+      clientId: client!.id,
+      status: "active",
+      isCompanyFunded: true,
+      investorId: null,
+      principal: "1000.00",
+      totalDebt: "1200.00",
+      installmentsCount: 2,
+    });
+    await createInstallmentFixture({
+      loanId: loan.id,
+      installmentNumber: 1,
+      amount: "600.00",
+    });
+
+    const paymentRes = await request
+      .post("/api/v1/payments")
+      .set(authHeader(adminToken))
+      .send({ loanId: loan.id, amount: "100.00", method: "cash" });
+    expect(paymentRes.status).toBe(201);
+
+    const res = await request
+      .get(`/api/v1/loans/${loan.id}/bundle`)
+      .set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.loan.id).toBe(loan.id);
+    expect(res.body.data.installments.length).toBeGreaterThanOrEqual(1);
+    expect(
+      res.body.data.installments.every(
+        (installment: { loanId: string }) => installment.loanId === loan.id,
+      ),
+    ).toBe(true);
+    expect(res.body.data.payments).toHaveLength(1);
+    expect(res.body.data.vouchers).toEqual([]);
+  });
+
   it("debería permitir editar un préstamo activo y regenerar cronograma", async () => {
     const adminToken = await loginAs(seededEmails.admin);
     const client = await getUserByEmail(seededEmails.client);
