@@ -1,124 +1,153 @@
 import "dotenv/config";
 import { eq } from "drizzle-orm";
-import { db } from "../config/db.js";
+import { db, queryClient } from "../config/db.js";
 import { supabaseAdmin } from "../config/supabase.js";
 import { users } from "../db/schema/users.js";
 import { generatePublicCodeForRole } from "../utils/public-code.util.js";
 
-async function seed() {
-  console.log("Sembrando base de datos...");
+type SeedUser = {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  role: "admin" | "client" | "investor";
+  isOwner: boolean;
+};
 
-  const testUsers = [
-    {
-      email: "admin@abc.com",
-      password: "password123",
-      firstName: "Admin",
-      lastName: "ABC",
-      phone: "+51999888777",
-      role: "admin" as const,
-      isOwner: true,
-    },
-    {
-      email: "client@abc.com",
-      password: "password123",
-      firstName: "Cliente",
-      lastName: "Prueba",
-      phone: "+51999111222",
-      role: "client" as const,
-      isOwner: false,
-    },
-    {
-      email: "investor@abc.com",
-      password: "password123",
-      firstName: "Inversor",
-      lastName: "Prueba",
-      phone: "+51999333444",
-      role: "investor" as const,
-      isOwner: false,
-    },
-  ];
+const SEED_USERS: SeedUser[] = [
+  {
+    email: "admin@abc.com",
+    password: "password123",
+    firstName: "Admin",
+    lastName: "ABC",
+    phone: "+51999888777",
+    role: "admin",
+    isOwner: true,
+  },
+  {
+    email: "client@abc.com",
+    password: "password123",
+    firstName: "Cliente",
+    lastName: "Prueba",
+    phone: "+51999111222",
+    role: "client",
+    isOwner: false,
+  },
+  {
+    email: "investor@abc.com",
+    password: "password123",
+    firstName: "Inversor",
+    lastName: "Prueba",
+    phone: "+51999333444",
+    role: "investor",
+    isOwner: false,
+  },
+];
 
-  try {
-    const {
-      data: { users: authUsers },
-      error: listError,
-    } = await supabaseAdmin.auth.admin.listUsers();
-    if (listError) throw listError;
+async function getOrCreateAuthUser(
+  email: string,
+  password: string,
+  phone: string,
+): Promise<string> {
+  const {
+    data: { users: authUsers },
+    error: listError,
+  } = await supabaseAdmin.auth.admin.listUsers();
+  if (listError) throw listError;
 
-    for (const userData of testUsers) {
-      console.log(`Procesando: ${userData.email}`);
+  const existing = authUsers.find((u) => u.email === email);
+  if (existing) {
+    return existing.id;
+  }
 
-      let supabaseId: string;
-      const existingAuthUser = authUsers.find(
-        (u) => u.email === userData.email,
-      );
+  const { data: authUser, error: authError } =
+    await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      phone,
+      phone_confirm: true,
+    });
 
-      if (existingAuthUser) {
-        supabaseId = existingAuthUser.id;
-      } else {
-        const { data: authUser, error: authError } =
-          await supabaseAdmin.auth.admin.createUser({
-            email: userData.email,
-            password: userData.password,
-            email_confirm: true,
-            phone: userData.phone,
-            phone_confirm: true,
-          });
+  if (authError || !authUser.user) {
+    throw new Error(
+      `Error creando usuario en Auth (${email}): ${authError?.message || "sin user"}`,
+    );
+  }
 
-        if (authError) {
-          console.error(
-            `Error en Auth (${userData.email}):`,
-            authError.message,
-          );
-          continue;
-        }
-        supabaseId = authUser.user.id;
-      }
+  return authUser.user.id;
+}
 
-      const localData = {
-        email: userData.email,
+async function upsertLocalUser(
+  authUserId: string,
+  userData: SeedUser,
+): Promise<void> {
+  const [existingUser] = await db
+    .select({ publicCode: users.publicCode })
+    .from(users)
+    .where(eq(users.email, userData.email))
+    .limit(1);
+
+  const publicCode =
+    existingUser?.publicCode ||
+    (await generatePublicCodeForRole(userData.role));
+
+  await db
+    .insert(users)
+    .values({
+      authUserId,
+      email: userData.email,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      phone: userData.phone,
+      role: userData.role,
+      isOwner: userData.isOwner,
+      publicCode,
+    })
+    .onConflictDoUpdate({
+      target: users.email,
+      set: {
+        authUserId,
         firstName: userData.firstName,
         lastName: userData.lastName,
         phone: userData.phone,
         role: userData.role,
         isOwner: userData.isOwner,
-      };
-      const [existingLocalUser] = await db
-        .select({ publicCode: users.publicCode })
-        .from(users)
-        .where(eq(users.email, userData.email))
-        .limit(1);
-      const publicCode =
-        existingLocalUser?.publicCode ||
-        (await generatePublicCodeForRole(userData.role));
-
-      await db
-        .insert(users)
-        .values({
-          ...localData,
-          authUserId: supabaseId,
-          publicCode,
-        })
-        .onConflictDoUpdate({
-          target: users.email,
-          set: {
-            authUserId: supabaseId,
-            firstName: localData.firstName,
-            lastName: localData.lastName,
-            phone: localData.phone,
-            role: localData.role,
-            isOwner: localData.isOwner,
-            publicCode,
-          },
-        });
-    }
-
-    console.log("Seed completado.");
-  } catch (error) {
-    console.error("Error en seed:", error);
-  } finally {
-    process.exit(0);
-  }
+        publicCode,
+      },
+    });
 }
 
-seed();
+export async function seed(): Promise<void> {
+  console.log("Sembrando base de datos...");
+
+  for (const userData of SEED_USERS) {
+    console.log(`  Procesando: ${userData.email}`);
+
+    const authUserId = await getOrCreateAuthUser(
+      userData.email,
+      userData.password,
+      userData.phone,
+    );
+
+    await upsertLocalUser(authUserId, userData);
+    console.log(`  ✓ ${userData.email} (${userData.role})`);
+  }
+
+  console.log("Seed completado.");
+}
+
+const isDirectExecution =
+  process.argv[1]?.endsWith("seed.ts") || process.argv[1]?.endsWith("seed.js");
+
+if (isDirectExecution) {
+  seed()
+    .catch((error) => {
+      console.error("Error en seed:", error);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await queryClient.end();
+    });
+}

@@ -185,7 +185,7 @@ FOR SELECT TO authenticated
 USING (user_id = private.current_app_user_id())`,
 ];
 
-async function main() {
+export async function setupRls(): Promise<void> {
   console.log("Configurando RLS de tablas de aplicación...");
 
   for (const statement of statements) {
@@ -195,11 +195,17 @@ async function main() {
   console.log("RLS de tablas de aplicación configurado.");
 }
 
-main()
-  .catch((error) => {
-    console.error("Error configurando RLS:", error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await queryClient.end();
-  });
+const isDirectExecution =
+  process.argv[1]?.endsWith("setup-rls.ts") ||
+  process.argv[1]?.endsWith("setup-rls.js");
+
+if (isDirectExecution) {
+  setupRls()
+    .catch((error) => {
+      console.error("Error configurando RLS:", error);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await queryClient.end();
+    });
+}

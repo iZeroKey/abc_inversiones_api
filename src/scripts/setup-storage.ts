@@ -2,8 +2,6 @@ import "dotenv/config";
 import { queryClient } from "../config/db.js";
 import { supabaseAdmin } from "../config/supabase.js";
 
-const isDryRun = process.argv.includes("--dry-run");
-
 const BUCKETS = [
   {
     name: "vouchers",
@@ -168,19 +166,10 @@ const applyStoragePolicies = async (): Promise<void> => {
   }
 };
 
-async function setupStorage() {
-  console.log(
-    `Configurando Supabase Storage${isDryRun ? " (dry-run)" : ""}...\n`,
-  );
+export async function setupStorage(): Promise<void> {
+  console.log("Configurando Supabase Storage...\n");
 
   for (const bucket of BUCKETS) {
-    if (isDryRun) {
-      console.log(
-        `  Bucket "${bucket.name}": public=${bucket.public}, fileSizeLimit=${bucket.fileSizeLimit}`,
-      );
-      continue;
-    }
-
     // Verificar si ya existe
     const { data: existing } = await supabaseAdmin.storage.getBucket(
       bucket.name,
@@ -224,21 +213,6 @@ async function setupStorage() {
     }
   }
 
-  if (isDryRun) {
-    console.log(
-      "  Vouchers usa bucket privado + signed URLs emitidas por backend.",
-    );
-    console.log(
-      "  Avatars usa bucket privado + signed URLs emitidas por backend.",
-    );
-    console.log(
-      "  Políticas RLS de storage.objects se mantienen como defensa en profundidad.",
-    );
-    console.log("\nDry-run completado.");
-    await queryClient.end();
-    process.exit(0);
-  }
-
   console.log("\nModelo aplicado:");
   console.log("  - vouchers: bucket privado");
   console.log(
@@ -249,11 +223,19 @@ async function setupStorage() {
   await applyStoragePolicies();
   console.log("  - políticas RLS de storage.objects aplicadas");
   console.log("\nSetup de Storage completado.");
-  await queryClient.end();
-  process.exit(0);
 }
 
-setupStorage().catch((err) => {
-  console.error("Error fatal:", err);
-  process.exit(1);
-});
+const isDirectExecution =
+  process.argv[1]?.endsWith("setup-storage.ts") ||
+  process.argv[1]?.endsWith("setup-storage.js");
+
+if (isDirectExecution) {
+  setupStorage()
+    .catch((err) => {
+      console.error("Error fatal:", err);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await queryClient.end();
+    });
+}
