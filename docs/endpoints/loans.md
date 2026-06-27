@@ -58,24 +58,26 @@ Privado (Admin, Owner)
   "installmentsCount": 12,
   "frequency": "monthly",
   "startDate": "2026-06-08T00:00:00.000Z",
+  "name": "Préstamo #PR-00001",
   "observation": "Préstamo regular con cuota mensual"
 }
 ```
 
 ### Diccionario de Datos
 
-| Campo             | Tipo   | Obligatorio | Descripción                 | Restricciones                                                            |
-| ----------------- | ------ | ----------- | --------------------------- | ------------------------------------------------------------------------ |
-| clientId          | uuid   | Sí          | ID del cliente              | UUID de usuario con rol `"client"`.                                      |
-| investorId        | uuid   | No          | ID del inversionista        | UUID de usuario con rol `"investor"` o `null`/`undefined`.               |
-| principal         | string | Sí          | Monto principal solicitado  | Debe ser un valor numérico positivo.                                     |
-| interestRate      | string | Sí          | Tasa de interés por periodo | Debe ser un valor numérico mayor a `0`.                                  |
-| interestType      | string | No          | Tipo de interés             | Literal `"simple"` (default).                                            |
-| interestPeriod    | string | No          | Periodo del interés         | Literal `"monthly"` (default).                                           |
-| installmentsCount | number | Sí          | Número total de cuotas      | Entero positivo entre `1` y `120` (inclusive).                           |
-| frequency         | enum   | No          | Frecuencia de pago          | `"daily"`, `"weekly"`, `"biweekly"`, `"monthly"` (default: `"monthly"`). |
-| startDate         | string | Sí          | Fecha de inicio             | Formato ISO8601 con offset de zona horaria.                              |
-| observation       | string | No          | Notas u observaciones       | -                                                                        |
+| Campo             | Tipo   | Obligatorio | Descripción                  | Restricciones                                                                     |
+| ----------------- | ------ | ----------- | ---------------------------- | --------------------------------------------------------------------------------- |
+| clientId          | uuid   | Sí          | ID del cliente               | UUID de usuario con rol `"client"`.                                               |
+| investorId        | uuid   | No          | ID del inversionista         | UUID de usuario con rol `"investor"` o `null`/`undefined`.                        |
+| principal         | string | Sí          | Monto principal solicitado   | Debe ser un valor numérico positivo.                                              |
+| interestRate      | string | Sí          | Tasa de interés por periodo  | Debe ser un valor numérico mayor a `0`.                                           |
+| interestType      | string | No          | Tipo de interés              | Literal `"simple"` (default).                                                     |
+| interestPeriod    | string | No          | Periodo del interés          | Literal `"monthly"` (default).                                                    |
+| installmentsCount | number | Sí          | Número total de cuotas       | Entero positivo entre `1` y `120` (inclusive).                                    |
+| frequency         | enum   | No          | Frecuencia de pago           | `"daily"`, `"weekly"`, `"biweekly"`, `"monthly"` (default: `"monthly"`).          |
+| name              | string | No          | Título o nombre del préstamo | Máximo 255 caracteres. Si no se envía, se genera como `"Préstamo #{publicCode}"`. |
+| startDate         | string | Sí          | Fecha de inicio              | Formato ISO8601 con offset de zona horaria.                                       |
+| observation       | string | No          | Notas u observaciones        | -                                                                                 |
 
 ### Regla Financiera y Cronograma
 
@@ -98,6 +100,7 @@ Privado (Admin, Owner)
   "data": {
     "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
     "publicCode": "PR-00001",
+    "name": "Préstamo #PR-00001",
     "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
     "clientCode": "CL-00001",
     "clientName": "Juan Pérez",
@@ -171,6 +174,7 @@ Privado
     {
       "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
       "publicCode": "PR-00001",
+      "name": "Préstamo #PR-00001",
       "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
       "clientCode": "CL-00001",
       "clientName": "Juan Pérez",
@@ -186,6 +190,11 @@ Privado
       "remainingInstallments": 11,
       "nextPaymentDate": "2026-06-08T00:00:00.000Z",
       "nextPaymentAmount": "940.21",
+      "nextInstallment": {
+        "dueDate": "2026-06-08T00:00:00.000Z",
+        "amount": "940.21"
+      },
+      "progress": 8,
       "createdAt": "2026-05-22T04:26:00.000Z"
     }
   ],
@@ -335,6 +344,7 @@ Privado (Cualquier participante del préstamo o Admin/Owner)
   "data": {
     "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
     "publicCode": "PR-00001",
+    "name": "Préstamo #PR-00001",
     "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
     "clientCode": "CL-00001",
     "clientName": "Juan Pérez",
@@ -405,6 +415,7 @@ Privado (Cualquier participante del préstamo o Admin/Owner)
     "loan": {
       "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
       "publicCode": "PR-00001",
+      "name": "Préstamo #PR-00001",
       "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
       "clientCode": "CL-00001",
       "clientName": "Juan Pérez",
@@ -639,6 +650,7 @@ Privado (Admin, Owner)
   "installmentsCount": 10,
   "frequency": "monthly",
   "startDate": "2026-02-01T00:00:00.000Z",
+  "name": "Préstamo #PR-00001 - Reajuste",
   "observation": "Reajuste de tasa pactado con cliente"
 }
 ```
@@ -654,6 +666,7 @@ Privado (Admin, Owner)
 | installmentsCount | number | Nuevo número de cuotas         | Entero positivo entre `1` y `120`.                |
 | frequency         | enum   | Frecuencia de pago             | `"daily"`, `"weekly"`, `"biweekly"`, `"monthly"`. |
 | startDate         | string | Fecha de inicio                | Formato ISO8601.                                  |
+| name              | string | Título o nombre del préstamo   | Máximo 255 caracteres.                            |
 | observation       | string | Notas o explicaciones (o null) | -                                                 |
 
 ### Respuesta Exitosa
@@ -666,6 +679,7 @@ Privado (Admin, Owner)
     "loan": {
       "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
       "publicCode": "PR-00001",
+      "name": "Préstamo #PR-00001 - Reajuste",
       "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
       "clientCode": "CL-00001",
       "clientName": "Juan Pérez",
@@ -748,6 +762,7 @@ Privado (Admin, Owner, o Inversionista asignado)
   "data": {
     "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
     "publicCode": "PR-00001",
+    "name": "Préstamo #PR-00001",
     "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
     "clientCode": "CL-00001",
     "clientName": "Juan Pérez",
@@ -777,6 +792,7 @@ Privado (Admin, Owner, o Inversionista asignado)
     "loan": {
       "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
       "publicCode": "PR-00001",
+      "name": "Préstamo #PR-00001",
       "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
       "clientCode": "CL-00001",
       "clientName": "Juan Pérez",

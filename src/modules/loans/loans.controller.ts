@@ -99,6 +99,7 @@ const loanListSelection = {
   nextPaymentAmount: sql<
     string | null
   >`(SELECT GREATEST(${installments.amount} - ${installments.paidAmount}, 0) FROM ${installments} WHERE ${installments.loanId} = ${loans.id} AND ${installments.status} <> 'paid' ORDER BY ${installments.dueDate} ASC LIMIT 1)`,
+  nextInstallment: sql<Record<string, unknown> | null>`(SELECT json_build_object('dueDate', ${installments.dueDate}, 'amount', ${installments.amount}) FROM ${installments} WHERE ${installments.loanId} = ${loans.id} AND ${installments.status} <> 'paid' ORDER BY ${installments.dueDate} ASC LIMIT 1)`,
 };
 
 const selectLoanWithParticipantsById = async (id: string) => {
@@ -167,11 +168,15 @@ export const createLoan = async (
       ? "pending_investor_review"
       : "pending_admin_review";
 
+    const publicCode = await generatePublicCode("loan");
+    const name = data.name ?? `Préstamo #${publicCode}`;
+
     const [newLoan] = await db
       .insert(loans)
       .values({
         ...data,
-        publicCode: await generatePublicCode("loan"),
+        name,
+        publicCode,
         principal: principal.toString(),
         interestRate: rate.toString(),
         totalDebt: totalDebt.toFixed(2),
@@ -419,6 +424,30 @@ export const getAllLoans = async (
       ? await baseQuery.limit(pageLimit).offset(offset)
       : await baseQuery;
 
+    const enrichedResults = results.map((loan) => {
+      const totalPaid = Number(loan.totalPaid);
+      const totalDebt = Number(loan.totalDebt);
+      const status = loan.status;
+
+      let progress: number;
+      if (status === "paid") {
+        progress = 100;
+      } else if (
+        ["draft", "pending_investor_review", "pending_admin_review", "rejected", "cancelled"].includes(status)
+      ) {
+        progress = 0;
+      } else {
+        progress = totalDebt > 0 ? Math.min(Math.round((totalPaid / totalDebt) * 100), 100) : 0;
+      }
+
+      const nextInstallment =
+        status === "active" || status === "defaulted"
+          ? loan.nextInstallment
+          : null;
+
+      return { ...loan, nextInstallment, progress };
+    });
+
     const [countRow] = await db
       .select({ total: sql<number>`count(*)::int` })
       .from(loans)
@@ -428,7 +457,7 @@ export const getAllLoans = async (
 
     const total = countRow?.total ?? results.length;
     const responseLimit = pageLimit ?? total;
-    sendSuccess(res, 200, "Préstamos obtenidos", results, {
+    sendSuccess(res, 200, "Préstamos obtenidos", enrichedResults, {
       page: pageLimit ? pageNumber : 1,
       limit: responseLimit,
       total,

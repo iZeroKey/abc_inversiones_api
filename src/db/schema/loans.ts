@@ -17,6 +17,7 @@ export const loans = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     publicCode: text("public_code"),
+    name: text("name"),
     clientId: uuid("client_id")
       .notNull()
       .references(() => users.id),
