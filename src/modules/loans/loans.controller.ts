@@ -30,6 +30,7 @@ import {
   sendSuccess,
 } from "../../utils/response.util.js";
 import { PaginationParamsMax } from "../../utils/validation.util.js";
+import { attachSignedUrls } from "../../utils/storage.util.js";
 import { recalculateLoanLedger } from "../payments/payments.service.js";
 import {
   buildInstallmentDrafts,
@@ -1155,5 +1156,102 @@ export const rejectLoan = async (
     sendSuccess(res, 200, "Préstamo rechazado", responseLoan || updated);
   } catch (error) {
     sendError(res, 500, "Error al rechazar el préstamo", error);
+  }
+};
+
+export const getLoanTransactions = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const loanId = req.params.id as string;
+    const params = PaginationParamsMax(100).safeParse(req.query);
+    if (!params.success) {
+      sendError(res, 400, "Parámetros inválidos", formatZodError(params.error));
+      return;
+    }
+    const { page, limit } = params.data;
+    const offset = (page - 1) * limit;
+
+    const [loan] = await db
+      .select({
+        id: loans.id,
+        clientId: loans.clientId,
+        investorId: loans.investorId,
+      })
+      .from(loans)
+      .where(eq(loans.id, loanId))
+      .limit(1);
+
+    if (!loan) {
+      sendError(res, 404, "Préstamo no encontrado");
+      return;
+    }
+
+    if (!canAccessLoan(req.user, loan as any)) {
+      sendError(res, 403, "No tienes acceso a las transacciones de este préstamo");
+      return;
+    }
+
+    const unionSql = sql`
+      WITH combined AS (
+        SELECT 
+          'payment' as type,
+          p.id,
+          p.amount,
+          p.payment_date as date,
+          p.status,
+          row_to_json(p) as payload
+        FROM payments p
+        WHERE p.loan_id = ${loanId} AND p.deleted_at IS NULL
+
+        UNION ALL
+
+        SELECT 
+          'voucher' as type,
+          v.id,
+          v.amount,
+          v.operation_date as date,
+          v.status,
+          row_to_json(v) as payload
+        FROM payment_vouchers v
+        WHERE v.loan_id = ${loanId} AND v.deleted_at IS NULL AND v.status != 'owner_approved'
+      )
+      SELECT * FROM combined
+    `;
+
+    const countResult = await db.execute(sql`
+      SELECT count(*)::int as total FROM (${unionSql}) as sub
+    `);
+    const total = (countResult[0] as any).total ?? 0;
+
+    const dataResult = await db.execute(sql`
+      ${unionSql}
+      ORDER BY date DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `);
+
+    const mappedData = dataResult.map((row: any) => {
+      const payload = typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload;
+      return {
+        type: row.type,
+        ...payload,
+        date: row.date,
+        evidenceUrl: payload.evidence_url || payload.evidenceUrl,
+      };
+    });
+
+    const signedResults = await attachSignedUrls(mappedData as any);
+
+    sendSuccess(res, 200, "Historial de transacciones obtenido", signedResults, {
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    sendError(res, 500, "Error al obtener las transacciones", error);
   }
 };

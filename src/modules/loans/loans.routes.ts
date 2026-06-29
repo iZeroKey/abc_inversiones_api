@@ -49,6 +49,13 @@ router.get("/:id/bundle", authenticate, controller.getLoanBundle);
 router.get("/:id", authenticate, controller.getLoanById);
 
 /**
+ * @route   GET /api/v1/loans/:id/transactions
+ * @desc    Obtener historial paginado de pagos y vouchers pendientes unificados.
+ * @access  Private
+ */
+router.get("/:id/transactions", authenticate, controller.getLoanTransactions);
+
+/**
  * @route   GET /api/v1/loans/:id/installments
  * @desc    Obtener el cronograma de pagos (cuotas) de un préstamo.
  * @access  Private
