@@ -75,7 +75,7 @@ describe("Payments Module", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.data.amount).toBe("100.00");
-    expect(res.body.data.evidenceUrl).toContain("token=");
+    expect(res.body.data.evidenceUrl).toContain("storage://");
 
     const [storedPayment] = await db
       .select()
@@ -88,7 +88,7 @@ describe("Payments Module", () => {
       .get(`/api/v1/payments/loan/${loan.id}`)
       .set(authHeader(adminToken));
     expect(history.status).toBe(200);
-    expect(history.body.data[0].evidenceUrl).toContain("token=");
+    expect(history.body.data[0].evidenceUrl).toContain("storage://");
   });
 
   it("debería aplicar un pago a una cuota overdue", async () => {

@@ -289,7 +289,7 @@ describe("Users Module Integration", () => {
         .attach("avatar", Buffer.from("fake-image-content"), "profile.png");
 
       expect(res.status).toBe(200);
-      expect(res.body.data.avatarUrl).toContain("token=");
+      expect(res.body.data.avatarUrl).toContain("storage://");
     });
   });
 
@@ -303,7 +303,7 @@ describe("Users Module Integration", () => {
         .attach("avatar", Buffer.from("fake-image-content"), "profile.png");
 
       expect(uploadRes.status).toBe(200);
-      expect(uploadRes.body.data.avatarUrl).toContain("token=");
+      expect(uploadRes.body.data.avatarUrl).toContain("storage://");
 
       const deleteRes = await request
         .delete("/api/v1/users/me/avatar")

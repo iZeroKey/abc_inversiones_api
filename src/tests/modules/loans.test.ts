@@ -278,10 +278,12 @@ describe("Loans Module", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data.length).toBeLessThanOrEqual(1);
-    expect(res.body.meta.page).toBe(1);
-    expect(res.body.meta.limit).toBe(1);
-    expect(res.body.meta.total).toBeGreaterThanOrEqual(res.body.data.length);
-    expect(res.body.meta.totalPages).toBeGreaterThanOrEqual(1);
+    expect(res.body.meta.pagination.page).toBe(1);
+    expect(res.body.meta.pagination.limit).toBe(1);
+    expect(res.body.meta.pagination.total).toBeGreaterThanOrEqual(
+      res.body.data.length,
+    );
+    expect(res.body.meta.pagination.totalPages).toBeGreaterThanOrEqual(1);
   });
 
   it("debería devolver detalle, cuotas, pagos y vouchers en el bundle", async () => {

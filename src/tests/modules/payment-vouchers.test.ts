@@ -213,7 +213,7 @@ describe("Payment Vouchers Module", () => {
       .attach("evidence", Buffer.from("fake-image-content"), "voucher.png");
 
     expect(res.status).toBe(201);
-    expect(res.body.data.evidenceUrl).toContain("token=");
+    expect(res.body.data.evidenceUrl).toContain("storage://");
   });
 
   it("debería responder 409 si la base rechaza un operationId duplicado", async () => {
