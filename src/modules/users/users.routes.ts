@@ -2,7 +2,7 @@ import { Router } from "express";
 import * as controller from "./users.controller.js";
 import { authenticate } from "../../middleware/auth.middleware.js";
 import { authorize } from "../../middleware/role.middleware.js";
-import { bufferAvatarUpload } from "../../middleware/stream-upload.middleware.js";
+import { streamAvatarUpload } from "../../middleware/stream-upload.middleware.js";
 
 const router = Router();
 
@@ -19,7 +19,7 @@ router.get("/me", authenticate, controller.getMe);
  *          Usa modo buffer (busboy, 2MB) con reemplazo seguro (atómico) del avatar anterior.
  * @access  Private
  */
-router.patch("/me/avatar", authenticate, bufferAvatarUpload, controller.updateAvatar);
+router.patch("/me/avatar", authenticate, streamAvatarUpload, controller.updateAvatar);
 
 /**
  * @route   DELETE /api/v1/users/me/avatar

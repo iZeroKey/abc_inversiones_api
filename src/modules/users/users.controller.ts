@@ -1,4 +1,13 @@
-import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  getTableColumns,
+  ilike,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { Response } from "express";
 import { db } from "../../config/db.js";
 import { supabaseAdmin } from "../../config/supabase.js";
@@ -19,10 +28,11 @@ import {
   sendSuccess,
 } from "../../utils/response.util.js";
 import {
+  attachSignedUrls,
   deleteStorageReference,
-  resolveFileUrl,
-  uploadAvatar,
+  finalizeAvatarUpload,
 } from "../../utils/storage.util.js";
+import { PaginationParamsMax } from "../../utils/validation.util.js";
 import {
   adminCreateUserSchema,
   adminUpdateUserSchema,
@@ -70,14 +80,11 @@ const normalizeUserPayload = <T extends Record<string, unknown>>(
 const attachSignedAvatarUrl = async <T extends { avatarUrl?: string | null }>(
   user: T,
 ): Promise<T> => {
-  if (!user.avatarUrl) {
+  if (!user.avatarUrl?.startsWith("storage://")) {
     return user;
   }
-
-  return {
-    ...user,
-    avatarUrl: await resolveFileUrl(user.avatarUrl),
-  };
+  const [resolved] = await attachSignedUrls([user as never], "avatarUrl");
+  return resolved as unknown as T;
 };
 
 const canManageTargetUser = (
@@ -150,14 +157,29 @@ export const getAllUsers = async (
   res: Response,
 ): Promise<void> => {
   try {
+    const params = PaginationParamsMax(100).safeParse(req.query);
+    if (!params.success) {
+      sendError(res, 400, "Parámetros inválidos", formatZodError(params.error));
+      return;
+    }
+    const { page, limit } = params.data;
+    const offset = (page - 1) * limit;
+
+    const { role, active, q, search } = req.query;
+
+    const conditions: SQL[] = [sql`${users.deletedAt} IS NULL`];
+
+    if (role) conditions.push(sql`${users.role} = ${role as string}`);
+    if (active !== undefined)
+      conditions.push(eq(users.active, active === "true"));
+
     const searchTerm =
-      typeof req.query.search === "string"
-        ? req.query.search.trim()
-        : typeof req.query.q === "string"
-          ? req.query.q.trim()
+      typeof search === "string"
+        ? search.trim()
+        : typeof q === "string"
+          ? q.trim()
           : "";
 
-    const conditions: SQL[] = [];
     if (searchTerm) {
       const pattern = `%${searchTerm}%`;
       conditions.push(
@@ -173,15 +195,37 @@ export const getAllUsers = async (
       );
     }
 
-    const results = await db
-      .select()
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [countRow] = await db
+      .select({ total: sql<number>`count(*)::int` })
       .from(users)
-      .where(conditions.length > 0 ? conditions[0] : undefined)
-      .orderBy(desc(users.createdAt));
-    const signedResults = await Promise.all(
-      results.map((user) => attachSignedAvatarUrl(user)),
+      .where(where);
+
+    const total = countRow?.total ?? 0;
+
+    const results = await db
+      .select(getTableColumns(users))
+      .from(users)
+      .where(where)
+      .orderBy(desc(users.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const signedResults = await attachSignedUrls(
+      results,
+      "avatarUrl",
+      "avatars",
     );
-    sendSuccess(res, 200, "Usuarios obtenidos", signedResults);
+
+    sendSuccess(res, 200, "Usuarios obtenidos", signedResults, {
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     sendError(res, 500, "Error al obtener usuarios", error);
   }
@@ -517,24 +561,15 @@ export const updateAvatar = async (
   try {
     const user = req.user!;
 
-    // Fuente de datos: busboy buffer
-    const parsedFile = req.streamParsed?.file;
+    const fileStream = req.streamParsed?.fileStream;
 
-    const buffer = parsedFile?.buffer;
-    const originalname = parsedFile?.originalname;
-    const mimetype = parsedFile?.mimetype;
-
-    if (!buffer || !originalname || !mimetype) {
+    if (!fileStream) {
       sendError(res, 400, "Debes adjuntar una imagen en el campo 'avatar'");
       return;
     }
 
-    const avatarUrl = await uploadAvatar(
-      user.id,
-      buffer,
-      originalname,
-      mimetype,
-    );
+    const tempStorageRef = await fileStream.uploadPromise;
+    const avatarUrl = await finalizeAvatarUpload(user.id, tempStorageRef);
 
     const [updatedUser] = await db
       .update(users)
