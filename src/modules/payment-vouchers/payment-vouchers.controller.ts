@@ -14,7 +14,8 @@ import {
   sendError,
   sendSuccess,
 } from "../../utils/response.util.js";
-import { resolveFileUrl, uploadFileStream } from "../../utils/storage.util.js";
+import { attachSignedUrls } from "../../utils/storage.util.js";
+import { PaginationParamsMax } from "../../utils/validation.util.js";
 import {
   PaymentBusinessError,
   processPaymentLogicInTransaction,
@@ -34,21 +35,6 @@ const isUniqueViolation = (error: unknown): boolean => {
     "code" in error &&
     error.code === "23505"
   );
-};
-
-const attachSignedEvidenceUrl = async <
-  T extends { evidenceUrl?: string | null },
->(
-  voucher: T,
-): Promise<T> => {
-  if (!voucher.evidenceUrl) {
-    return voucher;
-  }
-
-  return {
-    ...voucher,
-    evidenceUrl: await resolveFileUrl(voucher.evidenceUrl),
-  };
 };
 
 const normalizedOperationIdCondition = (operationId: string): SQL => {
@@ -171,13 +157,7 @@ export const submitVoucher = async (
     let evidenceUrl = validation.data.evidenceUrl || null;
 
     if (streamParsed?.fileStream) {
-      evidenceUrl = await uploadFileStream(
-        "vouchers",
-        loanId,
-        streamParsed.fileStream.buffer,
-        streamParsed.fileStream.generatedName,
-        streamParsed.fileStream.mimetype,
-      );
+      evidenceUrl = await streamParsed.fileStream.uploadPromise;
     }
 
     // 5. Determinar estado inicial según si el inversionista puede revisar.
@@ -217,7 +197,7 @@ export const submitVoucher = async (
       });
     }
 
-    const responseVoucher = await attachSignedEvidenceUrl(newVoucher);
+    const [responseVoucher] = await attachSignedUrls([newVoucher]);
     emitLoanDomainEvent("voucher.created", {
       loanId: newVoucher.loanId,
       voucherId: newVoucher.id,
@@ -279,11 +259,19 @@ export const getVouchers = async (
 ): Promise<void> => {
   try {
     const user = req.user!;
-    const { status, loanId, from, to } = req.query;
+
+    const params = PaginationParamsMax(100).safeParse(req.query);
+    if (!params.success) {
+      sendError(res, 400, "Parámetros inválidos", formatZodError(params.error));
+      return;
+    }
+    const { page, limit } = params.data;
+    const offset = (page - 1) * limit;
+
+    const { status, loanId, from, to, q } = req.query;
 
     const conditions: SQL[] = [];
 
-    // Filtrado por rol (obligatorio)
     if (user.role === "client") {
       conditions.push(eq(paymentVouchers.clientId, user.id));
     } else if (user.role === "investor") {
@@ -294,7 +282,6 @@ export const getVouchers = async (
 
     conditions.push(sql`${paymentVouchers.deletedAt} IS NULL`);
 
-    // Filtros opcionales
     if (status)
       conditions.push(
         eq(
@@ -311,16 +298,39 @@ export const getVouchers = async (
       conditions.push(
         sql`${paymentVouchers.createdAt} <= ${new Date(to as string)}`,
       );
+    if (q && typeof q === "string" && q.trim()) {
+      conditions.push(
+        sql`${paymentVouchers.operationId} ILIKE ${`%${q.trim()}%`}`,
+      );
+    }
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [countRow] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(paymentVouchers)
+      .where(where);
+
+    const total = countRow?.total ?? 0;
 
     const results = await db
       .select()
       .from(paymentVouchers)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(paymentVouchers.createdAt));
-    const signedResults = await Promise.all(
-      results.map((voucher) => attachSignedEvidenceUrl(voucher)),
-    );
-    sendSuccess(res, 200, "Vouchers obtenidos", signedResults);
+      .where(where)
+      .orderBy(desc(paymentVouchers.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const signedResults = await attachSignedUrls(results);
+
+    sendSuccess(res, 200, "Vouchers obtenidos", signedResults, {
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     sendError(res, 500, "Error al obtener vouchers", error);
   }
@@ -503,7 +513,7 @@ export const processVoucher = async (
       });
     }
 
-    const responseVoucher = await attachSignedEvidenceUrl(updated);
+    const [responseVoucher] = await attachSignedUrls([updated]);
     emitLoanDomainEvent("voucher.updated", {
       loanId: updated.loanId,
       voucherId: updated.id,
@@ -637,7 +647,7 @@ export const updateVoucher = async (
       req,
     });
 
-    const responseVoucher = await attachSignedEvidenceUrl(updatedVoucher);
+    const [responseVoucher] = await attachSignedUrls([updatedVoucher]);
     emitLoanDomainEvent("voucher.updated", {
       loanId: updatedVoucher.loanId,
       voucherId: updatedVoucher.id,
