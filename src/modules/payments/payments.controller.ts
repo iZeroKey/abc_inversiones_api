@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { Response } from "express";
 import { db } from "../../config/db.js";
 import { loans } from "../../db/schema/loans.js";
@@ -12,31 +12,16 @@ import {
   sendSuccess,
 } from "../../utils/response.util.js";
 import {
+  attachSignedUrls,
   deleteStorageReference,
-  resolveFileUrl,
-  uploadFileStream,
 } from "../../utils/storage.util.js";
+import { PaginationParamsMax } from "../../utils/validation.util.js";
 import { createPaymentSchema, updatePaymentSchema } from "./payments.schema.js";
 import {
   PaymentBusinessError,
   processPaymentLogic,
   recalculateLoanLedger,
 } from "./payments.service.js";
-
-const attachSignedEvidenceUrl = async <
-  T extends { evidenceUrl?: string | null },
->(
-  payment: T,
-): Promise<T> => {
-  if (!payment.evidenceUrl) {
-    return payment;
-  }
-
-  return {
-    ...payment,
-    evidenceUrl: await resolveFileUrl(payment.evidenceUrl),
-  };
-};
 
 export const registerPayment = async (
   req: AuthRequest,
@@ -56,13 +41,7 @@ export const registerPayment = async (
     }
 
     if (streamParsed?.fileStream) {
-      evidenceUrl = await uploadFileStream(
-        "vouchers",
-        validation.data.loanId,
-        streamParsed.fileStream.buffer,
-        streamParsed.fileStream.generatedName,
-        streamParsed.fileStream.mimetype,
-      );
+      evidenceUrl = await streamParsed.fileStream.uploadPromise;
     }
 
     const result = await processPaymentLogic({
@@ -73,7 +52,7 @@ export const registerPayment = async (
         : new Date(),
       evidenceUrl,
     });
-    const responsePayment = await attachSignedEvidenceUrl(result);
+    const [responsePayment] = await attachSignedUrls([result]);
 
     await logAudit({
       userId: req.user!.id,
@@ -121,10 +100,24 @@ export const getPaymentsByLoan = async (
 ): Promise<void> => {
   try {
     const loanId = req.params.loanId as string;
+
+    const params = PaginationParamsMax(100).safeParse(req.query);
+    if (!params.success) {
+      sendError(res, 400, "Parámetros inválidos", formatZodError(params.error));
+      return;
+    }
+    const { page, limit } = params.data;
+    const offset = (page - 1) * limit;
+
+    const { from, to, method } = req.query;
     const user = req.user!;
 
     const [loan] = await db
-      .select()
+      .select({
+        id: loans.id,
+        clientId: loans.clientId,
+        investorId: loans.investorId,
+      })
       .from(loans)
       .where(eq(loans.id, loanId))
       .limit(1);
@@ -144,16 +137,43 @@ export const getPaymentsByLoan = async (
       return;
     }
 
+    const conditions: import("drizzle-orm").SQL[] = [
+      eq(payments.loanId, loanId),
+      isNull(payments.deletedAt),
+    ];
+
+    if (from)
+      conditions.push(gte(payments.paymentDate, new Date(from as string)));
+    if (to) conditions.push(lte(payments.paymentDate, new Date(to as string)));
+    if (method) conditions.push(sql`${payments.method} = ${method as string}`);
+
+    const where = and(...conditions);
+
+    const [countRow] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(payments)
+      .where(where);
+
+    const total = countRow?.total ?? 0;
+
     const results = await db
       .select()
       .from(payments)
-      .where(and(eq(payments.loanId, loanId), isNull(payments.deletedAt)))
-      .orderBy(desc(payments.paymentDate));
-    const signedResults = await Promise.all(
-      results.map((payment) => attachSignedEvidenceUrl(payment)),
-    );
+      .where(where)
+      .orderBy(desc(payments.paymentDate))
+      .limit(limit)
+      .offset(offset);
 
-    sendSuccess(res, 200, "Pagos obtenidos", signedResults);
+    const signedResults = await attachSignedUrls(results);
+
+    sendSuccess(res, 200, "Pagos obtenidos", signedResults, {
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     sendError(res, 500, "Error al obtener pagos", error);
   }
