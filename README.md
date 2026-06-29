@@ -62,7 +62,7 @@ src/
 ├── middleware/
 │   ├── auth.middleware.ts           # JWT vía Supabase Auth
 │   ├── role.middleware.ts           # Autorización por rol
-│   ├── stream-upload.middleware.ts  # Busboy multipart con buffers acotados
+│   ├── stream-upload.middleware.ts  # Busboy multipart con streaming directo
 │   └── error-handler.middleware.ts  # Manejo global de errores
 ├── modules/         # Lógica de negocio por módulo
 ├── routes/          # Definición de endpoints
@@ -72,17 +72,17 @@ src/
 └── tests/           # Tests de integración (vitest + supertest)
 ```
 
-### Estrategia de Upload: Busboy con Buffer Acotado
+### Estrategia de Upload: Streaming Directo (Busboy → Supabase)
 
 El backend usa dos estrategias de upload según el endpoint:
 
-| Endpoint                         | Middleware                     | Estrategia          | Límite | Razón                                    |
-| -------------------------------- | ------------------------------ | ------------------- | ------ | ---------------------------------------- |
-| `POST /payment-vouchers`         | `streamVoucherUpload` (busboy) | Buffer → Storage    | 5 MB   | Límite pequeño y subida segura a Storage |
-| `POST /payment-vouchers/analyze` | `bufferOcrUpload` (busboy)     | Buffer → Vision API | 1.5 MB | Vision API necesita la imagen completa   |
-| `PATCH /users/me/avatar`         | `bufferAvatarUpload` (busboy)  | Buffer → Storage    | 2 MB   | Reemplazo seguro del avatar anterior     |
+| Endpoint                         | Middleware                     | Estrategia              | Límite | Razón                                   |
+| -------------------------------- | ------------------------------ | ----------------------- | ------ | --------------------------------------- |
+| `POST /payment-vouchers`         | `streamVoucherUpload` (busboy) | Direct-Stream → Storage | 5 MB   | Streaming extremo a extremo sin buffer  |
+| `POST /payment-vouchers/analyze` | `bufferOcrUpload` (busboy)     | Buffer → Vision API     | 1.5 MB | Vision API necesita la imagen completa  |
+| `PATCH /users/me/avatar`         | `streamAvatarUpload` (busboy)  | Direct-Stream → Storage | 2 MB   | Streaming a temp + `move()` server-side |
 
-**¿Por qué busboy?** La API mantiene límites estrictos por endpoint y evita cargar archivos grandes sin control. Los archivos permitidos son pequeños, por lo que un buffer acotado simplifica el flujo y evita problemas de backpressure entre el parser multipart y Supabase Storage.
+**¿Por qué busboy?** La API mantiene límites estrictos por endpoint y evita cargar archivos grandes sin control. Los archivos se tuberizan mediante `PassThrough` directamente a Supabase Storage, sin acumularse en RAM del backend. Backpressure preservada extremo a extremo. Para avatares, se sube una vez a una ruta temporal y luego se renombra server-side con `move()` (sin re-subida).
 
 ---
 
@@ -312,18 +312,19 @@ En `PATCH /users/:id`, un usuario solo puede actualizar sus campos de perfil (`f
 
 ### Préstamos
 
-| Método | Endpoint                | Descripción                                   | Acceso  |
-| ------ | ----------------------- | --------------------------------------------- | ------- |
-| POST   | /loans                  | Crear préstamo                                | Admin   |
-| GET    | /loans                  | Listar préstamos                              | Privado |
-| GET    | /loans/summary          | Resumen financiero                            | Privado |
-| GET    | /loans/:id              | Préstamo por ID                               | Privado |
-| GET    | /loans/:id/bundle       | Detalle completo con cuotas, pagos y vouchers | Privado |
-| GET    | /loans/:id/installments | Cronograma                                    | Privado |
-| PATCH  | /loans/:id/approve      | Aprobar préstamo                              | Privado |
-| PATCH  | /loans/:id/reject       | Rechazar préstamo                             | Privado |
+| Método | Endpoint                | Descripción                                    | Acceso  |
+| ------ | ----------------------- | ---------------------------------------------- | ------- |
+| POST   | /loans                  | Crear préstamo                                 | Admin   |
+| GET    | /loans                  | Listar préstamos                               | Privado |
+| GET    | /loans/summary          | Resumen financiero                             | Privado |
+| GET    | /loans/:id              | Préstamo por ID                                | Privado |
+| GET    | /loans/:id/bundle       | Detalle completo con cuotas, pagos y vouchers  | Privado |
+| GET    | /loans/admin-summary    | Resumen administrativo (paginado, con filtros) | Admin   |
+| GET    | /loans/:id/installments | Cronograma (paginado)                          | Privado |
+| PATCH  | /loans/:id/approve      | Aprobar préstamo                               | Privado |
+| PATCH  | /loans/:id/reject       | Rechazar préstamo                              | Privado |
 
-`GET /loans` acepta `page`, `limit`, `status`, `search`, `clientId`, `investorId`, `from` y `to`. Cuando se envía `limit`, la respuesta incluye `meta.page`, `meta.limit`, `meta.total` y `meta.totalPages`. `GET /loans/:id/bundle` es aditivo y evita llamadas separadas a detalle, cronograma, pagos y vouchers.
+`GET /loans` acepta `page` (default 1), `limit` (default 20, max 100), `status`, `search`/`q`, `clientId`, `investorId`, `from` y `to`. La paginación es obligatoria (Zod defaults). La respuesta incluye `meta.pagination.page`, `meta.pagination.limit`, `meta.pagination.total` y `meta.pagination.totalPages`. `GET /loans/:id/bundle` es aditivo y evita llamadas separadas a detalle, cronograma, pagos y vouchers. `GET /loans/admin-summary` también soporta paginación (page, limit) y filtros (status, from, to, q).
 
 ### Pagos
 
@@ -432,7 +433,9 @@ A continuación se detallan todos los scripts disponibles para ser ejecutados co
 - Autenticación vía Supabase Auth
 - Autorización por roles en cada endpoint
 - Row Level Security (RLS) en todas las tablas
-- Índices únicos para evitar duplicados
+- Compresión gzip/brotli global con `compression`
+- Cabeceras de seguridad con `helmet`
+- Índices compuestos y únicos para evitar duplicados
 - Logging estructurado con Pino
 - Error handling global
 - Validación de MIME types en uploads (JPEG, PNG, WebP)

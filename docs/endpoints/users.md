@@ -114,7 +114,7 @@ Privado
 
 | Campo  | Tipo | Descripción                       |
 | ------ | ---- | --------------------------------- |
-| avatar | file | Imagen (JPEG, PNG, WebP, max 5MB) |
+| avatar | file | Imagen (JPEG, PNG, WebP, max 2MB) |
 
 ### Respuesta Exitosa
 
@@ -230,7 +230,7 @@ Retorna el objeto de usuario actualizado completo.
 
 ## Get All Users
 
-Listar todos los usuarios registrados. No se implementa paginación.
+Listar todos los usuarios registrados con paginación y filtros.
 
 ### Endpoint
 
@@ -252,10 +252,14 @@ Los owners pueden consultar cualquier usuario. Un administrador no owner no pued
 
 ### Parámetros de Consulta
 
-| Campo  | Tipo   | Obligatorio | Descripción                                                                                 |
-| ------ | ------ | ----------- | ------------------------------------------------------------------------------------------- |
-| search | string | No          | Busca por coincidencia parcial en publicCode, firstName, lastName, email, phone, dni o bank |
-| q      | string | No          | Alias para `search`                                                                         |
+| Campo  | Tipo    | Obligatorio | Descripción                                                                                 |
+| ------ | ------- | ----------- | ------------------------------------------------------------------------------------------- |
+| page   | number  | No          | Número de página (default: `1`).                                                            |
+| limit  | number  | No          | Límite por página (default: `20`, máximo: `100`).                                           |
+| role   | string  | No          | Filtrar por rol (`"client"`, `"investor"`, `"admin"`).                                      |
+| active | boolean | No          | Filtrar por estado activo/inactivo.                                                         |
+| search | string  | No          | Busca por coincidencia parcial en publicCode, firstName, lastName, email, phone, dni o bank |
+| q      | string  | No          | Alias para `search`                                                                         |
 
 ### Respuesta Exitosa
 
@@ -287,6 +291,12 @@ Los owners pueden consultar cualquier usuario. Un administrador no owner no pued
     }
   ],
   "meta": {
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 50,
+      "totalPages": 3
+    },
     "timestamp": "2026-01-01T00:00:00.000Z"
   }
 }

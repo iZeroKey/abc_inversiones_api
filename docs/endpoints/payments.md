@@ -123,6 +123,16 @@ GET /api/v1/payments/loan/:loanId
 | --------- | ---- | ----------- | ---------------------------- |
 | loanId    | uuid | Sí          | ID del préstamo a consultar. |
 
+### Parámetros de Consulta
+
+| Campo  | Tipo   | Obligatorio | Descripción                                                |
+| ------ | ------ | ----------- | ---------------------------------------------------------- |
+| page   | number | No          | Número de página (default: `1`).                           |
+| limit  | number | No          | Límite por página (default: `20`, máximo: `100`).          |
+| from   | string | No          | Fecha ISO8601 inicial para filtrar por fecha de pago.      |
+| to     | string | No          | Fecha ISO8601 final para filtrar por fecha de pago.        |
+| method | string | No          | Filtrar por método de pago (`"cash"`, `"transfer"`, etc.). |
+
 ### Acceso
 
 Privado (Cualquier participante del préstamo o Admin/Owner)
@@ -159,6 +169,12 @@ Privado (Cualquier participante del préstamo o Admin/Owner)
     }
   ],
   "meta": {
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 1,
+      "totalPages": 1
+    },
     "timestamp": "2026-05-22T04:26:00.000Z"
   }
 }

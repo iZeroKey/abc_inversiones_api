@@ -152,17 +152,17 @@ Privado
 
 ### Parámetros de Consulta
 
-| Campo      | Tipo   | Obligatorio | Descripción                                                                                                    |
-| ---------- | ------ | ----------- | -------------------------------------------------------------------------------------------------------------- |
-| status     | string | No          | Filtrar por estado del préstamo (ej. `"active"`, `"paid"`, `"rejected"`, `"defaulted"`).                       |
-| clientId   | uuid   | No          | Filtrar por ID del cliente (ignorado para clientes).                                                           |
-| investorId | uuid   | No          | Filtrar por ID del inversionista (ignorado para inversionistas).                                               |
-| from       | string | No          | Fecha ISO8601 inicial para filtrar por fecha de creación del préstamo.                                         |
-| to         | string | No          | Fecha ISO8601 final para filtrar por fecha de creación del préstamo.                                           |
-| search     | string | No          | Buscar coincidencia parcial en códigos públicos o nombres del cliente/inversionista.                           |
-| q          | string | No          | Alias para `search`.                                                                                           |
-| page       | number | No          | Número de página (default: `1` cuando se envía `limit`).                                                       |
-| limit      | number | No          | Límite por página. Si se omite, se devuelve la lista completa compatible con clientes antiguos. Máximo: `100`. |
+| Campo      | Tipo   | Obligatorio | Descripción                                                                              |
+| ---------- | ------ | ----------- | ---------------------------------------------------------------------------------------- |
+| status     | string | No          | Filtrar por estado del préstamo (ej. `"active"`, `"paid"`, `"rejected"`, `"defaulted"`). |
+| clientId   | uuid   | No          | Filtrar por ID del cliente (ignorado para clientes).                                     |
+| investorId | uuid   | No          | Filtrar por ID del inversionista (ignorado para inversionistas).                         |
+| from       | string | No          | Fecha ISO8601 inicial para filtrar por fecha de creación del préstamo.                   |
+| to         | string | No          | Fecha ISO8601 final para filtrar por fecha de creación del préstamo.                     |
+| search     | string | No          | Buscar coincidencia parcial en códigos públicos o nombres del cliente/inversionista.     |
+| q          | string | No          | Alias para `search`.                                                                     |
+| page       | number | No          | Número de página (default: `1`).                                                         |
+| limit      | number | No          | Límite por página (default: `20`, máximo: `100`).                                        |
 
 ### Respuesta Exitosa
 
@@ -199,10 +199,12 @@ Privado
     }
   ],
   "meta": {
-    "page": 1,
-    "limit": 20,
-    "total": 1,
-    "totalPages": 1,
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 1,
+      "totalPages": 1
+    },
     "timestamp": "2026-05-22T04:26:00.000Z"
   }
 }
@@ -493,6 +495,13 @@ Obtener el cronograma detallado de cuotas de un préstamo.
 GET /api/v1/loans/:id/installments
 ```
 
+### Parámetros de Consulta
+
+| Campo | Tipo   | Obligatorio | Descripción                                       |
+| ----- | ------ | ----------- | ------------------------------------------------- |
+| page  | number | No          | Número de página (default: `1`, máximo: `200`).   |
+| limit | number | No          | Límite por página (default: `20`, máximo: `200`). |
+
 ### Parámetros de Ruta
 
 | Parámetro | Tipo | Obligatorio | Descripción     |
@@ -529,6 +538,12 @@ Privado (Participantes del préstamo o Admin/Owner)
     }
   ],
   "meta": {
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 1,
+      "totalPages": 1
+    },
     "timestamp": "2026-05-22T04:26:00.000Z"
   }
 }
@@ -550,11 +565,24 @@ Privado (Participantes del préstamo o Admin/Owner)
 
 Obtener una lista consolidada y detallada de préstamos para el dashboard administrativo, incluyendo datos financieros acumulados de pagos y deudas pendientes.
 
+Soporta paginación y filtros.
+
 ### Endpoint
 
 ```
 GET /api/v1/loans/admin-summary
 ```
+
+### Parámetros de Consulta
+
+| Campo  | Tipo   | Obligatorio | Descripción                                                 |
+| ------ | ------ | ----------- | ----------------------------------------------------------- |
+| page   | number | No          | Número de página (default: `1`).                            |
+| limit  | number | No          | Límite por página (default: `20`, máximo: `100`).           |
+| status | string | No          | Filtrar por estado del préstamo (ej. `"active"`, `"paid"`). |
+| from   | string | No          | Fecha ISO8601 inicial para filtrar por fecha de creación.   |
+| to     | string | No          | Fecha ISO8601 final para filtrar por fecha de creación.     |
+| q      | string | No          | Buscar coincidencia parcial en códigos públicos o nombres.  |
 
 ### Acceso
 
@@ -596,6 +624,12 @@ Privado (Admin, Owner)
     }
   ],
   "meta": {
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 50,
+      "totalPages": 3
+    },
     "timestamp": "2026-05-22T04:26:00.000Z"
   }
 }

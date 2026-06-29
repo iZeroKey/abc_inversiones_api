@@ -94,13 +94,20 @@ Público (Anónimo)
 
 ## Get All Requests
 
-Listar todas las solicitudes de acceso ordenadas por fecha de creación descendente. Este endpoint no implementa paginación ni filtros de consulta.
+Listar todas las solicitudes de acceso ordenadas por fecha de creación descendente, con paginación.
 
 ### Endpoint
 
 ```
 GET /api/v1/access-requests
 ```
+
+### Parámetros de Consulta
+
+| Campo | Tipo   | Obligatorio | Descripción                                       |
+| ----- | ------ | ----------- | ------------------------------------------------- |
+| page  | number | No          | Número de página (default: `1`).                  |
+| limit | number | No          | Límite por página (default: `20`, máximo: `100`). |
 
 ### Acceso
 
@@ -136,6 +143,12 @@ Privado (Admin, Owner)
     }
   ],
   "meta": {
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 1,
+      "totalPages": 1
+    },
     "timestamp": "2026-05-22T04:26:00.000Z"
   }
 }

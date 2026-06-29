@@ -80,7 +80,7 @@ La configuración de la conexión a PostgreSQL se encuentra en `src/config/db.ts
 | `max`             | 10      | Máximo de conexiones en el pool               |
 | `idle_timeout`    | 20      | Segundos antes de cerrar conexiones inactivas |
 | `connect_timeout` | 30      | Segundos antes de timeout de conexión         |
-| `prepare`         | false   | Desactivar prepared statements                |
+| `prepare`         | false*  | Prepared statements (desactivado en test)     |
 | `max_lifetime`    | 60000   | Tiempo máximo de vida de una conexión (ms)    |
 
 ### Código
@@ -90,10 +90,12 @@ const queryClient = postgres(databaseUrl, {
   max: isTest ? 1 : 10,
   idle_timeout: 20,
   connect_timeout: 30,
-  prepare: false,
+  prepare: env.NODE_ENV !== "test",
   max_lifetime: 60000,
 });
 ```
+
+> `prepare: env.NODE_ENV !== "test"`: los prepared statements están **habilitados** en desarrollo y producción para mejorar el rendimiento de consultas repetitivas. Se desactivan en test (`NODE_ENV=test`) para evitar problemas con el pool de conexiones.
 
 ---
 
@@ -111,6 +113,16 @@ El proyecto utiliza buckets privado para almacenar archivos sensibles:
 | ---------- | ------------------------------ |
 | `avatars`  | Imágenes de perfil de usuarios |
 | `vouchers` | Comprobantes de pago           |
+
+### Middleware Global
+
+El servidor Express registra los siguientes middleware en orden:
+
+1. `compression()` — Compresión gzip/brotli para todas las respuestas.
+2. `helmet()` — Cabeceras de seguridad.
+3. `cors()` — Control de acceso CORS.
+4. `express.json({ limit: "2mb" })` — Parseo de JSON (límite 2 MB).
+5. Cache-Control — `private, no-cache` en todas las rutas (salvo `/health` que usa `public, max-age=300`).
 
 ### Row Level Security (RLS)
 

@@ -87,7 +87,7 @@ Subir un nuevo comprobante de pago (Voucher) con la imagen y los datos finales c
 
 El cliente no envía ni escoge método de pago en vouchers. Si el préstamo tiene un inversionista con cuenta de acceso activa, el voucher queda en `pending_investor_review`; si no tiene inversionista con acceso, queda directamente en `pending_admin_review`.
 
-Usa modo **stream** (busboy): los bytes de la imagen fluyen directamente a Supabase Storage sin acumularse en RAM del backend, reduciendo el uso de memoria y el riesgo de timeout del proxy Cloudflare.
+Usa modo **direct-stream** (busboy → PassThrough → Supabase): los bytes de la imagen se tuberizan directamente a Supabase Storage sin acumularse en RAM del backend. Backpressure preservada extremo a extremo. El middleware controla el streaming mediante `fileStream.uploadPromise`.
 
 ### Endpoint
 
@@ -195,12 +195,15 @@ Privado (Admin, Owner, Client, Investor)
 
 ### Parámetros de Consulta
 
-| Campo  | Tipo   | Obligatorio | Descripción                                      |
-| ------ | ------ | ----------- | ------------------------------------------------ |
-| status | string | No          | Filtrar por estado de voucher                    |
-| loanId | uuid   | No          | Filtrar por ID del préstamo                      |
-| from   | string | No          | Fecha de creación mínima (ISO8601 YYYY-MM-DD...) |
-| to     | string | No          | Fecha de creación máxima (ISO8601 YYYY-MM-DD...) |
+| Campo  | Tipo   | Obligatorio | Descripción                                               |
+| ------ | ------ | ----------- | --------------------------------------------------------- |
+| page   | number | No          | Número de página (default: `1`).                          |
+| limit  | number | No          | Límite por página (default: `20`, máximo: `100`).         |
+| status | string | No          | Filtrar por estado de voucher.                            |
+| loanId | uuid   | No          | Filtrar por ID del préstamo.                              |
+| from   | string | No          | Fecha de creación mínima (ISO8601 YYYY-MM-DD...).         |
+| to     | string | No          | Fecha de creación máxima (ISO8601 YYYY-MM-DD...).         |
+| q      | string | No          | Buscar coincidencia parcial en `operationId` del voucher. |
 
 ### Respuesta Exitosa
 
@@ -226,10 +229,18 @@ Privado (Admin, Owner, Client, Investor)
     }
   ],
   "meta": {
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 1,
+      "totalPages": 1
+    },
     "timestamp": "2026-05-22T04:30:00.000Z"
   }
 }
 ```
+
+`evidenceUrl` es una URL firmada temporal generada por Supabase (TTL configurable vía `STORAGE_SIGNED_URL_TTL_SECONDS`, default 900s). Si el servicio de Storage no está disponible, se devuelve la ruta raw (`storage://...`) como degradación gradual.
 
 ### Códigos de Estado HTTP
 
