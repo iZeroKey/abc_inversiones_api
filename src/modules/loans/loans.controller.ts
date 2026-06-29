@@ -597,38 +597,18 @@ export const getLoanBundle = async (
       return;
     }
 
-    const [loanInstallments, loanPayments, loanVouchers] = await Promise.all([
+    const [loanInstallments] = await Promise.all([
       db
         .select()
         .from(installments)
         .where(eq(installments.loanId, loanId))
         .orderBy(installments.installmentNumber)
         .limit(200),
-      db
-        .select()
-        .from(payments)
-        .where(and(eq(payments.loanId, loanId), isNull(payments.deletedAt)))
-        .orderBy(desc(payments.paymentDate))
-        .limit(200),
-      db
-        .select()
-        .from(paymentVouchers)
-        .where(
-          and(
-            eq(paymentVouchers.loanId, loanId),
-            isNull(paymentVouchers.deletedAt),
-            ne(paymentVouchers.status, "deleted"),
-          ),
-        )
-        .orderBy(desc(paymentVouchers.createdAt))
-        .limit(200),
     ]);
 
     sendSuccess(res, 200, "Bundle de préstamo obtenido", {
       loan,
       installments: loanInstallments,
-      payments: loanPayments,
-      vouchers: loanVouchers,
     });
   } catch (error) {
     sendError(res, 500, "Error al obtener bundle del préstamo", error);
