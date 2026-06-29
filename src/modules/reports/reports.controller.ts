@@ -21,13 +21,11 @@ export const getClientStatement = async (
     const user = req.user!;
     const targetClientId = (req.params.clientId || user.id) as string;
 
-    // Solo el propio cliente o un admin puede ver el estado de cuenta
     if (user.role === "client" && user.id !== targetClientId) {
       sendError(res, 403, "No tienes permiso para ver este estado de cuenta");
       return;
     }
 
-    // Datos del cliente
     const [client] = await db
       .select({
         id: users.id,
@@ -46,7 +44,12 @@ export const getClientStatement = async (
       return;
     }
 
-    // Préstamos del cliente
+    const loanBaseFilter = and(
+      eq(loans.clientId, targetClientId),
+      isNull(loans.deletedAt),
+      ne(loans.status, "deleted"),
+    );
+
     const clientLoans = await db
       .select({
         ...getTableColumns(loans),
@@ -57,94 +60,45 @@ export const getClientStatement = async (
       })
       .from(loans)
       .innerJoin(users, eq(users.id, loans.clientId))
-      .where(
-        and(
-          eq(loans.clientId, targetClientId),
-          isNull(loans.deletedAt),
-          ne(loans.status, "deleted"),
-        ),
-      )
+      .where(loanBaseFilter)
       .orderBy(desc(loans.createdAt));
 
-    // Estadísticas generales
-    const [stats] = await db
-      .select({
-        totalPrincipal: sql<string>`COALESCE(sum(${loans.principal}), 0)`,
-        totalDebt: sql<string>`COALESCE(sum(${loans.totalDebt}), 0)`,
-        activeLoans: sql<number>`count(*) FILTER (WHERE ${loans.status} = 'active')`,
-        paidLoans: sql<number>`count(*) FILTER (WHERE ${loans.status} = 'paid')`,
-      })
-      .from(loans)
-      .where(
-        and(
-          eq(loans.clientId, targetClientId),
-          isNull(loans.deletedAt),
-          ne(loans.status, "deleted"),
-        ),
-      );
+    const agg = await db.execute(sql`
+      WITH client_agg AS (
+        SELECT
+          COALESCE(SUM(l.principal) FILTER (WHERE l.deleted_at IS NULL AND l.status <> 'deleted'), 0) as total_principal,
+          COALESCE(SUM(l.total_debt) FILTER (WHERE l.deleted_at IS NULL AND l.status <> 'deleted'), 0) as total_debt,
+          COUNT(*) FILTER (WHERE l.status = 'active') as active_loans,
+          COUNT(*) FILTER (WHERE l.status = 'paid') as paid_loans,
+          COUNT(i.id) FILTER (WHERE i.status = 'overdue') as overdue_count,
+          COALESCE(SUM(i.amount - i.paid_amount) FILTER (WHERE i.status = 'overdue'), 0) as overdue_amount,
+          COUNT(i.id) FILTER (WHERE i.status != 'paid' AND l.status = 'active') as pending_installments,
+          COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'confirmed' AND p.deleted_at IS NULL), 0) as total_paid,
+          COUNT(p.id) FILTER (WHERE p.status = 'confirmed' AND p.deleted_at IS NULL) as payment_count
+        FROM ${loans} l
+        LEFT JOIN ${installments} i ON i.loan_id = l.id
+        LEFT JOIN ${payments} p ON p.loan_id = l.id
+        WHERE l.client_id = ${targetClientId} AND l.deleted_at IS NULL AND l.status <> 'deleted'
+      )
+      SELECT * FROM client_agg
+    `);
 
-    // Cuotas vencidas
-    const [overdueStats] = await db
-      .select({
-        overdueCount: sql<number>`count(*)`,
-        overdueAmount: sql<string>`COALESCE(sum(${installments.amount} - ${installments.paidAmount}), 0)`,
-      })
-      .from(installments)
-      .innerJoin(loans, eq(loans.id, installments.loanId))
-      .where(
-        and(
-          eq(loans.clientId, targetClientId),
-          isNull(loans.deletedAt),
-          ne(loans.status, "deleted"),
-          eq(installments.status, "overdue"),
-        ),
-      );
-
-    // Total pagado (de payments confirmados)
-    const [paymentStats] = await db
-      .select({
-        totalPaid: sql<string>`COALESCE(sum(${payments.amount}), 0)`,
-        paymentCount: sql<number>`count(*)`,
-      })
-      .from(payments)
-      .innerJoin(loans, eq(loans.id, payments.loanId))
-      .where(
-        and(
-          eq(loans.clientId, targetClientId),
-          isNull(loans.deletedAt),
-          ne(loans.status, "deleted"),
-          eq(payments.status, "confirmed"),
-          isNull(payments.deletedAt),
-        ),
-      );
-
-    const [pendingInstallmentStats] = await db
-      .select({
-        pendingInstallments: sql<number>`count(*)::int`,
-      })
-      .from(installments)
-      .innerJoin(loans, eq(loans.id, installments.loanId))
-      .where(
-        and(
-          eq(loans.clientId, targetClientId),
-          eq(loans.status, "active"),
-          isNull(loans.deletedAt),
-          ne(loans.status, "deleted"),
-          ne(installments.status, "paid"),
-        ),
-      );
+    const row = (agg as unknown as Record<string, unknown>[])[0] ?? {};
 
     sendSuccess(res, 200, "Estado de cuenta obtenido", {
       client,
       summary: {
-        ...stats,
-        totalPaid: paymentStats?.totalPaid || "0",
-        paymentCount: paymentStats?.paymentCount || 0,
-        overdueCount: overdueStats?.overdueCount || 0,
-        overdueAmount: overdueStats?.overdueAmount || "0",
-        pendingInstallments: pendingInstallmentStats?.pendingInstallments || 0,
+        totalPrincipal: String(row.total_principal ?? "0"),
+        totalDebt: String(row.total_debt ?? "0"),
+        activeLoans: Number(row.active_loans ?? 0),
+        paidLoans: Number(row.paid_loans ?? 0),
+        totalPaid: String(row.total_paid ?? "0"),
+        paymentCount: Number(row.payment_count ?? 0),
+        overdueCount: Number(row.overdue_count ?? 0),
+        overdueAmount: String(row.overdue_amount ?? "0"),
+        pendingInstallments: Number(row.pending_installments ?? 0),
       },
-      pendingInstallments: pendingInstallmentStats?.pendingInstallments || 0,
+      pendingInstallments: Number(row.pending_installments ?? 0),
       loans: clientLoans,
     });
   } catch (error) {
@@ -277,49 +231,28 @@ export const getAdminDashboard = async (
   res: Response,
 ): Promise<void> => {
   try {
-    // Estadísticas globales de préstamos
-    const [loanStats] = await db
-      .select({
-        totalLoans: sql<number>`count(*)`,
-        activeLoans: sql<number>`count(*) FILTER (WHERE ${loans.status} = 'active')`,
-        pendingLoans: sql<number>`count(*) FILTER (WHERE ${loans.status} IN ('pending_investor_review', 'pending_admin_review'))`,
-        totalPortfolio: sql<string>`COALESCE(sum(${loans.principal}) FILTER (WHERE ${loans.status} = 'active'), 0)`,
-        totalDebt: sql<string>`COALESCE(sum(${loans.totalDebt}) FILTER (WHERE ${loans.status} = 'active'), 0)`,
-      })
-      .from(loans)
-      .where(and(isNull(loans.deletedAt), ne(loans.status, "deleted")));
+    const agg = await db.execute(sql`
+      WITH dashboard_agg AS (
+        SELECT
+          COUNT(*) as total_loans,
+          COUNT(*) FILTER (WHERE l.status = 'active') as active_loans,
+          COUNT(*) FILTER (WHERE l.status IN ('pending_investor_review', 'pending_admin_review')) as pending_loans,
+          COALESCE(SUM(l.principal) FILTER (WHERE l.status = 'active'), 0) as total_portfolio,
+          COALESCE(SUM(l.total_debt) FILTER (WHERE l.status = 'active'), 0) as total_debt,
+          COUNT(i.id) FILTER (WHERE i.status = 'overdue') as overdue_count,
+          COALESCE(SUM(i.amount - i.paid_amount) FILTER (WHERE i.status = 'overdue'), 0) as overdue_amount,
+          COUNT(v.id) FILTER (WHERE v.status = 'pending_investor_review') as pending_investor_vouchers,
+          COUNT(v.id) FILTER (WHERE v.status IN ('pending_admin_review', 'investor_approved')) as pending_admin_vouchers
+        FROM ${loans} l
+        LEFT JOIN ${installments} i ON i.loan_id = l.id AND l.deleted_at IS NULL AND l.status <> 'deleted'
+        LEFT JOIN ${paymentVouchers} v ON v.loan_id = l.id AND v.deleted_at IS NULL AND v.status <> 'deleted'
+        WHERE l.deleted_at IS NULL AND l.status <> 'deleted'
+      )
+      SELECT * FROM dashboard_agg
+    `);
 
-    // Mora global
-    const [overdueStats] = await db
-      .select({
-        overdueCount: sql<number>`count(*)`,
-        overdueAmount: sql<string>`COALESCE(sum(${installments.amount} - ${installments.paidAmount}), 0)`,
-      })
-      .from(installments)
-      .innerJoin(loans, eq(loans.id, installments.loanId))
-      .where(
-        and(
-          eq(installments.status, "overdue"),
-          isNull(loans.deletedAt),
-          ne(loans.status, "deleted"),
-        ),
-      );
+    const loanRow = (agg as unknown as Record<string, unknown>[])[0] ?? {};
 
-    // Vouchers pendientes de procesamiento
-    const [voucherStats] = await db
-      .select({
-        pendingInvestor: sql<number>`count(*) FILTER (WHERE ${paymentVouchers.status} = 'pending_investor_review')`,
-        pendingAdmin: sql<number>`count(*) FILTER (WHERE ${paymentVouchers.status} IN ('pending_admin_review', 'investor_approved'))`,
-      })
-      .from(paymentVouchers)
-      .where(
-        and(
-          isNull(paymentVouchers.deletedAt),
-          ne(paymentVouchers.status, "deleted"),
-        ),
-      );
-
-    // Usuarios activos
     const [userStats] = await db
       .select({
         totalUsers: sql<number>`count(*)`,
@@ -331,9 +264,21 @@ export const getAdminDashboard = async (
       .where(and(eq(users.active, true), isNull(users.deletedAt)));
 
     sendSuccess(res, 200, "Dashboard administrativo", {
-      loans: loanStats,
-      overdue: overdueStats,
-      vouchers: voucherStats,
+      loans: {
+        totalLoans: Number(loanRow.total_loans ?? 0),
+        activeLoans: Number(loanRow.active_loans ?? 0),
+        pendingLoans: Number(loanRow.pending_loans ?? 0),
+        totalPortfolio: String(loanRow.total_portfolio ?? "0"),
+        totalDebt: String(loanRow.total_debt ?? "0"),
+      },
+      overdue: {
+        overdueCount: Number(loanRow.overdue_count ?? 0),
+        overdueAmount: String(loanRow.overdue_amount ?? "0"),
+      },
+      vouchers: {
+        pendingInvestor: Number(loanRow.pending_investor_vouchers ?? 0),
+        pendingAdmin: Number(loanRow.pending_admin_vouchers ?? 0),
+      },
       users: userStats,
     });
   } catch (error) {
