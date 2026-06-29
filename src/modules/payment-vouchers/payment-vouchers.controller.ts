@@ -434,6 +434,7 @@ export const processVoucher = async (
           observation: `Voucher aprobado: ${observation || ""}`,
           reference: voucher.operationId,
           paymentDate: voucher.operationDate || undefined,
+          evidenceUrl: voucher.evidenceUrl,
         });
         paymentId = appliedPayment.id;
       }
