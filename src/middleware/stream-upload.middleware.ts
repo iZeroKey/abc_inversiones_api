@@ -2,13 +2,15 @@ import busboy from "busboy";
 import { randomUUID } from "crypto";
 import { NextFunction, Response } from "express";
 import path from "path";
-import { Readable } from "stream";
+import { PassThrough, Readable } from "stream";
+import { supabaseAdmin } from "../config/supabase.js";
 import { AuthRequest } from "./auth.middleware.js";
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const DEFAULT_MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 const OCR_MAX_FILE_SIZE = 1.5 * 1024 * 1024; // 1.5 MB
 const AVATAR_MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
+
 export interface ParsedFileBuffer {
   fieldname: string;
   originalname: string;
@@ -17,20 +19,18 @@ export interface ParsedFileBuffer {
   size: number;
 }
 
-export interface ParsedFileStream {
+export interface DirectFileStream {
   fieldname: string;
   originalname: string;
   mimetype: string;
-  buffer: Buffer;
-  size: number;
-  stream: Readable;
   generatedName: string;
+  uploadPromise: Promise<string>;
 }
 
 export interface StreamParsedData {
   fields: Record<string, string>;
   file: ParsedFileBuffer | null;
-  fileStream: ParsedFileStream | null;
+  fileStream: DirectFileStream | null;
 }
 
 declare global {
@@ -45,14 +45,24 @@ declare global {
 interface StreamUploadOptions {
   fieldName?: string;
   maxFileSize?: number;
-  mode: "buffer" | "stream";
+  /** "buffer" = collect chunks in memory, "direct-stream" = pipe directly to Supabase */
+  mode: "buffer" | "direct-stream";
+  /** Used in direct-stream mode to know which bucket to upload to */
+  bucket: "vouchers" | "avatars";
 }
+
+const STORAGE_REF_PREFIX = "storage://";
+
+const createStorageReference = (bucket: string, objectPath: string): string => {
+  return `${STORAGE_REF_PREFIX}${bucket}/${objectPath}`;
+};
 
 export const streamUpload = (options: StreamUploadOptions) => {
   const {
     fieldName = "evidence",
     maxFileSize = DEFAULT_MAX_FILE_SIZE,
     mode,
+    bucket,
   } = options;
 
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
@@ -77,6 +87,7 @@ export const streamUpload = (options: StreamUploadOptions) => {
     let fileTruncated = false;
     let nextCalled = false;
     let responded = false;
+    let uploadError: Error | null = null;
 
     const parsed: StreamParsedData = {
       fields,
@@ -89,6 +100,13 @@ export const streamUpload = (options: StreamUploadOptions) => {
     const callNext = () => {
       if (!nextCalled && !responded) {
         nextCalled = true;
+        if (uploadError) {
+          responded = true;
+          res
+            .status(500)
+            .json({ success: false, message: uploadError.message });
+          return;
+        }
         next();
       }
     };
@@ -143,26 +161,39 @@ export const streamUpload = (options: StreamUploadOptions) => {
       } else {
         const ext = path.extname(filename) || ".jpg";
         const generatedName = `${randomUUID()}${ext}`;
-        const chunks: Buffer[] = [];
+        const tempPath = `temp/${generatedName}`;
 
-        stream.on("data", (chunk: Buffer) => {
-          chunks.push(chunk);
+        const passThrough = new PassThrough();
+
+        const uploadPromise = supabaseAdmin.storage
+          .from(bucket)
+          .upload(tempPath, passThrough, {
+            contentType: mimeType,
+            upsert: false,
+          })
+          .then(({ data, error }) => {
+            if (error) throw new Error(error.message);
+            return createStorageReference(bucket, data.path);
+          })
+          .catch((err: Error) => {
+            uploadError = err;
+            throw err;
+          });
+
+        stream.pipe(passThrough);
+
+        stream.on("error", (err: Error) => {
+          uploadError = err;
+          passThrough.destroy(err);
         });
 
-        stream.on("end", () => {
-          if (fileTruncated) return;
-
-          const buffer = Buffer.concat(chunks);
-          parsed.fileStream = {
-            fieldname: name,
-            originalname: filename,
-            mimetype: mimeType,
-            buffer,
-            size: buffer.length,
-            stream: Readable.from(buffer),
-            generatedName,
-          };
-        });
+        parsed.fileStream = {
+          fieldname: name,
+          originalname: filename,
+          mimetype: mimeType,
+          generatedName,
+          uploadPromise,
+        };
       }
     });
 
@@ -177,6 +208,7 @@ export const streamUpload = (options: StreamUploadOptions) => {
     });
 
     bb.on("error", (err: Error) => {
+      uploadError = err;
       sendErrorResponse(400, `Error procesando el formulario: ${err.message}`);
     });
 
@@ -187,17 +219,20 @@ export const streamUpload = (options: StreamUploadOptions) => {
 export const streamVoucherUpload = streamUpload({
   fieldName: "evidence",
   maxFileSize: DEFAULT_MAX_FILE_SIZE,
-  mode: "stream",
+  mode: "direct-stream",
+  bucket: "vouchers",
 });
 
 export const bufferOcrUpload = streamUpload({
   fieldName: "evidence",
   maxFileSize: OCR_MAX_FILE_SIZE,
   mode: "buffer",
+  bucket: "vouchers",
 });
 
-export const bufferAvatarUpload = streamUpload({
+export const streamAvatarUpload = streamUpload({
   fieldName: "avatar",
   maxFileSize: AVATAR_MAX_FILE_SIZE,
-  mode: "buffer",
+  mode: "direct-stream",
+  bucket: "avatars",
 });
