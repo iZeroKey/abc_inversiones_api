@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { Request, Response } from "express";
 import { db } from "../../config/db.js";
 import { supabaseAdmin } from "../../config/supabase.js";
@@ -17,6 +17,7 @@ import {
   sendError,
   sendSuccess,
 } from "../../utils/response.util.js";
+import { PaginationParamsMax } from "../../utils/validation.util.js";
 import {
   createAccessRequestSchema,
   updateRequestStatusSchema,
@@ -62,12 +63,35 @@ export const getAllRequests = async (
   res: Response,
 ): Promise<void> => {
   try {
+    const params = PaginationParamsMax(100).safeParse(req.query);
+    if (!params.success) {
+      sendError(res, 400, "Parámetros inválidos", formatZodError(params.error));
+      return;
+    }
+    const { page, limit } = params.data;
+    const offset = (page - 1) * limit;
+
+    const [countRow] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(accessRequests);
+
+    const total = countRow?.total ?? 0;
+
     const requests = await db
       .select()
       .from(accessRequests)
-      .orderBy(desc(accessRequests.createdAt));
+      .orderBy(desc(accessRequests.createdAt))
+      .limit(limit)
+      .offset(offset);
 
-    sendSuccess(res, 200, "Solicitudes obtenidas", requests);
+    sendSuccess(res, 200, "Solicitudes obtenidas", requests, {
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     sendError(res, 500, "Error al obtener solicitudes", error);
   }
