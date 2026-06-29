@@ -657,7 +657,7 @@ export const getSummary = async (
         .select({
           totalActiveLoans: sql<number>`count(*)`,
           totalPortfolio: sql<string>`sum(${loans.principal})`,
-          overdueGlobal: sql<string>`sum(CASE WHEN ${installments.dueDate} < ${now} AND ${installments.status} = 'pending' THEN ${installments.amount} - ${installments.paidAmount} ELSE 0 END)`,
+          overdueGlobal: sql<string>`sum(CASE WHEN ${installments.dueDate} < ${now.toISOString()} AND ${installments.status} = 'pending' THEN ${installments.amount} - ${installments.paidAmount} ELSE 0 END)`,
         })
         .from(loans)
         .leftJoin(installments, eq(loans.id, installments.loanId))
