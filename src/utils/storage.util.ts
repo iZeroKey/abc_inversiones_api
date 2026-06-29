@@ -6,7 +6,7 @@ import { createChildLogger } from "../config/logger.js";
 import { supabaseAdmin } from "../config/supabase.js";
 
 const logger = createChildLogger("storage");
-const STORAGE_REF_PREFIX = "storage://";
+export const STORAGE_REF_PREFIX = "storage://";
 
 interface UploadedStorageObject {
   path: string;
@@ -134,6 +134,32 @@ export const uploadAvatar = async (
   }
 };
 
+export const finalizeAvatarUpload = async (
+  userId: string,
+  tempStorageRef: string,
+): Promise<string> => {
+  const parsed = parseStorageReference(tempStorageRef);
+  if (!parsed) {
+    throw new Error("Referencia de storage inválida");
+  }
+
+  const ext = path.extname(parsed.path) || ".jpg";
+  const finalPath = `${userId}/avatar${ext}`;
+  const bucket = "avatars";
+
+  await supabaseAdmin.storage.from(bucket).remove([finalPath]);
+
+  const { error } = await supabaseAdmin.storage
+    .from(bucket)
+    .move(parsed.path, finalPath);
+
+  if (error) {
+    throw new Error(`Error moviendo avatar: ${error.message}`);
+  }
+
+  return createStorageReference(bucket, finalPath);
+};
+
 export const deleteFile = async (
   bucket: string,
   filePath: string,
@@ -192,34 +218,49 @@ export const resolveFileUrl = async (
   return data.signedUrl;
 };
 
-export const uploadFileStream = async (
+export async function attachSignedUrls<
+  T extends { evidenceUrl?: string | null; avatarUrl?: string | null },
+>(
+  items: T[],
+  urlField: "evidenceUrl" | "avatarUrl" = "evidenceUrl",
+  bucket?: string,
+  expiresIn = 3600,
+): Promise<T[]> {
+  const withStorage = items.filter((i) =>
+    i[urlField]?.startsWith("storage://"),
+  );
+  if (withStorage.length === 0) return items;
+
+  const resolvedBucket =
+    bucket ?? (urlField === "avatarUrl" ? "avatars" : "vouchers");
+  const paths = withStorage.map((i) => i[urlField]!.replace("storage://", ""));
+  const { data } = await supabaseAdmin.storage
+    .from(resolvedBucket)
+    .createSignedUrls(paths, expiresIn);
+  const urlMap = new Map(data?.map((d) => [d.path, d.signedUrl]) ?? []);
+
+  return items.map((item) => {
+    if (!item[urlField]?.startsWith("storage://")) return item;
+    const resolved = urlMap.get(item[urlField]!.replace("storage://", ""));
+    return {
+      ...item,
+      [urlField]: resolved ?? item[urlField],
+    };
+  });
+}
+
+export const uploadFileStreamDirect = async (
   bucket: string,
   folder: string,
-  file: Readable | Buffer,
+  stream: Readable,
   fileName: string,
   contentType: string,
 ): Promise<string> => {
   const filePath = `${folder}/${fileName}`;
 
-  let buffer: Buffer;
-  if (Buffer.isBuffer(file)) {
-    buffer = file;
-  } else {
-    const chunks: Buffer[] = [];
-    for await (const chunk of file) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    buffer = Buffer.concat(chunks);
-  }
-
-  logger.debug(
-    { bucket, filePath, sizeKB: (buffer.length / 1024).toFixed(1) },
-    "Subiendo archivo a Storage",
-  );
-
   const { data, error } = await supabaseAdmin.storage
     .from(bucket)
-    .upload(filePath, buffer, {
+    .upload(filePath, stream, {
       contentType,
       upsert: false,
     });
@@ -228,7 +269,54 @@ export const uploadFileStream = async (
     throw new Error(`Error subiendo archivo a Storage: ${error.message}`);
   }
 
-  logger.debug({ bucket, filePath: data.path }, "Upload completado");
+  logger.debug({ bucket, filePath: data.path }, "Streaming upload completado");
 
   return createStorageReference(bucket, data.path);
+};
+
+export const uploadAvatarStream = async (
+  userId: string,
+  stream: Readable,
+  originalName: string,
+  contentType: string,
+): Promise<string> => {
+  const ext = path.extname(originalName) || ".jpg";
+  const tempPath = `${userId}/avatar_tmp_${randomUUID()}${ext}`;
+  const finalPath = `${userId}/avatar${ext}`;
+  const bucket = "avatars";
+
+  const { error: tempError } = await supabaseAdmin.storage
+    .from(bucket)
+    .upload(tempPath, stream, {
+      contentType,
+      upsert: false,
+    });
+
+  if (tempError) {
+    throw new Error(`Error subiendo avatar temporal: ${tempError.message}`);
+  }
+
+  try {
+    await supabaseAdmin.storage.from(bucket).remove([finalPath]);
+
+    const { error: finalError } = await supabaseAdmin.storage
+      .from(bucket)
+      .move(tempPath, finalPath);
+
+    if (finalError) {
+      logger.error(
+        { userId, finalPath, error: finalError.message },
+        "Error moviendo avatar, temporal preservada",
+      );
+      throw new Error(`Error moviendo avatar: ${finalError.message}`);
+    }
+
+    return createStorageReference(bucket, finalPath);
+  } catch (error) {
+    await supabaseAdmin.storage
+      .from(bucket)
+      .remove([tempPath])
+      .catch(() => {});
+    throw error;
+  }
 };
