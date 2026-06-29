@@ -14,7 +14,7 @@ export const queryClient = postgres(env.DATABASE_URL, {
   max: isTest ? 1 : 10,
   idle_timeout: 20,
   connect_timeout: 30,
-  prepare: false,
+  prepare: env.NODE_ENV !== "test",
   max_lifetime: 60 * 30,
 });
 
