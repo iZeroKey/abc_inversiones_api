@@ -29,7 +29,7 @@ import {
   sendError,
   sendSuccess,
 } from "../../utils/response.util.js";
-import { resolveFileUrl } from "../../utils/storage.util.js";
+import { PaginationParamsMax } from "../../utils/validation.util.js";
 import { recalculateLoanLedger } from "../payments/payments.service.js";
 import {
   buildInstallmentDrafts,
@@ -90,16 +90,31 @@ const loanWithParticipantsSelection = {
   >`CASE WHEN ${investorUsers.id} IS NULL THEN NULL ELSE concat(${investorUsers.firstName}, ' ', ${investorUsers.lastName}) END`,
 };
 
-const loanListSelection = {
-  ...loanWithParticipantsSelection,
-  totalPaid: sql<string>`COALESCE((SELECT sum(${installments.paidAmount}) FROM ${installments} WHERE ${installments.loanId} = ${loans.id}), 0)`,
-  remainingDebt: sql<string>`GREATEST(${loans.totalDebt} - COALESCE((SELECT sum(${installments.paidAmount}) FROM ${installments} WHERE ${installments.loanId} = ${loans.id}), 0), 0)`,
-  remainingInstallments: sql<number>`COALESCE((SELECT count(*) FROM ${installments} WHERE ${installments.loanId} = ${loans.id} AND ${installments.status} <> 'paid'), ${loans.installmentsCount})::int`,
-  nextPaymentDate: sql<Date | null>`(SELECT ${installments.dueDate} FROM ${installments} WHERE ${installments.loanId} = ${loans.id} AND ${installments.status} <> 'paid' ORDER BY ${installments.dueDate} ASC LIMIT 1)`,
-  nextPaymentAmount: sql<
-    string | null
-  >`(SELECT GREATEST(${installments.amount} - ${installments.paidAmount}, 0) FROM ${installments} WHERE ${installments.loanId} = ${loans.id} AND ${installments.status} <> 'paid' ORDER BY ${installments.dueDate} ASC LIMIT 1)`,
-  nextInstallment: sql<Record<string, unknown> | null>`(SELECT json_build_object('dueDate', ${installments.dueDate}, 'amount', ${installments.amount}) FROM ${installments} WHERE ${installments.loanId} = ${loans.id} AND ${installments.status} <> 'paid' ORDER BY ${installments.dueDate} ASC LIMIT 1)`,
+const getInstallmentAggregation = async (
+  loanIds: string[],
+): Promise<Map<string, Record<string, unknown>>> => {
+  if (loanIds.length === 0) return new Map();
+  const rows = await db.execute(sql`
+    WITH loan_agg AS (
+      SELECT
+        i.loan_id,
+        COALESCE(SUM(i.paid_amount)::numeric(12,2), 0) as total_paid,
+        COALESCE(SUM(GREATEST(i.amount - i.paid_amount, 0))::numeric(12,2), 0) as remaining_debt,
+        COUNT(*) FILTER (WHERE i.status <> 'paid')::int as remaining_installments,
+        MIN(CASE WHEN i.status <> 'paid' THEN i.due_date END) as next_payment_date,
+        json_build_object(
+          'dueDate', MIN(CASE WHEN i.status <> 'paid' THEN i.due_date END),
+          'amount', MIN(CASE WHEN i.status <> 'paid' THEN i.amount END)
+        ) as next_installment
+      FROM ${installments} i
+      WHERE i.loan_id IN (${sql.join(loanIds, sql`, `)})
+      GROUP BY i.loan_id
+    )
+    SELECT * FROM loan_agg
+  `);
+  return new Map(
+    rows.map((r: Record<string, unknown>) => [r.loan_id as string, r]),
+  );
 };
 
 const selectLoanWithParticipantsById = async (id: string) => {
@@ -112,21 +127,6 @@ const selectLoanWithParticipantsById = async (id: string) => {
     .limit(1);
 
   return loan;
-};
-
-const attachSignedEvidenceUrl = async <
-  T extends { evidenceUrl?: string | null },
->(
-  record: T,
-): Promise<T> => {
-  if (!record.evidenceUrl) {
-    return record;
-  }
-
-  return {
-    ...record,
-    evidenceUrl: await resolveFileUrl(record.evidenceUrl),
-  };
 };
 
 export const createLoan = async (
@@ -352,19 +352,19 @@ export const getAllLoans = async (
 ): Promise<void> => {
   try {
     const user = req.user!;
-    const { status, clientId, investorId, from, to, search, q, page, limit } =
-      req.query;
-    const pageNumber = Math.max(Number.parseInt(String(page ?? "1"), 10), 1);
-    const requestedLimit = Number.parseInt(String(limit ?? ""), 10);
-    const hasPagination = Number.isFinite(requestedLimit) && requestedLimit > 0;
-    const pageLimit = hasPagination
-      ? Math.min(Math.max(requestedLimit, 1), 100)
-      : undefined;
-    const offset = pageLimit ? (pageNumber - 1) * pageLimit : 0;
+
+    const params = PaginationParamsMax(100).safeParse(req.query);
+    if (!params.success) {
+      sendError(res, 400, "Parámetros inválidos", formatZodError(params.error));
+      return;
+    }
+    const { page, limit } = params.data;
+    const offset = (page - 1) * limit;
+
+    const { status, clientId, investorId, from, to, search, q } = req.query;
 
     const conditions: SQL[] = [];
 
-    // Filtrado por rol (obligatorio)
     if (user.role === "client") {
       conditions.push(eq(loans.clientId, user.id));
     } else if (user.role === "investor") {
@@ -373,7 +373,6 @@ export const getAllLoans = async (
 
     conditions.push(sql`${loans.deletedAt} IS NULL`);
 
-    // Filtros opcionales (admin/investor pueden filtrar más)
     if (status)
       conditions.push(
         eq(loans.status, status as (typeof loans.status.enumValues)[number]),
@@ -412,42 +411,6 @@ export const getAllLoans = async (
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const baseQuery = db
-      .select(loanListSelection)
-      .from(loans)
-      .innerJoin(clientUsers, eq(clientUsers.id, loans.clientId))
-      .leftJoin(investorUsers, eq(investorUsers.id, loans.investorId))
-      .where(where)
-      .orderBy(desc(loans.createdAt));
-
-    const results = pageLimit
-      ? await baseQuery.limit(pageLimit).offset(offset)
-      : await baseQuery;
-
-    const enrichedResults = results.map((loan) => {
-      const totalPaid = Number(loan.totalPaid);
-      const totalDebt = Number(loan.totalDebt);
-      const status = loan.status;
-
-      let progress: number;
-      if (status === "paid") {
-        progress = 100;
-      } else if (
-        ["draft", "pending_investor_review", "pending_admin_review", "rejected", "cancelled"].includes(status)
-      ) {
-        progress = 0;
-      } else {
-        progress = totalDebt > 0 ? Math.min(Math.round((totalPaid / totalDebt) * 100), 100) : 0;
-      }
-
-      const nextInstallment =
-        status === "active" || status === "defaulted"
-          ? loan.nextInstallment
-          : null;
-
-      return { ...loan, nextInstallment, progress };
-    });
-
     const [countRow] = await db
       .select({ total: sql<number>`count(*)::int` })
       .from(loans)
@@ -455,13 +418,74 @@ export const getAllLoans = async (
       .leftJoin(investorUsers, eq(investorUsers.id, loans.investorId))
       .where(where);
 
-    const total = countRow?.total ?? results.length;
-    const responseLimit = pageLimit ?? total;
+    const total = countRow?.total ?? 0;
+
+    const loansData = await db
+      .select(loanWithParticipantsSelection)
+      .from(loans)
+      .innerJoin(clientUsers, eq(clientUsers.id, loans.clientId))
+      .leftJoin(investorUsers, eq(investorUsers.id, loans.investorId))
+      .where(where)
+      .orderBy(desc(loans.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const loanIds = loansData.map(
+      (l: Record<string, unknown>) => l.id as string,
+    );
+    const aggMap = await getInstallmentAggregation(loanIds);
+
+    const enrichedResults = loansData.map((loan: Record<string, unknown>) => {
+      const agg = aggMap.get(loan.id as string);
+      const totalPaid = Number(agg?.total_paid ?? 0);
+      const totalDebt = Number(loan.totalDebt ?? 0);
+      const status = loan.status as string;
+
+      let progress: number;
+      if (status === "paid") {
+        progress = 100;
+      } else if (
+        [
+          "draft",
+          "pending_investor_review",
+          "pending_admin_review",
+          "rejected",
+          "cancelled",
+        ].includes(status)
+      ) {
+        progress = 0;
+      } else {
+        progress =
+          totalDebt > 0
+            ? Math.min(Math.round((totalPaid / totalDebt) * 100), 100)
+            : 0;
+      }
+
+      const nextInstallment =
+        status === "active" || status === "defaulted"
+          ? (agg?.next_installment ?? null)
+          : null;
+
+      return {
+        ...loan,
+        totalPaid: agg?.total_paid ?? "0",
+        remainingDebt: agg?.remaining_debt ?? loan.totalDebt,
+        remainingInstallments:
+          agg?.remaining_installments ?? loan.installmentsCount,
+        nextPaymentDate: agg?.next_payment_date ?? null,
+        nextPaymentAmount: null,
+        nextInstallment,
+        progress,
+      };
+    });
+
     sendSuccess(res, 200, "Préstamos obtenidos", enrichedResults, {
-      page: pageLimit ? pageNumber : 1,
-      limit: responseLimit,
-      total,
-      totalPages: responseLimit > 0 ? Math.ceil(total / responseLimit) : 1,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     sendError(res, 500, "Error al obtener préstamos", error);
@@ -499,10 +523,19 @@ export const getLoanInstallments = async (
 ): Promise<void> => {
   try {
     const loanId = req.params.id as string;
+
+    const params = PaginationParamsMax(200).safeParse(req.query);
+    if (!params.success) {
+      sendError(res, 400, "Parámetros inválidos", formatZodError(params.error));
+      return;
+    }
+    const { page, limit } = params.data;
+    const offset = (page - 1) * limit;
+
     const user = req.user!;
 
     const [loan] = await db
-      .select()
+      .select(getTableColumns(loans))
       .from(loans)
       .where(eq(loans.id, loanId))
       .limit(1);
@@ -517,13 +550,29 @@ export const getLoanInstallments = async (
       return;
     }
 
+    const [countRow] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(installments)
+      .where(eq(installments.loanId, loanId));
+
+    const total = countRow?.total ?? 0;
+
     const results = await db
       .select()
       .from(installments)
       .where(eq(installments.loanId, loanId))
-      .orderBy(installments.installmentNumber);
+      .orderBy(installments.installmentNumber)
+      .limit(limit)
+      .offset(offset);
 
-    sendSuccess(res, 200, "Cronograma obtenido", results);
+    sendSuccess(res, 200, "Cronograma obtenido", results, {
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     sendError(res, 500, "Error al obtener cronograma", error);
   }
@@ -553,12 +602,14 @@ export const getLoanBundle = async (
         .select()
         .from(installments)
         .where(eq(installments.loanId, loanId))
-        .orderBy(installments.installmentNumber),
+        .orderBy(installments.installmentNumber)
+        .limit(200),
       db
         .select()
         .from(payments)
         .where(and(eq(payments.loanId, loanId), isNull(payments.deletedAt)))
-        .orderBy(desc(payments.paymentDate)),
+        .orderBy(desc(payments.paymentDate))
+        .limit(200),
       db
         .select()
         .from(paymentVouchers)
@@ -569,19 +620,15 @@ export const getLoanBundle = async (
             ne(paymentVouchers.status, "deleted"),
           ),
         )
-        .orderBy(desc(paymentVouchers.createdAt)),
-    ]);
-
-    const [signedPayments, signedVouchers] = await Promise.all([
-      Promise.all(loanPayments.map(attachSignedEvidenceUrl)),
-      Promise.all(loanVouchers.map(attachSignedEvidenceUrl)),
+        .orderBy(desc(paymentVouchers.createdAt))
+        .limit(200),
     ]);
 
     sendSuccess(res, 200, "Bundle de préstamo obtenido", {
       loan,
       installments: loanInstallments,
-      payments: signedPayments,
-      vouchers: signedVouchers,
+      payments: loanPayments,
+      vouchers: loanVouchers,
     });
   } catch (error) {
     sendError(res, 500, "Error al obtener bundle del préstamo", error);
@@ -686,62 +733,100 @@ export const getAdminLoanSummary = async (
       return;
     }
 
-    const results = await db
-      .select({
-        id: loans.id,
-        publicCode: loans.publicCode,
-        clientId: loans.clientId,
-        clientCode: clientUsers.publicCode,
-        clientName: sql<string>`concat(${clientUsers.firstName}, ' ', ${clientUsers.lastName})`,
-        investorId: loans.investorId,
-        investorCode: investorUsers.publicCode,
-        investorName: sql<
-          string | null
-        >`CASE WHEN ${investorUsers.id} IS NULL THEN NULL ELSE concat(${investorUsers.firstName}, ' ', ${investorUsers.lastName}) END`,
-        creditDate: loans.startDate,
-        principal: loans.principal,
-        frequency: loans.frequency,
-        interestRate: loans.interestRate,
-        totalDebt: loans.totalDebt,
-        status: loans.status,
-        paidAmount: sql<string>`COALESCE(sum(${installments.paidAmount}), 0)`,
-        totalInterest: sql<string>`${loans.totalDebt} - ${loans.principal}`,
-        remainingDebt: sql<string>`COALESCE(sum(GREATEST(${installments.amount} - ${installments.paidAmount}, 0)), ${loans.totalDebt})`,
-        remainingInstallments: sql<number>`(CASE WHEN count(${installments.id}) = 0 THEN ${loans.installmentsCount} ELSE count(*) FILTER (WHERE ${installments.status} <> 'paid') END)::int`,
-        createdAt: loans.createdAt,
-      })
+    const params = PaginationParamsMax(100).safeParse(req.query);
+    if (!params.success) {
+      sendError(res, 400, "Parámetros inválidos", formatZodError(params.error));
+      return;
+    }
+    const { page, limit } = params.data;
+    const offset = (page - 1) * limit;
+
+    const { from, to, status, q } = req.query;
+
+    const conditions: SQL[] = [
+      sql`${loans.deletedAt} IS NULL`,
+      sql`${loans.status} <> 'deleted'`,
+    ];
+
+    if (status)
+      conditions.push(
+        eq(loans.status, status as (typeof loans.status.enumValues)[number]),
+      );
+    if (from)
+      conditions.push(sql`${loans.createdAt} >= ${new Date(from as string)}`);
+    if (to)
+      conditions.push(sql`${loans.createdAt} <= ${new Date(to as string)}`);
+
+    if (q && typeof q === "string" && q.trim()) {
+      const pattern = `%${q.trim()}%`;
+      conditions.push(
+        or(
+          ilike(loans.publicCode, pattern),
+          ilike(clientUsers.publicCode, pattern),
+          ilike(investorUsers.publicCode, pattern),
+          ilike(clientUsers.firstName, pattern),
+          ilike(clientUsers.lastName, pattern),
+          ilike(investorUsers.firstName, pattern),
+          ilike(investorUsers.lastName, pattern),
+        )!,
+      );
+    }
+
+    const where = and(...conditions);
+
+    const [countRow] = await db
+      .select({ total: sql<number>`count(*)::int` })
       .from(loans)
       .innerJoin(clientUsers, eq(clientUsers.id, loans.clientId))
       .leftJoin(investorUsers, eq(investorUsers.id, loans.investorId))
-      .leftJoin(installments, eq(installments.loanId, loans.id))
-      .where(sql`${loans.deletedAt} IS NULL AND ${loans.status} <> 'deleted'`)
-      .groupBy(
-        loans.id,
-        loans.clientId,
-        loans.startDate,
-        loans.principal,
-        loans.frequency,
-        loans.interestRate,
-        loans.totalDebt,
-        loans.status,
-        loans.installmentsCount,
-        loans.createdAt,
-        clientUsers.id,
-        clientUsers.publicCode,
-        clientUsers.firstName,
-        clientUsers.lastName,
-        investorUsers.id,
-        investorUsers.publicCode,
-        investorUsers.firstName,
-        investorUsers.lastName,
-      )
-      .orderBy(desc(loans.createdAt));
+      .where(where);
+
+    const total = countRow?.total ?? 0;
+
+    const loansData = await db
+      .select(loanWithParticipantsSelection)
+      .from(loans)
+      .innerJoin(clientUsers, eq(clientUsers.id, loans.clientId))
+      .leftJoin(investorUsers, eq(investorUsers.id, loans.investorId))
+      .where(where)
+      .orderBy(desc(loans.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const loanIds = loansData.map(
+      (l: Record<string, unknown>) => l.id as string,
+    );
+    const aggMap = await getInstallmentAggregation(loanIds);
+
+    const results = loansData.map((loan: Record<string, unknown>) => {
+      const agg = aggMap.get(loan.id as string);
+      return {
+        ...loan,
+        paidAmount: agg?.total_paid ?? "0",
+        totalInterest: (
+          Number(loan.totalDebt ?? 0) - Number(loan.principal ?? 0)
+        ).toFixed(2),
+        remainingDebt: agg !== undefined ? agg.remaining_debt : loan.totalDebt,
+        remainingInstallments:
+          agg !== undefined
+            ? agg.remaining_installments
+            : loan.installmentsCount,
+      };
+    });
 
     sendSuccess(
       res,
       200,
       "Resumen administrativo de préstamos obtenido",
       results,
+      {
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      },
     );
   } catch (error) {
     sendError(

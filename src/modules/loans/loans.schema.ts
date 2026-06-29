@@ -25,7 +25,10 @@ export const createLoanSchema = z.object({
   frequency: z
     .enum(["daily", "weekly", "biweekly", "monthly"])
     .default("monthly"),
-  name: z.string().max(255, "El nombre no puede superar 255 caracteres").optional(),
+  name: z
+    .string()
+    .max(255, "El nombre no puede superar 255 caracteres")
+    .optional(),
   startDate: z.iso.datetime({
     message: "La fecha de inicio es obligatoria",
     offset: true,
@@ -68,7 +71,11 @@ export const updateLoanSchema = z.strictObject({
     .min(1, "El número de cuotas debe ser positivo")
     .max(120, "El número de cuotas no puede superar 120")
     .optional(),
-  name: z.string().max(255, "El nombre no puede superar 255 caracteres").optional().nullable(),
+  name: z
+    .string()
+    .max(255, "El nombre no puede superar 255 caracteres")
+    .optional()
+    .nullable(),
   frequency: z.enum(["daily", "weekly", "biweekly", "monthly"]).optional(),
   startDate: z.iso
     .datetime({
