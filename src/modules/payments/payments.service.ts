@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, or } from "drizzle-orm";
+import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "../../config/db.js";
 import { installments } from "../../db/schema/installments.js";
 import { loans } from "../../db/schema/loans.js";
@@ -47,6 +47,9 @@ const recalculateLoanLedgerInTransaction = async (
   tx: DbTransaction,
   loanId: string,
 ) => {
+  // Bloquea la fila del préstamo para evitar recálculos concurrentes
+  await tx.execute(sql`SELECT id FROM ${loans} WHERE id = ${loanId} FOR UPDATE`);
+
   const [loan] = await tx
     .select()
     .from(loans)
