@@ -82,7 +82,8 @@ export async function generatePublicCode(
 ): Promise<string> {
   const spec = publicCodeSpecs[kind];
   const rows = await queryClient.unsafe(
-    `SELECT nextval('${spec.sequenceName}') AS value`,
+    "SELECT nextval($1::regclass) AS value",
+    [spec.sequenceName],
   );
   const value = Number(rows[0]?.value);
 
@@ -98,7 +99,8 @@ export async function setPublicCodeSequenceValue(
   const isCalled = value > 0;
 
   await queryClient.unsafe(
-    `SELECT setval('${sequenceName}', ${normalizedValue}, ${isCalled})`,
+    "SELECT setval($1::regclass, $2, $3)",
+    [sequenceName, normalizedValue, isCalled],
   );
 }
 

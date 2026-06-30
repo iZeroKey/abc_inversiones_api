@@ -14,6 +14,7 @@ const envSchema = z.object({
     .default(900),
   OCR_ENABLED: z.coerce.boolean().default(true),
   OCR_PROVIDER: z.enum(["google-vision"]).default("google-vision"),
+  CORS_ORIGIN: z.string().default("http://localhost:5173"),
   SUPABASE_URL: z.url({
     message: "La variable SUPABASE_URL debe ser una URL válida",
   }),

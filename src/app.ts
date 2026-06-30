@@ -7,12 +7,16 @@ import {
   notFoundHandler,
 } from "./middleware/error-handler.middleware.js";
 import { v1Routes } from "./routes/index.js";
+import { env } from "./config/env.js";
 
 export const app = express();
 
 app.use(compression());
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: env.CORS_ORIGIN.split(",").map((o) => o.trim()),
+  credentials: true,
+}));
 app.use(express.json({ limit: "2mb" }));
 
 app.use((_req, res, next) => {
