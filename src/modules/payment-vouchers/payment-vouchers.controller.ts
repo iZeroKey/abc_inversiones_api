@@ -205,13 +205,13 @@ export const submitVoucher = async (
 
     // 6. Notificar al inversionista solo si tiene acceso operativo.
     if (initialStatus === "pending_investor_review" && loan.investorId) {
-      sendNotification({
+      await sendNotification({
         userId: loan.investorId,
         title: "Nuevo voucher para revisar",
         body: `Un cliente ha subido un comprobante de pago por ${validation.data.amount}. Revísalo en tu panel.`,
         type: "VOUCHER_PENDING_REVIEW",
         data: { voucherId: newVoucher.id, loanId },
-      }).catch(console.error);
+      });
     }
 
     const [responseVoucher] = await attachSignedUrls([newVoucher]);
@@ -510,7 +510,7 @@ export const processVoucher = async (
       nextStatus === "investor_rejected" || nextStatus === "owner_rejected";
 
     if (isApproved || isRejected) {
-      sendNotification({
+      await sendNotification({
         userId: voucher.clientId,
         title: isApproved ? "¡Pago Confirmado!" : "Voucher Rechazado",
         body: isApproved
@@ -518,7 +518,7 @@ export const processVoucher = async (
           : `Tu voucher por ${voucher.amount} fue rechazado. Motivo: ${observation || "Sin especificar"}`,
         type: isApproved ? "VOUCHER_APPROVED" : "VOUCHER_REJECTED",
         data: { voucherId: id, loanId: voucher.loanId },
-      }).catch(console.error);
+      });
     }
 
     // Al inversionista: cuando el Admin toma una decisión final
@@ -526,7 +526,7 @@ export const processVoucher = async (
       (nextStatus === "owner_approved" || nextStatus === "owner_rejected") &&
       loan?.investorId
     ) {
-      sendNotification({
+      await sendNotification({
         userId: loan.investorId,
         title: isApproved
           ? "Pago confirmado por administración"
@@ -536,7 +536,7 @@ export const processVoucher = async (
           : `El pago por ${voucher.amount} fue rechazado por la administración.`,
         type: isApproved ? "VOUCHER_ADMIN_APPROVED" : "VOUCHER_ADMIN_REJECTED",
         data: { voucherId: id, loanId: voucher.loanId },
-      }).catch(console.error);
+      });
     }
 
     const [responseVoucher] = await attachSignedUrls([updated]);
