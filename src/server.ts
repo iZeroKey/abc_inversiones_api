@@ -14,10 +14,20 @@ server.listen(PORT, () => {
   logger.info({ port: PORT, app: APP_NAME }, "Server started");
 });
 
+const SHUTDOWN_TIMEOUT_MS = 10_000;
+
 const shutdown = (): void => {
   logger.info("Shutting down server...");
+
+  const forceExit = setTimeout(() => {
+    logger.error("Shutdown timeout reached, forcing exit");
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceExit.unref();
+
   realtimeService.close();
   server.close((error) => {
+    clearTimeout(forceExit);
     if (error) {
       logger.error({ err: error }, "Error closing server");
       process.exit(1);
