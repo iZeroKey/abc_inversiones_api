@@ -89,7 +89,7 @@ export const getAllRequests = async (
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.max(1, Math.ceil(total / limit)),
       },
     });
   } catch (error) {

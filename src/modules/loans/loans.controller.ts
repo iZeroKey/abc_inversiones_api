@@ -485,7 +485,7 @@ export const getAllLoans = async (
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.max(1, Math.ceil(total / limit)),
       },
     });
   } catch (error) {
@@ -571,7 +571,7 @@ export const getLoanInstallments = async (
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.max(1, Math.ceil(total / limit)),
       },
     });
   } catch (error) {
@@ -805,7 +805,7 @@ export const getAdminLoanSummary = async (
           page,
           limit,
           total,
-          totalPages: Math.ceil(total / limit),
+          totalPages: Math.max(1, Math.ceil(total / limit)),
         },
       },
     );
@@ -1266,7 +1266,7 @@ export const getLoanTransactions = async (
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.max(1, Math.ceil(total / limit)),
       },
     });
   } catch (error) {
