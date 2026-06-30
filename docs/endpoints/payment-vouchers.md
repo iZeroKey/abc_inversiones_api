@@ -87,7 +87,7 @@ Subir un nuevo comprobante de pago (Voucher) con la imagen y los datos finales c
 
 El cliente no envía ni escoge método de pago en vouchers. Si el préstamo tiene un inversionista con cuenta de acceso activa, el voucher queda en `pending_investor_review`; si no tiene inversionista con acceso, queda directamente en `pending_admin_review`.
 
-Usa modo **direct-stream** (busboy → PassThrough → Supabase): los bytes de la imagen se tuberizan directamente a Supabase Storage sin acumularse en RAM del backend. Backpressure preservada extremo a extremo. El middleware controla el streaming mediante `fileStream.uploadPromise`.
+Usa modo **direct-stream** (busboy → PassThrough → Supabase): los bytes de la imagen se tuberizan directamente a Supabase Storage hacia una carpeta temporal `temp/` sin acumularse en RAM del backend. Al registrar exitosamente el comprobante en la base de datos, el archivo se mueve a su ruta permanente estructurada en `receipts/{loanId}/`. Si falla la inserción en la base de datos, el archivo temporal se elimina para prevenir acumulación huérfana.
 
 ### Endpoint
 
@@ -518,6 +518,7 @@ Eliminar lógicamente un voucher.
 
 - **Client**: Puede eliminar su voucher si está pendiente (`draft`, `pending_investor_review`, `pending_admin_review`).
 - **Admin / Owner**: Puede eliminar cualquier voucher. Si el voucher ya fue aprobado (`owner_approved`), el pago asociado se marcará como revertido (`status = "reversed"` y se definirá su `deletedAt`) y el préstamo se recalculará cronológicamente.
+- **Limpieza de Storage**: Al eliminar un voucher, la imagen asociada se borra de manera definitiva físicamente del servidor de Storage de Supabase para ahorrar espacio, y el campo `evidenceUrl` pasa a ser nulo.
 
 ### Endpoint
 

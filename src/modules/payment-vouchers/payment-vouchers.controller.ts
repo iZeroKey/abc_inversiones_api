@@ -1,5 +1,7 @@
+import { randomUUID } from "crypto";
 import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { Response } from "express";
+import path from "path";
 import { db } from "../../config/db.js";
 import { loans } from "../../db/schema/loans.js";
 import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
@@ -14,7 +16,12 @@ import {
   sendError,
   sendSuccess,
 } from "../../utils/response.util.js";
-import { attachSignedUrls } from "../../utils/storage.util.js";
+import { 
+  attachSignedUrls, 
+  parseStorageReference, 
+  moveStorageFile, 
+  deleteStorageReference 
+} from "../../utils/storage.util.js";
 import { PaginationParamsMax } from "../../utils/validation.util.js";
 import {
   PaymentBusinessError,
@@ -86,6 +93,7 @@ export const submitVoucher = async (
   req: AuthRequest,
   res: Response,
 ): Promise<void> => {
+  let uploadedFinalUrl: string | null = null;
   try {
     // Fuente de datos: multipart (busboy) o JSON.
     // Si la petición fue multipart, los campos vienen del parser.
@@ -114,6 +122,9 @@ export const submitVoucher = async (
 
     const clientId = req.user!.id;
     const { loanId, operationId } = validation.data;
+    
+    // Capturamos el evidenceUrl en este scope para que si hay error podamos borrarlo
+    let evidenceUrl = validation.data.evidenceUrl || null;
 
     // 1. Verificar duplicado de operationId
     const [existing] = await db
@@ -154,10 +165,16 @@ export const submitVoucher = async (
     }
 
     // 4. Subir imagen al Storage
-    let evidenceUrl = validation.data.evidenceUrl || null;
-
     if (streamParsed?.fileStream) {
       evidenceUrl = await streamParsed.fileStream.uploadPromise;
+      
+      const parsed = parseStorageReference(evidenceUrl);
+      if (parsed && parsed.path.startsWith("temp/")) {
+        const ext = path.extname(parsed.path) || ".jpg";
+        const finalPath = `receipts/${loanId}/${randomUUID()}${ext}`;
+        evidenceUrl = await moveStorageFile(parsed.bucket, parsed.path, finalPath);
+        uploadedFinalUrl = evidenceUrl;
+      }
     }
 
     // 5. Determinar estado inicial según si el inversionista puede revisar.
@@ -188,13 +205,13 @@ export const submitVoucher = async (
 
     // 6. Notificar al inversionista solo si tiene acceso operativo.
     if (initialStatus === "pending_investor_review" && loan.investorId) {
-      await sendNotification({
+      sendNotification({
         userId: loan.investorId,
         title: "Nuevo voucher para revisar",
         body: `Un cliente ha subido un comprobante de pago por ${validation.data.amount}. Revísalo en tu panel.`,
         type: "VOUCHER_PENDING_REVIEW",
         data: { voucherId: newVoucher.id, loanId },
-      });
+      }).catch(console.error);
     }
 
     const [responseVoucher] = await attachSignedUrls([newVoucher]);
@@ -207,6 +224,15 @@ export const submitVoucher = async (
     });
     sendSuccess(res, 201, "Voucher enviado para revisión", responseVoucher);
   } catch (error: unknown) {
+    if (uploadedFinalUrl) {
+      await deleteStorageReference(uploadedFinalUrl).catch(console.error);
+    } else if (req.streamParsed?.fileStream) {
+      const uploadedUrl = await req.streamParsed.fileStream.uploadPromise.catch(() => null);
+      if (uploadedUrl) {
+         await deleteStorageReference(uploadedUrl).catch(console.error);
+      }
+    }
+
     if (isUniqueViolation(error)) {
       sendError(
         res,
@@ -484,7 +510,7 @@ export const processVoucher = async (
       nextStatus === "investor_rejected" || nextStatus === "owner_rejected";
 
     if (isApproved || isRejected) {
-      await sendNotification({
+      sendNotification({
         userId: voucher.clientId,
         title: isApproved ? "¡Pago Confirmado!" : "Voucher Rechazado",
         body: isApproved
@@ -492,7 +518,7 @@ export const processVoucher = async (
           : `Tu voucher por ${voucher.amount} fue rechazado. Motivo: ${observation || "Sin especificar"}`,
         type: isApproved ? "VOUCHER_APPROVED" : "VOUCHER_REJECTED",
         data: { voucherId: id, loanId: voucher.loanId },
-      });
+      }).catch(console.error);
     }
 
     // Al inversionista: cuando el Admin toma una decisión final
@@ -500,7 +526,7 @@ export const processVoucher = async (
       (nextStatus === "owner_approved" || nextStatus === "owner_rejected") &&
       loan?.investorId
     ) {
-      await sendNotification({
+      sendNotification({
         userId: loan.investorId,
         title: isApproved
           ? "Pago confirmado por administración"
@@ -510,7 +536,7 @@ export const processVoucher = async (
           : `El pago por ${voucher.amount} fue rechazado por la administración.`,
         type: isApproved ? "VOUCHER_ADMIN_APPROVED" : "VOUCHER_ADMIN_REJECTED",
         data: { voucherId: id, loanId: voucher.loanId },
-      });
+      }).catch(console.error);
     }
 
     const [responseVoucher] = await attachSignedUrls([updated]);
@@ -719,6 +745,15 @@ export const deleteVoucher = async (
       })
       .where(eq(paymentVouchers.id, id))
       .returning();
+
+    // Eliminar archivo de storage
+    if (deletedVoucher.evidenceUrl) {
+      await deleteStorageReference(deletedVoucher.evidenceUrl).catch(console.error);
+      await db.update(paymentVouchers)
+        .set({ evidenceUrl: null })
+        .where(eq(paymentVouchers.id, id));
+      deletedVoucher.evidenceUrl = null;
+    }
 
     let recalculated = null;
     let relatedPaymentId: string | null = null;

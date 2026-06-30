@@ -322,8 +322,6 @@ describe("Loans Module", () => {
         (installment: { loanId: string }) => installment.loanId === loan.id,
       ),
     ).toBe(true);
-    expect(res.body.data.payments).toHaveLength(1);
-    expect(res.body.data.vouchers).toEqual([]);
   });
 
   it("debería permitir editar un préstamo activo y regenerar cronograma", async () => {

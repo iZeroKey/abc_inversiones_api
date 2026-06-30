@@ -1199,7 +1199,7 @@ export const getLoanTransactions = async (
           'payment' as type,
           p.id,
           p.amount,
-          p.payment_date as date,
+          COALESCE(p.payment_date, p.created_at) as date,
           p.status,
           row_to_json(p) as payload
         FROM payments p
@@ -1211,7 +1211,7 @@ export const getLoanTransactions = async (
           'voucher' as type,
           v.id,
           v.amount,
-          v.operation_date as date,
+          COALESCE(v.operation_date, v.created_at) as date,
           v.status,
           row_to_json(v) as payload
         FROM payment_vouchers v
@@ -1227,7 +1227,7 @@ export const getLoanTransactions = async (
 
     const dataResult = await db.execute(sql`
       ${unionSql}
-      ORDER BY date DESC
+      ORDER BY date DESC NULLS LAST, id ASC
       LIMIT ${limit} OFFSET ${offset}
     `);
 

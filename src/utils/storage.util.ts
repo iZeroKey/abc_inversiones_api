@@ -17,7 +17,7 @@ const createStorageReference = (bucket: string, objectPath: string): string => {
   return `${STORAGE_REF_PREFIX}${bucket}/${objectPath}`;
 };
 
-const parseStorageReference = (
+export const parseStorageReference = (
   value: string,
 ): { bucket: string; path: string } | null => {
   if (!value.startsWith(STORAGE_REF_PREFIX)) {
@@ -171,6 +171,18 @@ export const deleteFile = async (
   }
 };
 
+export const moveStorageFile = async (
+  bucket: string,
+  fromPath: string,
+  toPath: string,
+): Promise<string> => {
+  const { error } = await supabaseAdmin.storage.from(bucket).move(fromPath, toPath);
+  if (error) {
+    throw new Error(`Error moviendo archivo de Storage: ${error.message}`);
+  }
+  return createStorageReference(bucket, toPath);
+};
+
 export const deleteStorageReference = async (
   value: string | null | undefined,
 ): Promise<boolean> => {
@@ -227,21 +239,30 @@ export async function attachSignedUrls<
   expiresIn = 3600,
 ): Promise<T[]> {
   const withStorage = items.filter((i) =>
-    i[urlField]?.startsWith("storage://"),
+    i[urlField]?.startsWith(STORAGE_REF_PREFIX),
   );
   if (withStorage.length === 0) return items;
 
-  const resolvedBucket =
-    bucket ?? (urlField === "avatarUrl" ? "avatars" : "vouchers");
-  const paths = withStorage.map((i) => i[urlField]!.replace("storage://", ""));
+  const paths = withStorage.map((i) => {
+    const parsed = parseStorageReference(i[urlField]!);
+    return parsed ? parsed.path : i[urlField]!.replace(STORAGE_REF_PREFIX, "");
+  });
+
+  const resolvedBucket = bucket ?? (urlField === "avatarUrl" ? "avatars" : "vouchers");
+  
   const { data } = await supabaseAdmin.storage
     .from(resolvedBucket)
     .createSignedUrls(paths, expiresIn);
+    
   const urlMap = new Map(data?.map((d) => [d.path, d.signedUrl]) ?? []);
 
   return items.map((item) => {
-    if (!item[urlField]?.startsWith("storage://")) return item;
-    const resolved = urlMap.get(item[urlField]!.replace("storage://", ""));
+    if (!item[urlField]?.startsWith(STORAGE_REF_PREFIX)) return item;
+    
+    const parsed = parseStorageReference(item[urlField]!);
+    const mapKey = parsed ? parsed.path : item[urlField]!.replace(STORAGE_REF_PREFIX, "");
+    
+    const resolved = urlMap.get(mapKey);
     return {
       ...item,
       [urlField]: resolved ?? item[urlField],
