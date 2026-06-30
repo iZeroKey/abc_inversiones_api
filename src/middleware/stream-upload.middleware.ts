@@ -98,7 +98,7 @@ export const streamUpload = (options: StreamUploadOptions) => {
     req.streamParsed = parsed;
 
     const callNext = () => {
-      if (!nextCalled && !responded) {
+      if (!nextCalled && !responded && !res.headersSent) {
         nextCalled = true;
         if (uploadError) {
           responded = true;
@@ -112,7 +112,7 @@ export const streamUpload = (options: StreamUploadOptions) => {
     };
 
     const sendErrorResponse = (status: number, message: string) => {
-      if (!responded && !nextCalled) {
+      if (!responded && !nextCalled && !res.headersSent) {
         responded = true;
         res.status(status).json({ success: false, message });
       }
