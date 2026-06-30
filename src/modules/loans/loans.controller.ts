@@ -374,11 +374,22 @@ export const getAllLoans = async (
 
     conditions.push(sql`${loans.deletedAt} IS NULL`);
 
-    if (status)
-      conditions.push(
-        eq(loans.status, status as (typeof loans.status.enumValues)[number]),
-      );
-    else conditions.push(sql`${loans.status} <> 'deleted'`);
+    if (status) {
+      if (status === "pending") {
+        conditions.push(
+          or(
+            eq(loans.status, "pending_investor_review"),
+            eq(loans.status, "pending_admin_review")
+          )!
+        );
+      } else {
+        conditions.push(
+          eq(loans.status, status as (typeof loans.status.enumValues)[number]),
+        );
+      }
+    } else {
+      conditions.push(sql`${loans.status} <> 'deleted'`);
+    }
     if (clientId && user.role !== "client")
       conditions.push(eq(loans.clientId, clientId as string));
     if (investorId && user.role !== "investor")
@@ -397,17 +408,27 @@ export const getAllLoans = async (
 
     if (searchTerm) {
       const searchPattern = `%${searchTerm}%`;
-      conditions.push(
-        or(
-          ilike(loans.publicCode, searchPattern),
-          ilike(clientUsers.publicCode, searchPattern),
-          ilike(investorUsers.publicCode, searchPattern),
-          ilike(clientUsers.firstName, searchPattern),
-          ilike(clientUsers.lastName, searchPattern),
-          ilike(investorUsers.firstName, searchPattern),
-          ilike(investorUsers.lastName, searchPattern),
-        )!,
-      );
+      const numericTerm = searchTerm.replace(/,/g, "").replace(/\$/g, "").trim();
+      const numericPattern = numericTerm ? `%${numericTerm}%` : null;
+
+      const searchConditions = [
+        ilike(loans.publicCode, searchPattern),
+        ilike(loans.name, searchPattern),
+        ilike(clientUsers.publicCode, searchPattern),
+        ilike(investorUsers.publicCode, searchPattern),
+        ilike(clientUsers.firstName, searchPattern),
+        ilike(clientUsers.lastName, searchPattern),
+        ilike(investorUsers.firstName, searchPattern),
+        ilike(investorUsers.lastName, searchPattern),
+        sql`concat(${clientUsers.firstName}, ' ', ${clientUsers.lastName}) ILIKE ${searchPattern}`,
+        sql`concat(${investorUsers.firstName}, ' ', ${investorUsers.lastName}) ILIKE ${searchPattern}`,
+      ];
+
+      if (numericPattern && !isNaN(Number(numericTerm))) {
+        searchConditions.push(sql`${loans.principal}::text ILIKE ${numericPattern}`);
+      }
+
+      conditions.push(or(...searchConditions)!);
     }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
