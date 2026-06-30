@@ -64,23 +64,34 @@ export const getClientStatement = async (
       .orderBy(desc(loans.createdAt));
 
     const agg = await db.execute(sql`
-      WITH client_agg AS (
+      WITH loan_agg AS (
         SELECT
-          COALESCE(SUM(l.principal) FILTER (WHERE l.deleted_at IS NULL AND l.status <> 'deleted'), 0) as total_principal,
-          COALESCE(SUM(l.total_debt) FILTER (WHERE l.deleted_at IS NULL AND l.status <> 'deleted'), 0) as total_debt,
+          COALESCE(SUM(l.principal), 0) as total_principal,
+          COALESCE(SUM(l.total_debt), 0) as total_debt,
           COUNT(*) FILTER (WHERE l.status = 'active') as active_loans,
-          COUNT(*) FILTER (WHERE l.status = 'paid') as paid_loans,
-          COUNT(i.id) FILTER (WHERE i.status = 'overdue') as overdue_count,
-          COALESCE(SUM(i.amount - i.paid_amount) FILTER (WHERE i.status = 'overdue'), 0) as overdue_amount,
-          COUNT(i.id) FILTER (WHERE i.status != 'paid' AND l.status = 'active') as pending_installments,
-          COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'confirmed' AND p.deleted_at IS NULL), 0) as total_paid,
-          COUNT(p.id) FILTER (WHERE p.status = 'confirmed' AND p.deleted_at IS NULL) as payment_count
+          COUNT(*) FILTER (WHERE l.status = 'paid') as paid_loans
         FROM ${loans} l
-        LEFT JOIN ${installments} i ON i.loan_id = l.id
-        LEFT JOIN ${payments} p ON p.loan_id = l.id
         WHERE l.client_id = ${targetClientId} AND l.deleted_at IS NULL AND l.status <> 'deleted'
+      ),
+      installment_agg AS (
+        SELECT
+          COUNT(*) FILTER (WHERE i.status = 'overdue') as overdue_count,
+          COALESCE(SUM(i.amount - i.paid_amount) FILTER (WHERE i.status = 'overdue'), 0) as overdue_amount,
+          COUNT(*) FILTER (WHERE i.status != 'paid' AND l.status = 'active') as pending_installments
+        FROM ${installments} i
+        INNER JOIN ${loans} l ON l.id = i.loan_id
+        WHERE l.client_id = ${targetClientId} AND l.deleted_at IS NULL AND l.status <> 'deleted'
+      ),
+      payment_agg AS (
+        SELECT
+          COALESCE(SUM(p.amount), 0) as total_paid,
+          COUNT(*) as payment_count
+        FROM ${payments} p
+        INNER JOIN ${loans} l ON l.id = p.loan_id
+        WHERE l.client_id = ${targetClientId} AND l.deleted_at IS NULL AND l.status <> 'deleted'
+          AND p.status = 'confirmed' AND p.deleted_at IS NULL
       )
-      SELECT * FROM client_agg
+      SELECT * FROM loan_agg, installment_agg, payment_agg
     `);
 
     const row = (agg as unknown as Record<string, unknown>[])[0] ?? {};
@@ -232,23 +243,34 @@ export const getAdminDashboard = async (
 ): Promise<void> => {
   try {
     const agg = await db.execute(sql`
-      WITH dashboard_agg AS (
+      WITH loan_agg AS (
         SELECT
           COUNT(*) as total_loans,
           COUNT(*) FILTER (WHERE l.status = 'active') as active_loans,
           COUNT(*) FILTER (WHERE l.status IN ('pending_investor_review', 'pending_admin_review')) as pending_loans,
           COALESCE(SUM(l.principal) FILTER (WHERE l.status = 'active'), 0) as total_portfolio,
-          COALESCE(SUM(l.total_debt) FILTER (WHERE l.status = 'active'), 0) as total_debt,
-          COUNT(i.id) FILTER (WHERE i.status = 'overdue') as overdue_count,
-          COALESCE(SUM(i.amount - i.paid_amount) FILTER (WHERE i.status = 'overdue'), 0) as overdue_amount,
-          COUNT(v.id) FILTER (WHERE v.status = 'pending_investor_review') as pending_investor_vouchers,
-          COUNT(v.id) FILTER (WHERE v.status IN ('pending_admin_review', 'investor_approved')) as pending_admin_vouchers
+          COALESCE(SUM(l.total_debt) FILTER (WHERE l.status = 'active'), 0) as total_debt
         FROM ${loans} l
-        LEFT JOIN ${installments} i ON i.loan_id = l.id AND l.deleted_at IS NULL AND l.status <> 'deleted'
-        LEFT JOIN ${paymentVouchers} v ON v.loan_id = l.id AND v.deleted_at IS NULL AND v.status <> 'deleted'
         WHERE l.deleted_at IS NULL AND l.status <> 'deleted'
+      ),
+      installment_agg AS (
+        SELECT
+          COUNT(*) FILTER (WHERE i.status = 'overdue') as overdue_count,
+          COALESCE(SUM(i.amount - i.paid_amount) FILTER (WHERE i.status = 'overdue'), 0) as overdue_amount
+        FROM ${installments} i
+        INNER JOIN ${loans} l ON l.id = i.loan_id
+        WHERE l.deleted_at IS NULL AND l.status <> 'deleted'
+      ),
+      voucher_agg AS (
+        SELECT
+          COUNT(*) FILTER (WHERE v.status = 'pending_investor_review') as pending_investor_vouchers,
+          COUNT(*) FILTER (WHERE v.status IN ('pending_admin_review', 'investor_approved')) as pending_admin_vouchers
+        FROM ${paymentVouchers} v
+        INNER JOIN ${loans} l ON l.id = v.loan_id
+        WHERE l.deleted_at IS NULL AND l.status <> 'deleted'
+          AND v.deleted_at IS NULL AND v.status <> 'deleted'
       )
-      SELECT * FROM dashboard_agg
+      SELECT * FROM loan_agg, installment_agg, voucher_agg
     `);
 
     const loanRow = (agg as unknown as Record<string, unknown>[])[0] ?? {};
