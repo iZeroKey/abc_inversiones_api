@@ -5,6 +5,7 @@ import { notifications } from "../../db/schema/notifications.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { realtimeService } from "../../realtime/websocket.service.js";
 import { sendError, sendSuccess } from "../../utils/response.util.js";
+import { parsePositiveInt } from "../../utils/validation.util.js";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -14,20 +15,6 @@ const getQueryValue = (value: unknown): string | undefined => {
   if (typeof value === "string") return value;
   if (Array.isArray(value) && typeof value[0] === "string") return value[0];
   return undefined;
-};
-
-const parsePositiveInt = (
-  value: unknown,
-  defaultValue: number,
-  max?: number,
-): number => {
-  const parsed = Number.parseInt(getQueryValue(value) || "", 10);
-
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return defaultValue;
-  }
-
-  return max ? Math.min(parsed, max) : parsed;
 };
 
 export const getMyNotifications = async (

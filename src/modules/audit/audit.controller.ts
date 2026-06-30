@@ -5,6 +5,7 @@ import { auditLogs } from "../../db/schema/audit-logs.js";
 import { users } from "../../db/schema/users.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
 import { sendError, sendSuccess } from "../../utils/response.util.js";
+import { parsePositiveInt } from "../../utils/validation.util.js";
 
 const auditLogSelection = {
   id: auditLogs.id,
@@ -29,26 +30,6 @@ const auditLogSelection = {
     active: users.active,
     avatarUrl: users.avatarUrl,
   },
-};
-
-const parsePositiveInt = (
-  value: unknown,
-  fallback: number,
-  max?: number,
-): number => {
-  const raw =
-    typeof value === "string"
-      ? value
-      : Array.isArray(value) && typeof value[0] === "string"
-        ? value[0]
-        : "";
-  const parsed = Number.parseInt(raw, 10);
-
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return fallback;
-  }
-
-  return max ? Math.min(parsed, max) : parsed;
 };
 
 /**

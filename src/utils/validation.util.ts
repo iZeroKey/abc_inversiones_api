@@ -33,3 +33,23 @@ export const DateRangeFromTo = z.object({
   from: z.string().optional(),
   to: z.string().optional(),
 });
+
+export const parsePositiveInt = (
+  value: unknown,
+  fallback: number,
+  max?: number,
+): number => {
+  const raw =
+    typeof value === "string"
+      ? value
+      : Array.isArray(value) && typeof value[0] === "string"
+        ? value[0]
+        : "";
+  const parsed = Number.parseInt(raw, 10);
+
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return fallback;
+  }
+
+  return max ? Math.min(parsed, max) : parsed;
+};
