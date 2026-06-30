@@ -8,6 +8,20 @@
       "when": 1782598167452,
       "tag": "0000_lyrical_umar",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782779928000,
+      "tag": "0001_clever_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782856328000,
+      "tag": "0002_fk_indexes",
+      "breakpoints": true
     }
   ]
 }
