@@ -917,49 +917,67 @@ export const approveLoan = async (
         startDate,
       });
 
-      let installmentsList = await db
-        .select()
-        .from(installments)
-        .where(eq(installments.loanId, loan.id))
-        .orderBy(installments.installmentNumber);
+      // Early return if already active
+      if (loan.status === "active") {
+        const existing = await db
+          .select()
+          .from(installments)
+          .where(eq(installments.loanId, loan.id))
+          .orderBy(installments.installmentNumber);
 
-      if (loan.status === "active" && installmentsList.length > 0) {
-        const responseLoan = await selectLoanWithParticipantsById(loan.id);
-        sendSuccess(res, 200, "Préstamo ya se encuentra activo", {
-          loan: responseLoan || loan,
-          installments: installmentsList,
-        });
-        return;
+        if (existing.length > 0) {
+          const responseLoan = await selectLoanWithParticipantsById(loan.id);
+          sendSuccess(res, 200, "Préstamo ya se encuentra activo", {
+            loan: responseLoan || loan,
+            installments: existing,
+          });
+          return;
+        }
       }
 
-      const totalDebt =
-        installmentsList.length > 0
-          ? Number(loan.totalDebt)
-          : schedule.totalDebt;
+      // Transacción atómica: crear cuotas + activar préstamo
+      const { installmentsList, updated } = await db.transaction(async (tx) => {
+        const existing = await tx
+          .select()
+          .from(installments)
+          .where(eq(installments.loanId, loan.id))
+          .orderBy(installments.installmentNumber);
 
-      if (installmentsList.length === 0) {
-        installmentsList = await db
-          .insert(installments)
-          .values(schedule.installments)
+        const totalDebt =
+          existing.length > 0
+            ? Number(loan.totalDebt)
+            : schedule.totalDebt;
+
+        const list =
+          existing.length > 0
+            ? existing
+            : await tx
+                .insert(installments)
+                .values(schedule.installments)
+                .returning();
+
+        const [updatedLoan] = await tx
+          .update(loans)
+          .set({
+            status: "active",
+            totalDebt: totalDebt.toFixed(2),
+            updatedAt: new Date(),
+          })
+          .where(eq(loans.id, id))
           .returning();
-      }
 
-      const [updated] = await db
-        .update(loans)
-        .set({
-          status: "active",
-          totalDebt: totalDebt.toFixed(2),
-          updatedAt: new Date(),
-        })
-        .where(eq(loans.id, id))
-        .returning();
+        const loanTotalDebt = totalDebt.toFixed(2);
+        return { installmentsList: list, updated: updatedLoan, totalDebt: loanTotalDebt };
+      });
+
+      const loanTotalDebt = updated.totalDebt;
 
       await logAudit({
         userId: user.id,
         action: "ADMIN_APPROVE_LOAN",
         module: "LOANS",
         entityId: id,
-        newData: { status: "active", totalDebt: totalDebt.toFixed(2) },
+        newData: { status: "active", totalDebt: loanTotalDebt },
         req,
       });
 
