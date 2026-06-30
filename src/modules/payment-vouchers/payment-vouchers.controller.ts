@@ -746,9 +746,9 @@ export const deleteVoucher = async (
       .where(eq(paymentVouchers.id, id))
       .returning();
 
-    // Eliminar archivo de storage
-    if (deletedVoucher.evidenceUrl) {
-      await deleteStorageReference(deletedVoucher.evidenceUrl).catch(console.error);
+    // Eliminar archivo de storage (usar el valor original, no el del RETURNING)
+    if (voucher.evidenceUrl) {
+      await deleteStorageReference(voucher.evidenceUrl).catch(console.error);
       await db.update(paymentVouchers)
         .set({ evidenceUrl: null })
         .where(eq(paymentVouchers.id, id));
