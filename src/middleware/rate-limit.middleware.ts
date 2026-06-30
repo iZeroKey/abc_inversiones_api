@@ -12,6 +12,9 @@ type RateLimitEntry = {
   resetAt: number;
 };
 
+const MAX_BUCKETS = 10_000;
+const CLEANUP_INTERVAL_MS = 60_000;
+
 const buckets = new Map<string, RateLimitEntry>();
 const isTest = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
 
@@ -21,10 +24,47 @@ const getClientKey = (req: Request): string => {
     ? forwardedFor[0]
     : forwardedFor?.split(",")[0];
 
-  return `${req.method}:${req.originalUrl.split("?")[0]}:${forwardedIp?.trim() || req.ip || req.socket.remoteAddress || "unknown"}`;
+  const path = req.originalUrl?.split("?")[0] ?? req.path;
+  return `${req.method}:${path}:${forwardedIp?.trim() || req.ip || req.socket.remoteAddress || "unknown"}`;
+};
+
+const cleanupExpiredBuckets = (): void => {
+  const now = Date.now();
+  if (buckets.size < MAX_BUCKETS * 0.9) {
+    for (const [key, entry] of buckets) {
+      if (entry.resetAt <= now) {
+        buckets.delete(key);
+      }
+    }
+    return;
+  }
+
+  const sorted = [...buckets.entries()].sort(
+    ([_a, entryA], [_b, entryB]) => entryA.resetAt - entryB.resetAt,
+  );
+
+  const toEvict = sorted.slice(0, Math.max(sorted.length - MAX_BUCKETS, 0));
+  for (const [key] of toEvict) {
+    buckets.delete(key);
+  }
+
+  for (const [key, entry] of buckets) {
+    if (entry.resetAt <= now) {
+      buckets.delete(key);
+    }
+  }
+};
+
+let cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+const startCleanupTimer = (): void => {
+  if (cleanupTimer || isTest) return;
+  cleanupTimer = setInterval(cleanupExpiredBuckets, CLEANUP_INTERVAL_MS);
+  cleanupTimer.unref();
 };
 
 export const rateLimit = (options: RateLimitOptions) => {
+  startCleanupTimer();
   return (req: Request, res: Response, next: NextFunction): void => {
     if (isTest) {
       next();
