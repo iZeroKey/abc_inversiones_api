@@ -167,7 +167,7 @@ export const deleteFile = async (
   const { error } = await supabaseAdmin.storage.from(bucket).remove([filePath]);
 
   if (error) {
-    console.error(`[Storage Delete Error]: ${error.message}`);
+    logger.error({ err: error.message }, "Error eliminando archivo de storage");
   }
 };
 

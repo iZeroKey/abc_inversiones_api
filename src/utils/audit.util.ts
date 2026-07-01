@@ -1,7 +1,10 @@
 import { Request } from "express";
+import { createChildLogger } from "../config/logger.js";
 import { db } from "../config/db.js";
 import { auditLogs } from "../db/schema/audit-logs.js";
 import { emitAuditDomainEvent } from "./realtime.util.js";
+
+const logger = createChildLogger("audit");
 
 export interface AuditParams {
   userId?: string;
@@ -48,7 +51,7 @@ export const logAudit = async (params: AuditParams) => {
       });
     }
   } catch (error) {
-    console.error("[AuditLog Error]:", error);
+    logger.error({ err: error }, "Error registrando auditoría");
     // No lanzamos error para no detener el flujo principal del negocio
   }
 };

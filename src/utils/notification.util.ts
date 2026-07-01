@@ -1,6 +1,9 @@
+import { createChildLogger } from "../config/logger.js";
 import { db } from "../config/db.js";
 import { notifications } from "../db/schema/notifications.js";
 import { realtimeService } from "../realtime/websocket.service.js";
+
+const logger = createChildLogger("notification");
 
 export interface NotificationParams {
   userId: string;
@@ -36,7 +39,7 @@ export const sendNotification = async (params: NotificationParams) => {
 
     return newNotification;
   } catch (error) {
-    console.error("[Notification Error]:", error);
+    logger.error({ err: error }, "Error enviando notificación");
     // No lanzamos error para no romper el flujo principal
   }
 };

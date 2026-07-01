@@ -26,7 +26,7 @@ import { PaginationParamsMax } from "../../utils/validation.util.js";
 import {
   PaymentBusinessError,
   processPaymentLogicInTransaction,
-  recalculateLoanLedger,
+  recalculateLoanLedgerInTransaction,
 } from "../payments/payments.service.js";
 import {
   createVoucherSchema,
@@ -649,17 +649,19 @@ export const updateVoucher = async (
 
       if (payment && !payment.deletedAt) {
         relatedPaymentId = payment.id;
-        await db
-          .update(payments)
-          .set({
-            amount: updatedVoucher.amount,
-            paymentDate: updatedVoucher.operationDate || payment.paymentDate,
-            reference: updatedVoucher.operationId,
-            observation: updatedVoucher.observation,
-            updatedAt: new Date(),
-          })
-          .where(eq(payments.id, payment.id));
-        recalculated = await recalculateLoanLedger(voucher.loanId);
+        recalculated = await db.transaction(async (tx) => {
+          await tx
+            .update(payments)
+            .set({
+              amount: updatedVoucher.amount,
+              paymentDate: updatedVoucher.operationDate || payment.paymentDate,
+              reference: updatedVoucher.operationId,
+              observation: updatedVoucher.observation,
+              updatedAt: new Date(),
+            })
+            .where(eq(payments.id, payment.id));
+          return await recalculateLoanLedgerInTransaction(tx, voucher.loanId);
+        });
       }
     }
 
@@ -766,15 +768,17 @@ export const deleteVoucher = async (
 
       if (payment && !payment.deletedAt) {
         relatedPaymentId = payment.id;
-        await db
-          .update(payments)
-          .set({
-            status: "reversed",
-            deletedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(payments.id, payment.id));
-        recalculated = await recalculateLoanLedger(voucher.loanId);
+        recalculated = await db.transaction(async (tx) => {
+          await tx
+            .update(payments)
+            .set({
+              status: "reversed",
+              deletedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(payments.id, payment.id));
+          return await recalculateLoanLedgerInTransaction(tx, voucher.loanId);
+        });
       }
     }
 

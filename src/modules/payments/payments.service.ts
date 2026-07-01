@@ -43,7 +43,7 @@ const fromCents = (value: number): string => {
 
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-const recalculateLoanLedgerInTransaction = async (
+export const recalculateLoanLedgerInTransaction = async (
   tx: DbTransaction,
   loanId: string,
 ) => {

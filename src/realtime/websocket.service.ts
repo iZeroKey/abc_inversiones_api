@@ -68,13 +68,20 @@ class RealtimeService {
   private readonly socketsByUser = new Map<string, Set<WebSocket>>();
   private readonly userBySocket = new Map<WebSocket, string>();
   private readonly socketUsers = new Map<WebSocket, SocketUser>();
+  private connectionCount = 0;
+  private readonly MAX_CONNECTIONS = 1000;
+  private readonly MAX_PAYLOAD_BYTES = 256 * 1024;
 
   attach(server: Server): void {
     if (this.wss) {
       return;
     }
 
-    this.wss = new WebSocketServer({ server, path: "/ws" });
+    this.wss = new WebSocketServer({
+      server,
+      path: "/ws",
+      maxPayload: this.MAX_PAYLOAD_BYTES,
+    });
     this.wss.on("connection", (socket) => {
       this.handleConnection(socket);
     });
@@ -169,6 +176,15 @@ class RealtimeService {
   }
 
   private handleConnection(socket: WebSocket): void {
+    if (this.connectionCount >= this.MAX_CONNECTIONS) {
+      socket.close(1013, "Demasiadas conexiones");
+      return;
+    }
+
+    this.connectionCount++;
+    socket.on("close", () => { this.connectionCount--; });
+    socket.on("error", () => { this.connectionCount--; });
+
     this.safeSend(socket, {
       type: "connected",
       data: {

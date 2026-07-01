@@ -117,6 +117,34 @@ const canUseAdministrativeUpdate = (
   );
 };
 
+type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+const movePendingInvestorVouchersToAdminReviewInTransaction = async (
+  tx: DbTransaction,
+  investorId: string,
+): Promise<number> => {
+  const updated = await tx
+    .update(paymentVouchers)
+    .set({
+      status: "pending_admin_review",
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(paymentVouchers.status, "pending_investor_review"),
+        sql`EXISTS (
+        SELECT 1
+        FROM ${loans}
+        WHERE ${loans.id} = ${paymentVouchers.loanId}
+          AND ${loans.investorId} = ${investorId}
+      )`,
+      ),
+    )
+    .returning({ id: paymentVouchers.id });
+
+  return updated.length;
+};
+
 const movePendingInvestorVouchersToAdminReview = async (
   investorId: string,
 ): Promise<number> => {
@@ -421,19 +449,23 @@ export const updateUser = async (
       "active" in updateData &&
       updateData.active === false;
 
-    const [updatedUser] = await db
-      .update(users)
-      .set({
-        ...updateData,
-        publicCode,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, id))
-      .returning();
+    const { updatedUser, movedVouchers } = await db.transaction(async (tx) => {
+      const [updatedUser] = await tx
+        .update(users)
+        .set({
+          ...updateData,
+          publicCode,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, id))
+        .returning();
 
-    const movedVouchers = isRemovingInvestorAccess
-      ? await movePendingInvestorVouchersToAdminReview(id)
-      : 0;
+      const movedVouchers = isRemovingInvestorAccess
+        ? await movePendingInvestorVouchersToAdminReviewInTransaction(tx, id)
+        : 0;
+
+      return { updatedUser, movedVouchers };
+    });
 
     await logAudit({
       userId: currentUser.id,
@@ -689,20 +721,24 @@ export const deleteUser = async (
       return;
     }
 
-    const [deletedUser] = await db
-      .update(users)
-      .set({
-        active: false,
-        deletedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, id))
-      .returning();
+    const { deletedUser, movedVouchers } = await db.transaction(async (tx) => {
+      const [deletedUser] = await tx
+        .update(users)
+        .set({
+          active: false,
+          deletedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, id))
+        .returning();
 
-    const movedVouchers =
-      targetUser.role === "investor"
-        ? await movePendingInvestorVouchersToAdminReview(id)
-        : 0;
+      const movedVouchers =
+        targetUser.role === "investor"
+          ? await movePendingInvestorVouchersToAdminReviewInTransaction(tx, id)
+          : 0;
+
+      return { deletedUser, movedVouchers };
+    });
 
     await logAudit({
       userId: req.user!.id,

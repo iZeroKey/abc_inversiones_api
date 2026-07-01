@@ -34,7 +34,7 @@ export const createLoanSchema = z.object({
     offset: true,
   }),
   observation: z.string().optional(),
-});
+}).strict();
 
 export const updateLoanStatusSchema = z.object({
   status: z.enum([

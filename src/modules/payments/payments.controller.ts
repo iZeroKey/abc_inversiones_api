@@ -20,7 +20,7 @@ import { createPaymentSchema, updatePaymentSchema } from "./payments.schema.js";
 import {
   PaymentBusinessError,
   processPaymentLogic,
-  recalculateLoanLedger,
+  recalculateLoanLedgerInTransaction,
 } from "./payments.service.js";
 
 export const registerPayment = async (
@@ -215,19 +215,22 @@ export const updatePayment = async (
       return;
     }
 
-    const [updatedPayment] = await db
-      .update(payments)
-      .set({
-        ...validation.data,
-        paymentDate: validation.data.paymentDate
-          ? new Date(validation.data.paymentDate)
-          : undefined,
-        updatedAt: new Date(),
-      })
-      .where(eq(payments.id, id))
-      .returning();
+    const { updatedPayment, recalculated } = await db.transaction(async (tx) => {
+      const [updatedPayment] = await tx
+        .update(payments)
+        .set({
+          ...validation.data,
+          paymentDate: validation.data.paymentDate
+            ? new Date(validation.data.paymentDate)
+            : undefined,
+          updatedAt: new Date(),
+        })
+        .where(eq(payments.id, id))
+        .returning();
 
-    const recalculated = await recalculateLoanLedger(oldPayment.loanId);
+      const recalculated = await recalculateLoanLedgerInTransaction(tx, oldPayment.loanId);
+      return { updatedPayment, recalculated };
+    });
 
     await logAudit({
       userId: req.user!.id,
@@ -285,17 +288,20 @@ export const deletePayment = async (
       return;
     }
 
-    const [deletedPayment] = await db
-      .update(payments)
-      .set({
-        deletedAt: new Date(),
-        status: "reversed",
-        updatedAt: new Date(),
-      })
-      .where(eq(payments.id, id))
-      .returning();
+    const { deletedPayment, recalculated } = await db.transaction(async (tx) => {
+      const [deletedPayment] = await tx
+        .update(payments)
+        .set({
+          deletedAt: new Date(),
+          status: "reversed",
+          updatedAt: new Date(),
+        })
+        .where(eq(payments.id, id))
+        .returning();
 
-    const recalculated = await recalculateLoanLedger(oldPayment.loanId);
+      const recalculated = await recalculateLoanLedgerInTransaction(tx, oldPayment.loanId);
+      return { deletedPayment, recalculated };
+    });
 
     await logAudit({
       userId: req.user!.id,
