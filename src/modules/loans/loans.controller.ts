@@ -678,9 +678,33 @@ export const getSummary = async (
         .select({
           investedAmount: sql<string>`sum(${loans.principal})`,
           expectedRevenue: sql<string>`sum(${loans.totalDebt})`,
+          activeLoans: sql<number>`count(*)`,
         })
         .from(loans)
         .where(and(eq(loans.investorId, user.id), eq(loans.status, "active")));
+
+      const [paidLoansCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(loans)
+        .where(
+          and(
+            eq(loans.investorId, user.id),
+            eq(loans.status, "paid"),
+          ),
+        );
+
+      const [paidAmount] = await db
+        .select({ totalPaid: sql<string>`coalesce(sum(${payments.amount}), '0')` })
+        .from(payments)
+        .innerJoin(loans, eq(loans.id, payments.loanId))
+        .where(
+          and(
+            eq(loans.investorId, user.id),
+            eq(loans.status, "paid"),
+            eq(payments.status, "confirmed"),
+            isNull(payments.deletedAt),
+          ),
+        );
 
       const [overdueStats] = await db
         .select({
@@ -699,6 +723,9 @@ export const getSummary = async (
 
       sendSuccess(res, 200, "Resumen de inversiones", {
         ...stats,
+        totalDebt: stats.expectedRevenue,
+        paidLoans: paidLoansCount.count,
+        totalPaid: paidAmount.totalPaid,
         overdue: overdueStats || { overdueCount: 0, overdueAmount: "0" },
       });
     } else {
@@ -712,7 +739,36 @@ export const getSummary = async (
         .leftJoin(installments, eq(loans.id, installments.loanId))
         .where(eq(loans.status, "active"));
 
-      sendSuccess(res, 200, "Dashboard administrativo", stats);
+      const [paidStats] = await db
+        .select({
+          paidLoans: sql<number>`count(*)`,
+        })
+        .from(loans)
+        .where(eq(loans.status, "paid"));
+
+      const [totalPaidResult] = await db
+        .select({
+          totalPaid: sql<string>`coalesce(sum(${payments.amount}), '0')`,
+        })
+        .from(payments)
+        .innerJoin(loans, eq(loans.id, payments.loanId))
+        .where(
+          and(
+            eq(payments.status, "confirmed"),
+            isNull(payments.deletedAt),
+          ),
+        );
+
+      sendSuccess(res, 200, "Dashboard administrativo", {
+        totalActiveLoans: stats.totalActiveLoans,
+        activeLoans: stats.totalActiveLoans,
+        totalPortfolio: stats.totalPortfolio,
+        totalDebt: stats.totalPortfolio,
+        overdueGlobal: stats.overdueGlobal,
+        overdueAmount: stats.overdueGlobal,
+        paidLoans: paidStats.paidLoans,
+        totalPaid: totalPaidResult.totalPaid,
+      });
     }
   } catch (error) {
     sendError(res, 500, "Error al obtener resumen", error);
