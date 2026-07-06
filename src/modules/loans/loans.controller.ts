@@ -130,6 +130,23 @@ const getInstallmentAggregation = async (
   );
 };
 
+const attachParticipantAvatars = async <T extends Record<string, unknown>>(loansData: T[]): Promise<T[]> => {
+  const participants: Record<string, unknown>[] = [];
+  for (const loan of loansData) {
+    if (loan.client) participants.push(loan.client as Record<string, unknown>);
+    if (loan.investor) participants.push(loan.investor as Record<string, unknown>);
+  }
+  if (participants.length === 0) return loansData;
+  const signedParticipants = await attachSignedUrls(participants, "avatarUrl", "avatars");
+  let pIdx = 0;
+  return loansData.map((loan) => {
+    const newLoan = { ...loan };
+    if (newLoan.client) (newLoan as any).client = signedParticipants[pIdx++];
+    if (newLoan.investor) (newLoan as any).investor = signedParticipants[pIdx++];
+    return newLoan;
+  });
+};
+
 const selectLoanWithParticipantsById = async (id: string) => {
   const [loan] = await db
     .select(loanWithParticipantsSelection)
@@ -139,7 +156,9 @@ const selectLoanWithParticipantsById = async (id: string) => {
     .where(eq(loans.id, id))
     .limit(1);
 
-  return loan;
+  if (!loan) return null;
+  const [signedLoan] = await attachParticipantAvatars([loan]);
+  return signedLoan;
 };
 
 export const createLoan = async (
@@ -518,7 +537,9 @@ export const getAllLoans = async (
       };
     });
 
-    sendSuccess(res, 200, "Préstamos obtenidos", enrichedResults, {
+    const finalResults = await attachParticipantAvatars(enrichedResults);
+
+    sendSuccess(res, 200, "Préstamos obtenidos", finalResults, {
       pagination: {
         page,
         limit,
