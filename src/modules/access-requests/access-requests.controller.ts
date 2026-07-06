@@ -76,9 +76,9 @@ export const getAllRequests = async (
     const conditions: SQL[] = [];
 
     if (roleRequested)
-      conditions.push(eq(accessRequests.roleRequested, roleRequested as string));
+      conditions.push(eq(accessRequests.roleRequested, roleRequested as "client" | "investor"));
     if (status)
-      conditions.push(eq(accessRequests.status, status as string));
+      conditions.push(eq(accessRequests.status, status as "pending" | "in_review" | "approved" | "rejected"));
 
     const searchTerm =
       typeof search === "string"

@@ -6,7 +6,6 @@ import {
   ilike,
   isNull,
   lt,
-  ne,
   or,
   sql,
   type SQL,
@@ -16,7 +15,6 @@ import { Response } from "express";
 import { db } from "../../config/db.js";
 import { installments } from "../../db/schema/installments.js";
 import { loans } from "../../db/schema/loans.js";
-import { paymentVouchers } from "../../db/schema/payment-vouchers.js";
 import { payments } from "../../db/schema/payments.js";
 import { users } from "../../db/schema/users.js";
 import { AuthRequest } from "../../middleware/auth.middleware.js";
@@ -29,8 +27,8 @@ import {
   sendError,
   sendSuccess,
 } from "../../utils/response.util.js";
-import { PaginationParamsMax } from "../../utils/validation.util.js";
 import { attachSignedUrls } from "../../utils/storage.util.js";
+import { PaginationParamsMax } from "../../utils/validation.util.js";
 import { recalculateLoanLedger } from "../payments/payments.service.js";
 import {
   buildInstallmentDrafts,
@@ -86,15 +84,17 @@ const loanWithParticipantsSelection = {
   clientCode: clientUsers.publicCode,
   clientName: sql<string>`concat(${clientUsers.firstName}, ' ', ${clientUsers.lastName})`,
   investorCode: investorUsers.publicCode,
-  investorName: sql<string | null>`CASE WHEN ${investorUsers.id} IS NULL THEN NULL ELSE concat(${investorUsers.firstName}, ' ', ${investorUsers.lastName}) END`,
-  client: sql<any>`json_build_object(
+  investorName: sql<
+    string | null
+  >`CASE WHEN ${investorUsers.id} IS NULL THEN NULL ELSE concat(${investorUsers.firstName}, ' ', ${investorUsers.lastName}) END`,
+  client: sql<Record<string, unknown>>`json_build_object(
     'id', ${clientUsers.id},
     'publicCode', ${clientUsers.publicCode},
     'firstName', ${clientUsers.firstName},
     'lastName', ${clientUsers.lastName},
     'avatarUrl', ${clientUsers.avatarUrl}
   )`,
-  investor: sql<any>`CASE WHEN ${investorUsers.id} IS NULL THEN NULL ELSE json_build_object(
+  investor: sql<Record<string, unknown> | null>`CASE WHEN ${investorUsers.id} IS NULL THEN NULL ELSE json_build_object(
     'id', ${investorUsers.id},
     'publicCode', ${investorUsers.publicCode},
     'firstName', ${investorUsers.firstName},
@@ -391,8 +391,8 @@ export const getAllLoans = async (
         conditions.push(
           or(
             eq(loans.status, "pending_investor_review"),
-            eq(loans.status, "pending_admin_review")
-          )!
+            eq(loans.status, "pending_admin_review"),
+          )!,
         );
       } else {
         conditions.push(
@@ -420,7 +420,10 @@ export const getAllLoans = async (
 
     if (searchTerm) {
       const searchPattern = `%${searchTerm}%`;
-      const numericTerm = searchTerm.replace(/,/g, "").replace(/\$/g, "").trim();
+      const numericTerm = searchTerm
+        .replace(/,/g, "")
+        .replace(/\$/g, "")
+        .trim();
       const numericPattern = numericTerm ? `%${numericTerm}%` : null;
 
       const searchConditions = [
@@ -437,7 +440,9 @@ export const getAllLoans = async (
       ];
 
       if (numericPattern && !isNaN(Number(numericTerm))) {
-        searchConditions.push(sql`${loans.principal}::text ILIKE ${numericPattern}`);
+        searchConditions.push(
+          sql`${loans.principal}::text ILIKE ${numericPattern}`,
+        );
       }
 
       conditions.push(or(...searchConditions)!);
@@ -698,15 +703,12 @@ export const getSummary = async (
       const [paidLoansCount] = await db
         .select({ count: sql<number>`count(*)` })
         .from(loans)
-        .where(
-          and(
-            eq(loans.investorId, user.id),
-            eq(loans.status, "paid"),
-          ),
-        );
+        .where(and(eq(loans.investorId, user.id), eq(loans.status, "paid")));
 
       const [paidAmount] = await db
-        .select({ totalPaid: sql<string>`coalesce(sum(${payments.amount}), '0')` })
+        .select({
+          totalPaid: sql<string>`coalesce(sum(${payments.amount}), '0')`,
+        })
         .from(payments)
         .innerJoin(loans, eq(loans.id, payments.loanId))
         .where(
@@ -765,10 +767,7 @@ export const getSummary = async (
         .from(payments)
         .innerJoin(loans, eq(loans.id, payments.loanId))
         .where(
-          and(
-            eq(payments.status, "confirmed"),
-            isNull(payments.deletedAt),
-          ),
+          and(eq(payments.status, "confirmed"), isNull(payments.deletedAt)),
         );
 
       sendSuccess(res, 200, "Dashboard administrativo", {
@@ -1033,9 +1032,7 @@ export const approveLoan = async (
           .orderBy(installments.installmentNumber);
 
         const totalDebt =
-          existing.length > 0
-            ? Number(loan.totalDebt)
-            : schedule.totalDebt;
+          existing.length > 0 ? Number(loan.totalDebt) : schedule.totalDebt;
 
         const list =
           existing.length > 0
@@ -1056,7 +1053,11 @@ export const approveLoan = async (
           .returning();
 
         const loanTotalDebt = totalDebt.toFixed(2);
-        return { installmentsList: list, updated: updatedLoan, totalDebt: loanTotalDebt };
+        return {
+          installmentsList: list,
+          updated: updatedLoan,
+          totalDebt: loanTotalDebt,
+        };
       });
 
       const loanTotalDebt = updated.totalDebt;
@@ -1295,8 +1296,12 @@ export const getLoanTransactions = async (
       return;
     }
 
-    if (!canAccessLoan(req.user, loan as any)) {
-      sendError(res, 403, "No tienes acceso a las transacciones de este préstamo");
+    if (!canAccessLoan(req.user, loan as unknown as typeof loans.$inferSelect)) {
+      sendError(
+        res,
+        403,
+        "No tienes acceso a las transacciones de este préstamo",
+      );
       return;
     }
 
@@ -1330,7 +1335,8 @@ export const getLoanTransactions = async (
     const countResult = await db.execute(sql`
       SELECT count(*)::int as total FROM (${unionSql}) as sub
     `);
-    const total = (countResult[0] as any).total ?? 0;
+    const countRow = countResult[0] as { total?: number };
+    const total = countRow?.total ?? 0;
 
     const dataResult = await db.execute(sql`
       ${unionSql}
@@ -1338,8 +1344,9 @@ export const getLoanTransactions = async (
       LIMIT ${limit} OFFSET ${offset}
     `);
 
-    const mappedData = dataResult.map((row: any) => {
-      const payload = typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload;
+    const mappedData = dataResult.map((row: Record<string, unknown>) => {
+      const payload =
+        typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload;
       return {
         type: row.type,
         ...payload,
@@ -1348,16 +1355,22 @@ export const getLoanTransactions = async (
       };
     });
 
-    const signedResults = await attachSignedUrls(mappedData as any);
+    const signedResults = await attachSignedUrls(mappedData as Record<string, unknown>[]);
 
-    sendSuccess(res, 200, "Historial de transacciones obtenido", signedResults, {
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.max(1, Math.ceil(total / limit)),
+    sendSuccess(
+      res,
+      200,
+      "Historial de transacciones obtenido",
+      signedResults,
+      {
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / limit)),
+        },
       },
-    });
+    );
   } catch (error) {
     sendError(res, 500, "Error al obtener las transacciones", error);
   }
