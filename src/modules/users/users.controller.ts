@@ -198,8 +198,10 @@ export const getAllUsers = async (
     const conditions: SQL[] = [sql`${users.deletedAt} IS NULL`];
 
     if (role) conditions.push(sql`${users.role} = ${role as string}`);
-    if (active !== undefined)
-      conditions.push(eq(users.active, active === "true"));
+    if (active !== undefined) {
+      if (active === "true") conditions.push(eq(users.active, true));
+      else if (active === "false") conditions.push(eq(users.active, false));
+    }
 
     const searchTerm =
       typeof search === "string"

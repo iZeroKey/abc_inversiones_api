@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { Request, Response } from "express";
 import { db } from "../../config/db.js";
 import { supabaseAdmin } from "../../config/supabase.js";
@@ -71,15 +71,47 @@ export const getAllRequests = async (
     const { page, limit } = params.data;
     const offset = (page - 1) * limit;
 
+    const { roleRequested, status, search, q } = req.query;
+
+    const conditions: SQL[] = [];
+
+    if (roleRequested)
+      conditions.push(eq(accessRequests.roleRequested, roleRequested as string));
+    if (status)
+      conditions.push(eq(accessRequests.status, status as string));
+
+    const searchTerm =
+      typeof search === "string"
+        ? search.trim()
+        : typeof q === "string"
+          ? q.trim()
+          : "";
+
+    if (searchTerm) {
+      const pattern = `%${searchTerm}%`;
+      conditions.push(
+        or(
+          ilike(accessRequests.firstName, pattern),
+          ilike(accessRequests.lastName, pattern),
+          ilike(accessRequests.email, pattern),
+          ilike(accessRequests.phone, pattern),
+        )!,
+      );
+    }
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
     const [countRow] = await db
       .select({ total: sql<number>`count(*)::int` })
-      .from(accessRequests);
+      .from(accessRequests)
+      .where(where);
 
     const total = countRow?.total ?? 0;
 
     const requests = await db
       .select()
       .from(accessRequests)
+      .where(where)
       .orderBy(desc(accessRequests.createdAt))
       .limit(limit)
       .offset(offset);
