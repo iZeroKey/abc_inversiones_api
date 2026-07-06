@@ -86,9 +86,21 @@ const loanWithParticipantsSelection = {
   clientCode: clientUsers.publicCode,
   clientName: sql<string>`concat(${clientUsers.firstName}, ' ', ${clientUsers.lastName})`,
   investorCode: investorUsers.publicCode,
-  investorName: sql<
-    string | null
-  >`CASE WHEN ${investorUsers.id} IS NULL THEN NULL ELSE concat(${investorUsers.firstName}, ' ', ${investorUsers.lastName}) END`,
+  investorName: sql<string | null>`CASE WHEN ${investorUsers.id} IS NULL THEN NULL ELSE concat(${investorUsers.firstName}, ' ', ${investorUsers.lastName}) END`,
+  client: sql<any>`json_build_object(
+    'id', ${clientUsers.id},
+    'publicCode', ${clientUsers.publicCode},
+    'firstName', ${clientUsers.firstName},
+    'lastName', ${clientUsers.lastName},
+    'avatarUrl', ${clientUsers.avatarUrl}
+  )`,
+  investor: sql<any>`CASE WHEN ${investorUsers.id} IS NULL THEN NULL ELSE json_build_object(
+    'id', ${investorUsers.id},
+    'publicCode', ${investorUsers.publicCode},
+    'firstName', ${investorUsers.firstName},
+    'lastName', ${investorUsers.lastName},
+    'avatarUrl', ${investorUsers.avatarUrl}
+  ) END`,
 };
 
 const getInstallmentAggregation = async (
