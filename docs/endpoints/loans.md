@@ -102,11 +102,21 @@ Privado (Admin, Owner)
     "publicCode": "PR-00001",
     "name": "Préstamo #PR-00001",
     "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
-    "clientCode": "CL-00001",
-    "clientName": "Juan Pérez",
+    "client": {
+      "id": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+      "publicCode": "CL-00001",
+      "firstName": "Juan",
+      "lastName": "Pérez",
+      "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+    },
     "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
-    "investorCode": "IN-00001",
-    "investorName": "María Gómez",
+    "investor": {
+      "id": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
+      "publicCode": "IN-00001",
+      "firstName": "María",
+      "lastName": "Gómez",
+      "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+    },
     "principal": "10000.00",
     "interestRate": "5.00",
     "totalDebt": "11282.52",
@@ -159,7 +169,7 @@ Privado
 | investorId | uuid   | No          | Filtrar por ID del inversionista (ignorado para inversionistas).                         |
 | from       | string | No          | Fecha ISO8601 inicial para filtrar por fecha de creación del préstamo.                   |
 | to         | string | No          | Fecha ISO8601 final para filtrar por fecha de creación del préstamo.                     |
-| search     | string | No          | Buscar coincidencia parcial en códigos públicos o nombres del cliente/inversionista.     |
+| search     | string | No          | Buscar coincidencia parcial en códigos públicos, nombres del cliente/inversionista o montos (principal). |
 | q          | string | No          | Alias para `search`.                                                                     |
 | page       | number | No          | Número de página (default: `1`).                                                         |
 | limit      | number | No          | Límite por página (default: `20`, máximo: `100`).                                        |
@@ -176,11 +186,21 @@ Privado
       "publicCode": "PR-00001",
       "name": "Préstamo #PR-00001",
       "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
-      "clientCode": "CL-00001",
-      "clientName": "Juan Pérez",
+      "client": {
+        "id": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+        "publicCode": "CL-00001",
+        "firstName": "Juan",
+        "lastName": "Pérez",
+        "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+      },
       "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
-      "investorCode": "IN-00001",
-      "investorName": "María Gómez",
+      "investor": {
+        "id": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
+        "publicCode": "IN-00001",
+        "firstName": "María",
+        "lastName": "Gómez",
+        "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+      },
       "principal": "10000.00",
       "totalDebt": "11282.52",
       "status": "active",
@@ -273,6 +293,10 @@ Privado
   "data": {
     "investedAmount": "50000.00",
     "expectedRevenue": "56412.60",
+    "activeLoans": 5,
+    "totalDebt": "56412.60",
+    "paidLoans": 2,
+    "totalPaid": "1000.00",
     "overdue": {
       "overdueCount": 2,
       "overdueAmount": "1880.42"
@@ -292,8 +316,13 @@ Privado
   "message": "Dashboard administrativo",
   "data": {
     "totalActiveLoans": 15,
+    "activeLoans": 15,
     "totalPortfolio": "150000.00",
-    "overdueGlobal": "4500.00"
+    "totalDebt": "150000.00",
+    "overdueGlobal": "4500.00",
+    "overdueAmount": "4500.00",
+    "paidLoans": 0,
+    "totalPaid": "0.00"
   },
   "meta": {
     "timestamp": "2026-05-22T04:26:00.000Z"
@@ -348,11 +377,21 @@ Privado (Cualquier participante del préstamo o Admin/Owner)
     "publicCode": "PR-00001",
     "name": "Préstamo #PR-00001",
     "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
-    "clientCode": "CL-00001",
-    "clientName": "Juan Pérez",
+    "client": {
+      "id": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+      "publicCode": "CL-00001",
+      "firstName": "Juan",
+      "lastName": "Pérez",
+      "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+    },
     "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
-    "investorCode": "IN-00001",
-    "investorName": "María Gómez",
+    "investor": {
+      "id": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
+      "publicCode": "IN-00001",
+      "firstName": "María",
+      "lastName": "Gómez",
+      "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+    },
     "principal": "10000.00",
     "interestRate": "5.00",
     "totalDebt": "11282.52",
@@ -419,11 +458,21 @@ Privado (Cualquier participante del préstamo o Admin/Owner)
       "publicCode": "PR-00001",
       "name": "Préstamo #PR-00001",
       "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
-      "clientCode": "CL-00001",
-      "clientName": "Juan Pérez",
+      "client": {
+        "id": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+        "publicCode": "CL-00001",
+        "firstName": "Juan",
+        "lastName": "Pérez",
+        "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+      },
       "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
-      "investorCode": "IN-00001",
-      "investorName": "María Gómez",
+      "investor": {
+        "id": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
+        "publicCode": "IN-00001",
+        "firstName": "María",
+        "lastName": "Gómez",
+        "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+      },
       "principal": "10000.00",
       "interestRate": "5.00",
       "totalDebt": "11282.52",
@@ -605,11 +654,21 @@ Privado (Admin, Owner)
       "id": "2bb837fa-f182-4aa8-9283-718293bc9281",
       "publicCode": "PR-00001",
       "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
-      "clientCode": "CL-00001",
-      "clientName": "Juan Pérez",
+      "client": {
+        "id": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+        "publicCode": "CL-00001",
+        "firstName": "Juan",
+        "lastName": "Pérez",
+        "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+      },
       "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
-      "investorCode": "IN-00001",
-      "investorName": "María Gómez",
+      "investor": {
+        "id": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
+        "publicCode": "IN-00001",
+        "firstName": "María",
+        "lastName": "Gómez",
+        "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+      },
       "creditDate": "2026-05-08T00:00:00.000Z",
       "principal": "10000.00",
       "frequency": "monthly",
@@ -715,11 +774,21 @@ Privado (Admin, Owner)
       "publicCode": "PR-00001",
       "name": "Préstamo #PR-00001 - Reajuste",
       "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
-      "clientCode": "CL-00001",
-      "clientName": "Juan Pérez",
+      "client": {
+        "id": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+        "publicCode": "CL-00001",
+        "firstName": "Juan",
+        "lastName": "Pérez",
+        "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+      },
       "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
-      "investorCode": "IN-00001",
-      "investorName": "María Gómez",
+      "investor": {
+        "id": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
+        "publicCode": "IN-00001",
+        "firstName": "María",
+        "lastName": "Gómez",
+        "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+      },
       "principal": "12000.00",
       "interestRate": "4.50",
       "totalDebt": "13020.30",
@@ -798,11 +867,21 @@ Privado (Admin, Owner, o Inversionista asignado)
     "publicCode": "PR-00001",
     "name": "Préstamo #PR-00001",
     "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
-    "clientCode": "CL-00001",
-    "clientName": "Juan Pérez",
+    "client": {
+      "id": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+      "publicCode": "CL-00001",
+      "firstName": "Juan",
+      "lastName": "Pérez",
+      "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+    },
     "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
-    "investorCode": "IN-00001",
-    "investorName": "María Gómez",
+    "investor": {
+      "id": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
+      "publicCode": "IN-00001",
+      "firstName": "María",
+      "lastName": "Gómez",
+      "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+    },
     "principal": "10000.00",
     "interestRate": "5.00",
     "totalDebt": "11282.52",
@@ -828,11 +907,21 @@ Privado (Admin, Owner, o Inversionista asignado)
       "publicCode": "PR-00001",
       "name": "Préstamo #PR-00001",
       "clientId": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
-      "clientCode": "CL-00001",
-      "clientName": "Juan Pérez",
+      "client": {
+        "id": "4cb37f2a-7bf3-4fb3-8182-9988ffaa0021",
+        "publicCode": "CL-00001",
+        "firstName": "Juan",
+        "lastName": "Pérez",
+        "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+      },
       "investorId": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
-      "investorCode": "IN-00001",
-      "investorName": "María Gómez",
+      "investor": {
+        "id": "19f94eb9-4fa2-47ef-ba22-87a27ebca930",
+        "publicCode": "IN-00001",
+        "firstName": "María",
+        "lastName": "Gómez",
+        "avatarUrl": "https://supabase.co/storage/v1/object/sign/avatars/..."
+      },
       "principal": "10000.00",
       "interestRate": "5.00",
       "totalDebt": "11282.52",
