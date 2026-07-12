@@ -104,10 +104,12 @@ GET /api/v1/access-requests
 
 ### Parámetros de Consulta
 
-| Campo | Tipo   | Obligatorio | Descripción                                       |
-| ----- | ------ | ----------- | ------------------------------------------------- |
-| page  | number | No          | Número de página (default: `1`).                  |
-| limit | number | No          | Límite por página (default: `20`, máximo: `100`). |
+| Campo  | Tipo   | Obligatorio | Descripción                                                                              |
+| ------ | ------ | ----------- | ---------------------------------------------------------------------------------------- |
+| page   | number | No          | Número de página (default: `1`).                                                         |
+| limit  | number | No          | Límite por página (default: `20`, máximo: `100`).                                        |
+| search | string | No          | Buscar por coincidencia parcial en firstName, lastName, email, o phone.                  |
+| q      | string | No          | Alias para search.                                                                       |
 
 ### Acceso
 
