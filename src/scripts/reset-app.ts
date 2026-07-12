@@ -29,23 +29,7 @@ const STORAGE_POLICIES = [
   "vouchers_client_manage_own",
 ] as const;
 
-const APP_TABLES = [
-  "notifications",
-  "audit_logs",
-  "payment_vouchers",
-  "payments",
-  "installments",
-  "loans",
-  "access_requests",
-  "users",
-] as const;
 
-const APP_SEQUENCES = [
-  "loan_public_code_seq",
-  "client_public_code_seq",
-  "investor_public_code_seq",
-  "admin_public_code_seq",
-] as const;
 
 const isBucketNotFoundError = (message?: string): boolean => {
   if (!message) {
@@ -191,20 +175,37 @@ async function resetApp(): Promise<void> {
   console.log("   Políticas de Storage eliminadas.");
 
   console.log("\n4) Eliminando tablas de la app...");
-  for (const tableName of APP_TABLES) {
+  const tables = await queryClient.unsafe(
+    `SELECT tablename FROM pg_tables WHERE schemaname = 'public';`
+  );
+  for (const row of tables) {
     await queryClient.unsafe(
-      `DROP TABLE IF EXISTS public.${tableName} CASCADE;`,
+      `DROP TABLE IF EXISTS public."${row.tablename}" CASCADE;`
     );
   }
   console.log("   Tablas eliminadas.");
 
-  console.log("\n5) Eliminando secuencias de códigos públicos...");
-  for (const sequenceName of APP_SEQUENCES) {
+  console.log("\n5) Eliminando secuencias...");
+  const sequences = await queryClient.unsafe(
+    `SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public';`
+  );
+  for (const row of sequences) {
     await queryClient.unsafe(
-      `DROP SEQUENCE IF EXISTS public.${sequenceName} CASCADE;`,
+      `DROP SEQUENCE IF EXISTS public."${row.sequence_name}" CASCADE;`
     );
   }
   console.log("   Secuencias eliminadas.");
+
+  console.log("\n6) Eliminando tipos (enums)...");
+  const enums = await queryClient.unsafe(
+    `SELECT t.typname FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typtype = 'e';`
+  );
+  for (const row of enums) {
+    await queryClient.unsafe(
+      `DROP TYPE IF EXISTS public."${row.typname}" CASCADE;`
+    );
+  }
+  console.log("   Tipos eliminados.");
 
   console.log("\nReseteo completo finalizado.");
   await queryClient.end();
