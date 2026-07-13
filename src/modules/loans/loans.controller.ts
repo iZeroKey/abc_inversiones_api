@@ -767,11 +767,10 @@ export const getSummary = async (
       const [stats] = await db
         .select({
           totalActiveLoans: sql<number>`count(*)`,
-          totalPortfolio: sql<string>`sum(${loans.principal})`,
-          overdueGlobal: sql<string>`sum(CASE WHEN ${installments.dueDate} < ${now.toISOString()} AND ${installments.status} = 'pending' THEN ${installments.amount} - ${installments.paidAmount} ELSE 0 END)`,
+          totalPortfolio: sql<string>`coalesce(sum(${loans.principal}), '0')`,
+          totalDebt: sql<string>`coalesce(sum(${loans.totalDebt}), '0')`,
         })
         .from(loans)
-        .leftJoin(installments, eq(loans.id, installments.loanId))
         .where(eq(loans.status, "active"));
 
       const [paidStats] = await db
@@ -791,13 +790,27 @@ export const getSummary = async (
           and(eq(payments.status, "confirmed"), isNull(payments.deletedAt)),
         );
 
+      const [overdueStats] = await db
+        .select({
+          overdueGlobal: sql<string>`coalesce(sum(${installments.amount} - ${installments.paidAmount}), '0')`,
+        })
+        .from(installments)
+        .innerJoin(loans, eq(loans.id, installments.loanId))
+        .where(
+          and(
+            eq(loans.status, "active"),
+            eq(installments.status, "pending"),
+            lt(installments.dueDate, now),
+          ),
+        );
+
       sendSuccess(res, 200, "Dashboard administrativo", {
         totalActiveLoans: stats.totalActiveLoans,
         activeLoans: stats.totalActiveLoans,
         totalPortfolio: stats.totalPortfolio,
-        totalDebt: stats.totalPortfolio,
-        overdueGlobal: stats.overdueGlobal,
-        overdueAmount: stats.overdueGlobal,
+        totalDebt: stats.totalDebt,
+        overdueGlobal: overdueStats.overdueGlobal,
+        overdueAmount: overdueStats.overdueGlobal,
         paidLoans: paidStats.paidLoans,
         totalPaid: totalPaidResult.totalPaid,
       });
