@@ -18,6 +18,9 @@ const CLEANUP_INTERVAL_MS = 60_000;
 const buckets = new Map<string, RateLimitEntry>();
 const isTest = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
 
+// TODO: Re-enable rate limiting after production testing is complete
+const RATE_LIMIT_DISABLED = true;
+
 const getClientKey = (req: Request): string => {
   const forwardedFor = req.headers["x-forwarded-for"];
   const forwardedIp = Array.isArray(forwardedFor)
@@ -66,7 +69,7 @@ const startCleanupTimer = (): void => {
 export const rateLimit = (options: RateLimitOptions) => {
   startCleanupTimer();
   return (req: Request, res: Response, next: NextFunction): void => {
-    if (isTest) {
+    if (isTest || RATE_LIMIT_DISABLED) {
       next();
       return;
     }
